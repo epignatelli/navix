@@ -17,19 +17,23 @@ class Component(struct.PyTreeNode):
 
 
 class Timestep(struct.PyTreeNode):
-    t: int
+    t: Array
     observation: Array
     action: Array
     reward: Array
-    step_type: int
+    step_type: Array
     state: State
     info: Dict[str, Any] = struct.field(default_factory=dict)
 
 
 class State(struct.PyTreeNode):
+    """The Markovian state of the environment"""
     key: KeyArray
+    """The random number generator state"""
     grid: Array
-    entities: Dict[int, Any]
+    """The mesh containing the positions the entities"""
+    entities: Dict[str, Component]
+    """The entities in the environment"""
 
 
 class StepType(IntEnum):
@@ -39,4 +43,3 @@ class StepType(IntEnum):
     """discount > 0, episode ends"""
     TERMINATION = 2
     """discount == 0, episode ends"""
-

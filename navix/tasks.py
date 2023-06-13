@@ -18,8 +18,9 @@ def navigation(state: State, prob: ArrayLike = 1.0) -> Array:
         condition,
         lambda _: jnp.sum(player_mask * goal_mask),
         lambda _: jnp.asarray(0.0),
-        ()
+        (),
     )
+
 
 def free(state: State) -> Array:
     return jnp.asarray(0.0)

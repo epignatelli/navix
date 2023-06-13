@@ -8,12 +8,7 @@ from .components import State
 from .grid import mask_entity, remove_entity
 
 
-DIRECTIONS = {
-    0: "east",
-    1: "south",
-    2: "west",
-    3: "north"
-}
+DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
@@ -23,51 +18,58 @@ def _rotate(state: State, spin: int) -> State:
     state.entities["player/0"] = player
     return state
 
-def _move(state: State, entity_id: id, direction: int) -> State:
+
+def _move(state: State, entity_id: int, direction: int) -> State:
     moves = (
-        lambda x: jnp.roll(x, 1, axis=1),
-        lambda x: jnp.roll(x, -1, axis=0),
-        lambda x: jnp.roll(x, -1, axis=1),
-        lambda x: jnp.roll(x, 1, axis=0),
+        lambda x: jnp.roll(x, 1, axis=1),  # east
+        lambda x: jnp.roll(x, 1, axis=0),  # south
+        lambda x: jnp.roll(x, -1, axis=1),  # west
+        lambda x: jnp.roll(x, -1, axis=0),  # north
     )
     mask = mask_entity(state.grid, entity_id)
     new_mask = jax.lax.switch(direction, moves, mask)
 
     grid = remove_entity(state.grid, entity_id)
     grid = jnp.where(new_mask, entity_id, grid)
-    # TODO(epignatelli): handle void collisions
+    # TODO(epignatelli): handle collisions
     return state.replace(grid=grid)
+
 
 def noop(state: State) -> State:
     return state
 
+
 def rotate_cw(state: State) -> State:
     return _rotate(state, 1)
+
 
 def rotate_ccw(state: State) -> State:
     return _rotate(state, -1)
 
+
 def forward(state: State) -> State:
-    print("forward")
-    print(state)
     entity_id = state.entities["player/0"].id
     direction = state.entities["player/0"].direction
     return _move(state, entity_id, direction)
 
+
 def right(state: State) -> State:
     entity_id = state.entities["player/0"].id
-    direction = (state.entities["player/0"].direction + 1) % 3
+    direction = state.entities["player/0"].direction + 1
     return _move(state, entity_id, direction)
+
 
 def backward(state: State) -> State:
     entity_id = state.entities["player/0"].id
-    direction = (state.entities["player/0"].direction + 2) % 3
+    direction = state.entities["player/0"].direction + 2
     return _move(state, entity_id, direction)
+
 
 def left(state: State) -> State:
     entity_id = state.entities["player/0"].id
-    direction = (state.entities["player/0"].direction - 1) % 3
+    direction = state.entities["player/0"].direction + 3
     return _move(state, entity_id, direction)
+
 
 ACTIONS = {
     0: noop,

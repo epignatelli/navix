@@ -12,7 +12,7 @@ jobs:
     steps:
     - uses: actions/add-to-project@v0.4.0
       with:
-        project-url: https://github.com/users/epignatelli/projects/8
+        project-url: https://github.com/users/epignatelli/projects/15
         github-token: ${{ secrets.TRIAGE_KEY }}
   assign-assignee:
     runs-on: ubuntu-latest
