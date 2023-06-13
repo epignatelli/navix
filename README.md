@@ -5,7 +5,7 @@
 [![CD](https://github.com/epignatelli/navix/actions/workflows/CD.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CD.yml)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/epignatelli/navix?color=%23216477&label=Release)
 
-** [Quickstart](#what-is-navix) | [Installation](#installation) | [Examples](#examples) | [Cite](#cite) **
+**[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
 # What is Navix?
 Navix is [minigrid](https://github.com/Farama-Foundation/Minigrid) in jax.
