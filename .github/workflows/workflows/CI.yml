@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  Test:
+    runs-on: ${{ matrix.os }}-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        os: ["ubuntu"]
+    continue-on-error: false
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    - name: Setup navix
+      run: |
+        pip install . -v
+    - name: Check code quality
+      run: |
+        pip install pylint
+        MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
+        echo "$MESSAGE"
+    - name: Run unit tests with pytest
+      run: |
+        pytest test/
+
+  Compliance:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: PEP8 Compliance
+      run: |
+        pip install pylint
+        PR_BRANCH=${{ github.event.pull_request.target.ref }}
+        MAIN_BRANCH=origin/${{ github.event.pull_request.base.ref }}
+        CURRENT_DIFF=$(git diff --name-only --diff-filter=d $MAIN_BRANCH $PR_BRANCH  | grep -E '\.py$' | tr '\n' ' ')
+        if [[ $CURRENT_DIFF == "" ]];
+          then MESSAGE="Diff is empty and there is nothing to pylint."
+        else
+          MESSAGE=$(pylint -ry --disable=E0401 $CURRENT_DIFF ||:)
+        fi
+        echo 'MESSAGE<<EOF' >> $GITHUB_ENV
+        echo "<pre><code>$MESSAGE</code></pre>" >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
+        echo "Printing PR message: $MESSAGE"
+    - uses: mshick/add-pr-comment@v2
+      with:
+        issue: ${{ github.event.pull_request.number }}
+        message: ${{ env.MESSAGE }}
+        repo-token: ${{ secrets.GITHUB_TOKEN }}

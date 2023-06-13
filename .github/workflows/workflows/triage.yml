@@ -1,0 +1,24 @@
+name: Triage
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  assign-project:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/add-to-project@v0.4.0
+      with:
+        project-url: https://github.com/users/epignatelli/projects/7
+        github-token: ${{ secrets.TRIAGE_KEY }}
+  assign-assignee:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions-ecosystem/action-add-assignees@v1
+        with:
+          github_token: ${{ secrets.TRIAGE_KEY }}
+          assignees: ${{ github.actor }}
