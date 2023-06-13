@@ -28,6 +28,7 @@ class Timestep(struct.PyTreeNode):
 
 class State(struct.PyTreeNode):
     """The Markovian state of the environment"""
+
     key: KeyArray
     """The random number generator state"""
     grid: Array

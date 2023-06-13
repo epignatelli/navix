@@ -8,17 +8,17 @@ def test_env():
     key = jax.random.PRNGKey(4)
     timestep = env.reset(key)
     actions = (
-        0, # noop sanity check
-        1, # rotate_cw
-        2, # rotate_ccw
-        3, # forward
-        5, # backward
-        4, # right
-        6, # left
-        0, # noop
-        0, # noop
-        0, # noop
-        0, # noop
+        0,  # noop sanity check
+        1,  # rotate_cw
+        2,  # rotate_ccw
+        3,  # forward
+        5,  # backward
+        4,  # right
+        6,  # left
+        0,  # noop
+        0,  # noop
+        0,  # noop
+        0,  # noop
     )
     print(timestep)
     for action in actions:
@@ -35,17 +35,17 @@ def test_jit_env():
     step = jax.jit(env.step)
     timestep = reset(key)
     actions = (
-        0, # noop sanity check
-        1, # rotate_cw
-        2, # rotate_ccw
-        3, # forward
-        5, # backward
-        4, # right
-        6, # left
-        0, # noop
-        0, # noop
-        0, # noop
-        0, # noop
+        0,  # noop sanity check
+        1,  # rotate_cw
+        2,  # rotate_ccw
+        3,  # forward
+        5,  # backward
+        4,  # right
+        6,  # left
+        0,  # noop
+        0,  # noop
+        0,  # noop
+        0,  # noop
     )
     print(timestep)
     for action in actions:
@@ -53,6 +53,7 @@ def test_jit_env():
         print()
         print(nx.actions.ACTIONS[action])
         print(timestep)
+
 
 if __name__ == "__main__":
     test_jit_env()
