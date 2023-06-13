@@ -13,17 +13,16 @@ You can see a superficial performance comparison [here](docs/profiling.ipynb).
 
 
 ## Installation
-We currently support the OSs that are supported by JAX does.
-Please follow the [JAX installation guide](https://github.com/google/jax#installation) to install the correct version of JAX for your OS.
+We currently support the OSs supported by JAX.
+You can find a description [here](https://github.com/google/jax#installation).
 
-You might want to follow the same guide to use your faviourite accelerator
+You might want to follow the same guide to install jax for your faviourite accelerator
 (e.g. [CPU](https://github.com/google/jax#pip-installation-cpu),
 [GPU](https://github.com/google/jax#pip-installation-gpu-cuda-installed-locally-harder), or
 [TPU](https://github.com/google/jax#pip-installation-colab-tpu)
 ).
 
-Then, install `navix` with:
-
+Then, install `navix` and its dependencies with:
 ```bash
 pip install navix
 ```
@@ -33,9 +32,9 @@ pip install navix
 
 ### XLA compilation
 One straightforward use case is to accelerate the computation of the environment with XLA compilation.
-For example, here we compile a full training run, and we vectorise the environment to run multiple environments in parallel.
+For example, here we vectorise the environment to run multiple environments in parallel, and compile **the full training run**.
 
-You can find a superficial performance comparison with [minigrid](https://github.com/Farama-Foundation/Minigrid) in the [docs](docs/profiling.ipynb).
+You can find a partial performance comparison with [minigrid](https://github.com/Farama-Foundation/Minigrid) in the [docs](docs/profiling.ipynb).
 
 ```python
 import jax
@@ -68,7 +67,7 @@ TODO(epignatelli): add example.
 If you use `helx` please consider citing it as:
 
 ```bibtex
-@misc{helx,
+@misc{pignatelli2023navix,
   author = {Pignatelli, Eduardo},
   title = {Navix: Accelerated gridworld navigation with JAX},
   year = {2023},
