@@ -1,0 +1,30 @@
+# patches
+patchelf  # required by mujoco (breaks without)
+swig  #  required by gym (breaks without)
+# coding
+black
+flake8
+pylint
+typing-extensions
+# testing
+pytest
+absl-py
+# compute libraries
+numpy
+jax
+jax_dataclasses
+chex
+optax
+rlax
+flax
+# logging
+wandb
+# environment suites
+dm_env
+bsuite @ git+https://github.com/deepmind/bsuite@master  # fixes https://github.com/deepmind/bsuite/issues/47
+gymnasium[all]>=0.26  # 0.26 introduced the termination/truncation API
+gym[all]>=0.26  # 0.26 introduced the termination/truncation API
+brax
+dm_control
+minigrid
+procgen
