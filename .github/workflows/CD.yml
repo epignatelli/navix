@@ -65,12 +65,12 @@ jobs:
           build
       - name: Build wheel and sdist
         run: >-
-          python -m
-          build
-          --sdist
-          --wheel
-          --outdir dist/
-          .
+          python -m build --sdist --wheel --outdir dist/ .
+      - name: Check status and tag
+        run: >-
+          git status
+          git describe
+          git describe --tags
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
