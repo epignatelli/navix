@@ -19,6 +19,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           default_bump: "minor"
           dry_run: true
+          create_annotated_tag: true
       - name: Fix tag name
         run: |
           CURRENT_TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
