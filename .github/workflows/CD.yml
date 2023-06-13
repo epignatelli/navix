@@ -20,24 +20,23 @@ jobs:
           default_bump: "minor"
           dry_run: true
           create_annotated_tag: true
+          tag_prefix: ""
       - name: Fix tag name
         run: |
-          CURRENT_TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
-          FIXED_TAG_NAME="$(echo $CURRENT_TAG_NAME | grep -Eo '([0-9]+.[0-9]+\.[0-9]+)')"
-          CHANGELOG="${{ steps.tag_version.outputs.changelog }}"
 
           echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
           echo "$CHANGELOG" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
-          echo 'FIXED_TAG_NAME<<EOF' >> $GITHUB_ENV
-          echo "$FIXED_TAG_NAME" >> $GITHUB_ENV
+          TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
+          echo 'TAG_NAME<<EOF' >> $GITHUB_ENV
+          echo "$TAG_NAME" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ env.FIXED_TAG_NAME }}
-          name: ${{ env.FIXED_TAG_NAME }}
+          tag: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
           body: ${{ env.CHANGELOG }}
 
 # see:
