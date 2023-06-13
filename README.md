@@ -1,0 +1,2 @@
+# navix
+Minigrid in jax
