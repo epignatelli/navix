@@ -58,6 +58,7 @@ bug_tracker = "https://github.com/epignatelli/navix/issues"
 
 
 [tool.setuptools.dynamic]
+version = {attr = "navix.__version__"}
 dependencies = {file = "./requirements.txt"}
 
 
@@ -68,11 +69,6 @@ exclude = ["test", "examples"]
 
 [tool.distutils.bdist_wheel]
 universal = true
-
-
-[tool.setuptools_scm]
-write_to = ".version.txt"
-
 
 
 [tool.black]

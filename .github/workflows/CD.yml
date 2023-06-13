@@ -3,44 +3,44 @@ name: CD
 on: workflow_dispatch
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.1
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: "minor"
-          dry_run: true
-          create_annotated_tag: true
-          tag_prefix: ""
-      - name: Fix tag name
-        run: |
-          echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
-          echo "$CHANGELOG" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
+  # release:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         fetch-depth: 0
+  #     - name: Bump version and push tag
+  #       id: tag_version
+  #       uses: mathieudutour/github-tag-action@v6.1
+  #       with:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         default_bump: "minor"
+  #         dry_run: true
+  #         create_annotated_tag: true
+  #         tag_prefix: ""
+  #     - name: Fix tag name
+  #       run: |
+  #         echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
+  #         echo "$CHANGELOG" >> $GITHUB_ENV
+  #         echo 'EOF' >> $GITHUB_ENV
 
-          TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
-          echo 'TAG_NAME<<EOF' >> $GITHUB_ENV
-          echo "$TAG_NAME" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-      - name: Create GitHub release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ env.TAG_NAME }}
-          name: ${{ env.TAG_NAME }}
-          body: ${{ env.CHANGELOG }}
+  #         TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
+  #         echo 'TAG_NAME<<EOF' >> $GITHUB_ENV
+  #         echo "$TAG_NAME" >> $GITHUB_ENV
+  #         echo 'EOF' >> $GITHUB_ENV
+  #     - name: Create GitHub release
+  #       uses: ncipollo/release-action@v1
+  #       with:
+  #         tag: ${{ env.TAG_NAME }}
+  #         name: ${{ env.TAG_NAME }}
+  #         body: ${{ env.CHANGELOG }}
 
 # see:
 # https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/
 # https://packaging.python.org/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
 # for
   publish:
-    needs: release
+    # needs: release
     runs-on: ubuntu-latest
     continue-on-error: true
     strategy:
