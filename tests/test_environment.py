@@ -53,3 +53,8 @@ def test_jit_env():
         print()
         print(nx.actions.ACTIONS[action])
         print(timestep)
+
+
+if __name__ == "__main__":
+    # test_env()
+    test_jit_env()

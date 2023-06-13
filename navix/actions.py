@@ -28,10 +28,16 @@ def _move(state: State, entity_id: int, direction: int) -> State:
     )
     mask = mask_entity(state.grid, entity_id)
     new_mask = jax.lax.switch(direction, moves, mask)
+    walkable = mask_entity(state.grid, 0)
+    legal = jnp.sum(new_mask * walkable) > 0
 
-    grid = remove_entity(state.grid, entity_id)
-    grid = jnp.where(new_mask, entity_id, grid)
-    # TODO(epignatelli): handle collisions
+    # hitting obstacles lead to no-ops
+    grid = jax.lax.cond(
+        legal,
+        lambda grid: jnp.where(new_mask, entity_id, remove_entity(grid, entity_id)),
+        lambda grid: grid,
+        state.grid
+    )
     return state.replace(grid=grid)
 
 

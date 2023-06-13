@@ -74,5 +74,6 @@ universal = true
 write_to = "navix/version.py"
 
 
+
 [tool.black]
 line-length = 88
