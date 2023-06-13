@@ -8,7 +8,7 @@
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
 # What is Navix?
-Navix is [minigrid](https://github.com/Farama-Foundation/Minigrid) in jax.
+Navix is [minigrid](https://github.com/Farama-Foundation/Minigrid) in JAX, with Autograd and XLA support.
 
 
 ## Installation
