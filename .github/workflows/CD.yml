@@ -23,7 +23,6 @@ jobs:
           tag_prefix: ""
       - name: Fix tag name
         run: |
-
           echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
           echo "$CHANGELOG" >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
@@ -70,6 +69,9 @@ jobs:
         run: |
           git status
           git describe --tags
+          cat navix/version.py
+          python -m setuptools_scm
+          cat navix/version.py
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
