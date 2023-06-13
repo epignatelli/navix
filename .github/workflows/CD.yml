@@ -69,7 +69,6 @@ jobs:
       - name: Check status and tag
         run: |
           git status
-          git describe
           git describe --tags
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
