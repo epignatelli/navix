@@ -7,9 +7,6 @@ on:
 jobs:
   Test:
     runs-on: ${{ matrix.os }}-latest
-    defaults:
-      run:
-        shell: bash -l {0}
     strategy:
       fail-fast: false
       max-parallel: 5
@@ -31,7 +28,7 @@ jobs:
         echo "$MESSAGE"
     - name: Run unit tests with pytest
       run: |
-        pytest test/
+        pytest
 
   Compliance:
     runs-on: ubuntu-latest

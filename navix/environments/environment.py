@@ -59,7 +59,9 @@ class Environment(struct.PyTreeNode):
         truncated = t >= self.max_steps
         return check_truncation(terminated, truncated)
 
-    def transition(self, timestep: Timestep, action: Array, ACTIONS=ACTIONS) -> Timestep:
+    def transition(
+        self, timestep: Timestep, action: Array, ACTIONS=ACTIONS
+    ) -> Timestep:
         # apply actions
         state = jax.lax.switch(action, ACTIONS.values(), timestep.state)
         # apply environment transition
