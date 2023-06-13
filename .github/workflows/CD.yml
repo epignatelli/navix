@@ -58,13 +58,6 @@ jobs:
         run: python -m pip install build
       - name: Build wheel and sdist
         run: python -m build --sdist --wheel --outdir dist/ .
-      - name: Check status and tag
-        run: |
-          git status
-          git describe --tags
-          cat navix/version.py
-          python -m setuptools_scm
-          cat .version.txt
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
