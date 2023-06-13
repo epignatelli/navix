@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools >= 50", "setuptools-scm[toml]>=6.2", "wheel"]
 
 [project]
-name = "Helx"
+name = "Navix"
 dynamic = ["version", "dependencies"]
-description = "Interoperate among reinforcement learning libraries with jax, pytorch, gym and dm_env"
+description = "Gridworld navigation for Reinforcement Learning with JAX"
 requires-python = ">=3.9"
 readme = "README.md"
 license = {file = "LICENSE", name = "Apache-2.0"}
@@ -52,25 +52,9 @@ classifiers = [
 
 
 [project.urls]
-homepage = "https://github.com/epignatelli/helx"
-repository = "https://github.com/epignatelli/helx"
-bug_tracker = "https://github.com/epignatelli/helx/issues"
-
-
-[project.optional-dependencies]
-atari = [
-    "AutoROM.accept-rom-license==0.4.2"
-    ]
-mujoco = [
-
-  ]
-all = [
-    "AutoROM.accept-rom-license==0.4.2"
-    ]
-
-
-[project.scripts]
-helx-download-extras = "helx.download:download_all"
+homepage = "https://github.com/epignatelli/navix"
+repository = "https://github.com/epignatelli/navix"
+bug_tracker = "https://github.com/epignatelli/navix/issues"
 
 
 [tool.setuptools.dynamic]
@@ -78,7 +62,7 @@ dependencies = {file = "./requirements.txt"}
 
 
 [tool.setuptools.packages.find]
-include = ["helx*"]
+include = ["navix*"]
 exclude = ["test", "examples"]
 
 
@@ -87,7 +71,7 @@ universal = true
 
 
 [tool.setuptools_scm]
-write_to = "helx/version.py"
+write_to = "navix/version.py"
 
 
 [tool.black]
