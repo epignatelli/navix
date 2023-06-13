@@ -71,7 +71,7 @@ universal = true
 
 
 [tool.setuptools_scm]
-write_to = "navix/version.py"
+write_to = ".version.txt"
 
 
 
