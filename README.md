@@ -70,7 +70,7 @@ If you use `helx` please consider citing it as:
 ```bibtex
 @misc{helx,
   author = {Pignatelli, Eduardo},
-  title = {Navix: Reinforcement Learning navigation with Autograd and XLA},
+  title = {Navix: Accelerated gridworld navigation with JAX},
   year = {2023},
   publisher = {GitHub},
   journal = {GitHub repository},
