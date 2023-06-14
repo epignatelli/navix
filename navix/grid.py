@@ -26,23 +26,25 @@ import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax.typing import ArrayLike
-from chex import Array
+from jax import Array
 
+
+Coordinates = Tuple[Array, Array]
 
 def room(width: int, height: int):
     grid = jnp.zeros((width, height), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def coordinates_to_idx(grid: Array, coordinates: ArrayLike):
+def coordinates_to_idx(grid: Array, coordinates: Coordinates):
     return coordinates[0] * grid.shape[0] + coordinates[1]
 
 
-def idx_to_coordinates(grid: Array, idx: int):
+def idx_to_coordinates(grid: Array, idx: Array):
     return jnp.stack(jnp.divmod(idx, grid.shape[0]))
 
 
-def coordinate_to_mask(grid: Array, coordinates: ArrayLike) -> Array:
+def coordinate_to_mask(grid: Array, coordinates: Coordinates) -> Array:
     raise NotImplementedError()
 
 
@@ -59,7 +61,7 @@ def mask_entity(grid: Array, entity_id: int) -> Array:
     return jnp.asarray(grid == entity_id, dtype=jnp.float32)
 
 
-def place_entity(grid: Array, entity_id: int, coordinates: ArrayLike) -> Array:
+def place_entity(grid: Array, entity_id: int, coordinates: Coordinates) -> Array:
     return grid.at[coordinates].set(entity_id)
 
 

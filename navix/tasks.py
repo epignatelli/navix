@@ -25,7 +25,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-from chex import Array
+from jax import Array
 
 from .components import State
 from .grid import mask_entity

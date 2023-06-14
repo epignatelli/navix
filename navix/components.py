@@ -23,7 +23,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any, Dict, List
 
-from chex import Array
+from jax import Array
 from flax import struct
 from jax.random import KeyArray
 
