@@ -105,4 +105,8 @@ ACTIONS = {
     4: right,
     5: backward,
     6: left,
+    # 7: pick_up,
+    # 8: drop,
+    # 9: toggle,
+    # 10: use,
 }

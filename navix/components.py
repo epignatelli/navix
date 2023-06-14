@@ -20,13 +20,12 @@
 
 from __future__ import annotations
 
-
-from typing import Dict, Any, List
 from enum import IntEnum
-from jax.tree_util import register_pytree_node_class
-from jax.random import KeyArray
+from typing import Any, Dict, List
+
 from chex import Array
 from flax import struct
+from jax.random import KeyArray
 
 
 class Component(struct.PyTreeNode):
