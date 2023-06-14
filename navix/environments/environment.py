@@ -57,13 +57,13 @@ class Environment(struct.PyTreeNode):
     def reset(self, key: KeyArray) -> Timestep:
         raise NotImplementedError()
 
-    def step(self, timestep: Timestep, action: Array, ACTIONS=ACTIONS) -> Timestep:
+    def step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
             lambda timestep: self.reset(timestep.state.key),
-            lambda timestep: self.transition(timestep, action, ACTIONS),
+            lambda timestep: self.transition(timestep, action, actions_set),
             timestep,
         )
 
@@ -79,10 +79,10 @@ class Environment(struct.PyTreeNode):
         return check_truncation(terminated, truncated)
 
     def transition(
-        self, timestep: Timestep, action: Array, ACTIONS=ACTIONS
+        self, timestep: Timestep, action: Array, actions_set=ACTIONS
     ) -> Timestep:
         # apply actions
-        state = jax.lax.switch(action, ACTIONS.values(), timestep.state)
+        state = jax.lax.switch(action, actions_set.values(), timestep.state)
         # apply environment transition
         state = self.state_transition_fn(state, action)
         # build timestep
