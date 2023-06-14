@@ -43,7 +43,7 @@ class Environment(struct.PyTreeNode):
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=lambda x: None
     )
-    reward_fn: Callable[[State], Array] = struct.field(
+    reward_fn: Callable[[State, Array, State], Array] = struct.field(
         pytree_node=False, default=navigation
     )
     state_transition_fn: Callable[[State, Array], State] = struct.field(
@@ -57,21 +57,21 @@ class Environment(struct.PyTreeNode):
     def reset(self, key: KeyArray) -> Timestep:
         raise NotImplementedError()
 
-    def step(self, timestep: Timestep, action: Array, ACTIONS=ACTIONS) -> Timestep:
+    def step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
             lambda timestep: self.reset(timestep.state.key),
-            lambda timestep: self.transition(timestep, action, ACTIONS),
+            lambda timestep: self.transition(timestep, action, actions_set),
             timestep,
         )
 
     def observation(self, state: State):
         return self.observation_fn(state)
 
-    def reward(self, state: State):
-        return self.reward_fn(state)
+    def reward(self, state: State, action: Array, new_state: State):
+        return self.reward_fn(state, action, new_state)
 
     def termination(self, state: State, t: Array) -> Array:
         terminated = self.termination_fn(state)
@@ -79,10 +79,10 @@ class Environment(struct.PyTreeNode):
         return check_truncation(terminated, truncated)
 
     def transition(
-        self, timestep: Timestep, action: Array, ACTIONS=ACTIONS
+        self, timestep: Timestep, action: Array, actions_set=ACTIONS
     ) -> Timestep:
         # apply actions
-        state = jax.lax.switch(action, ACTIONS.values(), timestep.state)
+        state = jax.lax.switch(action, actions_set.values(), timestep.state)
         # apply environment transition
         state = self.state_transition_fn(state, action)
         # build timestep
@@ -90,7 +90,9 @@ class Environment(struct.PyTreeNode):
             t=timestep.t + 1,
             state=state,
             action=jnp.asarray(action),
-            reward=self.reward(state),
+            reward=self.reward(
+                timestep.state, action, state
+            ),  # timeste.state is the previous state
             step_type=self.termination(state, timestep.t + 1),
             observation=self.observation(state),
         )

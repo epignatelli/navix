@@ -97,6 +97,7 @@ def left(state: State) -> State:
     return _move(state, entity_id, direction)
 
 
+# TODO(epignatelli): a mutable dictionary here is dangerous
 ACTIONS = {
     0: noop,
     1: rotate_cw,
@@ -105,4 +106,8 @@ ACTIONS = {
     4: right,
     5: backward,
     6: left,
+    # 7: pick_up,
+    # 8: drop,
+    # 9: toggle,
+    # 10: use,
 }
