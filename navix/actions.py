@@ -61,6 +61,10 @@ def _move(state: State, entity_id: int, direction: int) -> State:
     return state.replace(grid=grid)
 
 
+def undefined(state: State) -> State:
+    raise ValueError("Undefined action")
+
+
 def noop(state: State) -> State:
     return state
 
@@ -99,6 +103,7 @@ def left(state: State) -> State:
 
 # TODO(epignatelli): a mutable dictionary here is dangerous
 ACTIONS = {
+    -1: undefined,
     0: noop,
     1: rotate_cw,
     2: rotate_ccw,

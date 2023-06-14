@@ -32,7 +32,7 @@ from jax import Array
 Coordinates = Tuple[Array, Array]
 
 def room(width: int, height: int):
-    grid = jnp.zeros((width, height), dtype=jnp.int32)
+    grid = jnp.zeros((height, width), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
