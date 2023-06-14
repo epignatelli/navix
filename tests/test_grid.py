@@ -2,8 +2,7 @@ import navix as nx
 
 
 def test_grid():
-    ascii = \
-    """########
+    ascii_map = """########
     #1.....#
     #......#
         #......#
@@ -16,14 +15,14 @@ def test_grid():
 ########
 ########
     """
-    print(ascii)
+    print(ascii_map)
 
-    grid = nx.grid.from_ascii(ascii)
+    grid = nx.grid.from_ascii(ascii_map)
     print(grid)
 
-    ascii = ascii.replace("1", "P")
-    ascii = ascii.replace("2", "G")
-    grid = nx.grid.from_ascii(ascii, mapping={"P": 1, "G": 2})
+    ascii_map = ascii_map.replace("1", "P")
+    ascii_map = ascii_map.replace("2", "G")
+    grid = nx.grid.from_ascii(ascii_map, mapping={"P": 1, "G": 2})
     print(grid)
 
 

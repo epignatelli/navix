@@ -66,9 +66,6 @@ def place_entity(grid: Array, entity_id: int, coordinates: ArrayLike) -> Array:
 def spawn_entity(grid: Array, entity_id: int, key: KeyArray) -> Array:
     assert entity_id > 0, f"Reserved id {entity_id}, please specify an id > 0"
     mask = mask_entity(grid, 0)
-    mask_coordinates = mask.reshape(
-        -1,
-    )
     idx = jax.random.categorical(
         key,
         jnp.log(
@@ -84,18 +81,16 @@ def spawn_entity(grid: Array, entity_id: int, key: KeyArray) -> Array:
 
 def remove_entity(grid: Array, entity_id: int, replacement: int = 0) -> Array:
     mask = mask_entity(grid, entity_id)
-    return jnp.where(mask, 0, grid)
+    return jnp.where(mask, replacement, grid)
 
 
-
-
-def from_ascii(ascii: str, mapping: Dict[str, int]={}) -> Array:
+def from_ascii(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:
     mapping = {**{"#": -1, ".": 0}, **mapping}
 
-    ascii = ascii.strip()
-    max_width = max(len(line.strip()) for line in ascii.splitlines())
+    ascii_map = ascii_map.strip()
+    max_width = max(len(line.strip()) for line in ascii_map.splitlines())
     grid = []
-    for line in ascii.splitlines():
+    for line in ascii_map.splitlines():
         line = line.strip()
         assert len(line) == max_width, "All lines must be the same length"
         row = [int(mapping.get(character, character)) for character in line]
