@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 
-from typing import Tuple
+from typing import Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
@@ -85,3 +85,20 @@ def spawn_entity(grid: Array, entity_id: int, key: KeyArray) -> Array:
 def remove_entity(grid: Array, entity_id: int, replacement: int = 0) -> Array:
     mask = mask_entity(grid, entity_id)
     return jnp.where(mask, 0, grid)
+
+
+
+
+def from_ascii(ascii: str, mapping: Dict[str, int]={}) -> Array:
+    mapping = {**{"#": -1, ".": 0}, **mapping}
+
+    ascii = ascii.strip()
+    max_width = max(len(line.strip()) for line in ascii.splitlines())
+    grid = []
+    for line in ascii.splitlines():
+        line = line.strip()
+        assert len(line) == max_width, "All lines must be the same length"
+        row = [int(mapping.get(character, character)) for character in line]
+        grid.append(row)
+
+    return jnp.asarray(grid, dtype=jnp.int32)
