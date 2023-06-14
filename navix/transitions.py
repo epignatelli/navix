@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from chex import Array
+from jax import Array
 
 from .components import State
 

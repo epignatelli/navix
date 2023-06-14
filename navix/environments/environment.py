@@ -25,7 +25,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
-from chex import Array
+from jax import Array
 from flax import struct
 
 from ..tasks import navigation

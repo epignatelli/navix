@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from chex import Array
+from jax import Array
 import jax.numpy as jnp
 from .components import State, StepType
 from .grid import mask_entity
