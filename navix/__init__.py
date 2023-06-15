@@ -29,6 +29,5 @@ from . import (
     observations,
     tasks,
     termination,
-    transitions,
     environments,
 )

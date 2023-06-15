@@ -16,15 +16,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Contains the update functions for the Player component, which
+NAVIX treats as a special entity as its update depends on an external action input.
+The update of all the other components is described in the `navix.transitions module"""
 
 
 from __future__ import annotations
 
-
 import jax
 import jax.numpy as jnp
 
-from .components import State
+from .components import State, Component
 from .grid import mask_entity, remove_entity
 
 
@@ -32,11 +34,9 @@ DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
-    player = state.entities["player/0"]
-    direction = (player.direction + spin) % 3
-    player = player.replace(direction=direction)
-    state.entities["player/0"] = player
-    return state
+    direction = (state.player.direction + spin) % 3
+    player = state.player.replace(direction=direction)
+    return state.replace(player=player)
 
 
 def _move(state: State, entity_id: int, direction: int) -> State:
@@ -62,6 +62,13 @@ def _move(state: State, entity_id: int, direction: int) -> State:
 
 
 def undefined(state: State) -> State:
+    # this is problematic because jax.lax.switch evaluates
+    # all *python* branches (no XLA computation is performed)
+    # even though only one is selected
+    # one option is the following, but this breaks type checking
+    # def raise_error(state: State) -> State:
+    #     raise ValueError("Undefined action")
+    # jax.debug.callback(raise_error)
     raise ValueError("Undefined action")
 
 
@@ -78,32 +85,56 @@ def rotate_ccw(state: State) -> State:
 
 
 def forward(state: State) -> State:
-    entity_id = state.entities["player/0"].id
-    direction = state.entities["player/0"].direction
+    entity_id = state.player.id
+    direction = state.player.direction
     return _move(state, entity_id, direction)
 
 
 def right(state: State) -> State:
-    entity_id = state.entities["player/0"].id
-    direction = state.entities["player/0"].direction + 1
+    entity_id = state.player.id
+    direction = state.player.direction + 1
     return _move(state, entity_id, direction)
 
 
 def backward(state: State) -> State:
-    entity_id = state.entities["player/0"].id
-    direction = state.entities["player/0"].direction + 2
+    entity_id = state.player.id
+    direction = state.player.direction + 2
     return _move(state, entity_id, direction)
 
 
 def left(state: State) -> State:
-    entity_id = state.entities["player/0"].id
-    direction = state.entities["player/0"].direction + 3
+    entity_id = state.player.id
+    direction = state.player.direction + 3
     return _move(state, entity_id, direction)
+
+
+def pickup(state: State) -> State:
+    in_front = mask_entity(forward(state).grid, state.player.id)
+    id_in_front = jnp.sum(in_front * state.grid, dtype=jnp.int32)
+
+    can_pickup = jnp.isin(id_in_front, jnp.asarray(list(state.entities.keys())))
+    entity = state.entities[id_in_front]
+    can_pickup = jnp.logical_and(can_pickup, entity.can_pickup)
+
+    state.entities.update({id_in_front: entity.replace(requires_update=can_pickup)})
+    return state
+
+
+def consume(state: State) -> State:
+    in_front = mask_entity(forward(state).grid, state.player.id)
+    id_in_front = jnp.sum(in_front * state.grid, dtype=jnp.int32)
+
+    can_consume = jnp.isin(id_in_front, jnp.asarray(list(state.entities.keys())))
+    entity = state.entities[id_in_front]
+    can_consume = jnp.logical_and(can_consume, entity.can_consume)
+
+    state.entities.update({id_in_front: entity.replace(requires_update=can_consume)})
+    return state
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous
 ACTIONS = {
-    -1: undefined,
+    # -1: undefined,
     0: noop,
     1: rotate_cw,
     2: rotate_ccw,
@@ -111,8 +142,6 @@ ACTIONS = {
     4: right,
     5: backward,
     6: left,
-    # 7: pick_up,
-    # 8: drop,
-    # 9: toggle,
-    # 10: use,
+    # 7: pickup,
+    # 8: consume,
 }

@@ -48,14 +48,17 @@ def free(state: State) -> Array:
 def navigation(
     prev_state: State, action: Array, state: State, prob: ArrayLike = 1.0
 ) -> Array:
-    player_mask = mask_entity(state.grid, state.entities["player/0"].id)
-    goal_mask = mask_entity(state.grid, state.entities["goal/0"].id)
+    # what is beneath the player
+    player_at_prev_state = mask_entity(prev_state.grid, state.player.id)
+    id_at_prev_state = jnp.sum(player_at_prev_state * prev_state.grid, dtype=jnp.int32)
+
     condition = jax.random.uniform(state.key, ()) >= prob
     return jax.lax.cond(
         condition,
-        lambda _: jnp.sum(player_mask * goal_mask),
-        lambda _: jnp.asarray(0.0),
-        (),
+        lambda state: jnp.asarray(1.0),
+        # lambda state: state.entities[id_at_prev_state].is_goal,
+        lambda state: jnp.asarray(0.0),
+        state,
     )
 
 
@@ -77,8 +80,8 @@ def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
     # if state is unchanged, maybe the wall was hit
-    player_before = mask_entity(prev_state.grid, prev_state.entities["player/0"].id)
-    player_now = mask_entity(state.grid, state.entities["player/0"].id)
+    player_before = mask_entity(prev_state.grid, prev_state.player.id)
+    player_now = mask_entity(state.grid, state.player.id)
     hit = jnp.array_equal(player_before, player_now)
 
     # if action is a move action, the wall was hit

@@ -31,6 +31,6 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
 
 
 def on_navigation_completion(state: State) -> Array:
-    player_mask = mask_entity(state.grid, state.entities["player/0"].id)
+    player_mask = mask_entity(state.grid, state.player.id)
     goal_mask = mask_entity(state.grid, state.entities["goal/0"].id)
     return jnp.array_equal(player_mask, goal_mask)

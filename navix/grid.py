@@ -25,11 +25,11 @@ from typing import Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
-from jax.typing import ArrayLike
 from jax import Array
 
 
 Coordinates = Tuple[Array, Array]
+
 
 def room(width: int, height: int):
     grid = jnp.zeros((height, width), dtype=jnp.int32)
@@ -42,10 +42,6 @@ def coordinates_to_idx(grid: Array, coordinates: Coordinates):
 
 def idx_to_coordinates(grid: Array, idx: Array):
     return jnp.stack(jnp.divmod(idx, grid.shape[0]))
-
-
-def coordinate_to_mask(grid: Array, coordinates: Coordinates) -> Array:
-    raise NotImplementedError()
 
 
 def entity_coordinates(grid: Array, entity_id: int) -> Tuple[int, int]:
@@ -84,6 +80,13 @@ def spawn_entity(grid: Array, entity_id: int, key: KeyArray) -> Array:
 def remove_entity(grid: Array, entity_id: int, replacement: int = 0) -> Array:
     mask = mask_entity(grid, entity_id)
     return jnp.where(mask, replacement, grid)
+
+
+def mask_walkable(grid: Array, walkable_ids: Array) -> Array:
+    walkable_ids = jnp.concatenate([walkable_ids, jnp.asarray(0)])
+    walkable_ids = jnp.unique(walkable_ids, return_counts=False)  # type: ignore
+    mask = jnp.sum(jax.vmap(mask_entity, in_axes=(None, 0))(grid, walkable_ids), axis=0)
+    return mask
 
 
 def from_ascii(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:

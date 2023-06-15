@@ -20,31 +20,39 @@
 
 from __future__ import annotations
 
+from typing import Dict
+
 import jax
-from jax.random import KeyArray
 import jax.numpy as jnp
-from .environment import Environment
-from ..components import State, Component, StepType, Timestep
+from jax.random import KeyArray
+from jax.typing import ArrayLike
+
+from navix.components import Component
+
+from ..components import Goal, Player, State, Timestep
 from ..grid import room, spawn_entity
+from .environment import Environment
 
 
 class Room(Environment):
     def reset(self, key: KeyArray) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
+        # player
+        player = Player(id=1)
         # entities
-        player = Component(id=1, direction=0)
-        goal = Component(id=2)
-        entities = {
-            "player/0": player,
-            "goal/0": goal,
+        goal = Goal(id=2)
+        entities: Dict[ArrayLike, Component] = {
+            -1: Component(id=-1),  # wall
+            0: Component(id=0),  # empty
+            goal.id: goal,
         }
 
         # system
         grid = room(self.width, self.height)
         grid = spawn_entity(grid, player.id, k1)
         grid = spawn_entity(grid, goal.id, k2)
-        state = State(key=key, grid=grid, entities=entities)
+        state = State(key=key, grid=grid, player=player, entities=entities)
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
