@@ -17,31 +17,28 @@ class KeyDoor(Environment):
         player_pos, key_pos = random_positions(k1, first_room, n=2)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
-        key = Pickable(position=key_pos, id=jnp.asarray(2))
+        keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
-        # and goal in the second room
+        # spawn the goal in the second room
         second_room = room.at[:, :self.width // 2].set(-1)
-        goal_pos = random_positions(k2, second_room, n=1)[0]
+        goal_pos = random_positions(k2, second_room, n=1)
+        goals = Goal(position=goal_pos[None])
 
-        key_id = 2
-
-
-        door_coordinates = (
+        # add the door
+        door_coordinates = jnp.asarray([
             jax.random.randint(k3, (), 1, self.height),
-            jnp.asarray(width + 1),
+            jnp.asarray(self.width // 2),
+        ])
+        doors = Consumable(position=door_coordinates[None], requires=jnp.asarray(3)[None])
+
+        state = State(
+            key=key,
+            grid=room,
+            player=player,
+            goals=goals,
+            keys=keys,
+            doors=doors,
         )
-        print(door_coordinates)
-        door_id = 4
-        grid = place_entity(grid, door_id, door_coordinates)
-
-        entities = {
-            "player/0": Player(id=1),
-            "key/0": Pickable(id=2),
-            "goal/0": Goal(id=3),
-            "door/0": Consumable(id=4),
-        }
-
-        state = State(key=key, grid=grid, entities=entities)
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
             observation=self.observation(state),

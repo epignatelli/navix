@@ -122,11 +122,12 @@ def test_keydoor():
             print(timestep)
         return timestep
 
+    f()
     jax.jit(f)()
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
     # test_room()
     # test_termination()
     # test_truncation()
-    # test_keydoor()
+    test_keydoor()
