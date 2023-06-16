@@ -36,14 +36,15 @@ def first_person_view(state: State, radius: int) -> Array:
 
 
 def categorical(state: State) -> Array:
-    # place player
-    grid = state.grid.at[tuple(state.player.position)].set(1)
-    # place goals
-    grid = jnp.max(jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(2))(state.goals), axis=0)
+    # updates are in reverse order of display
     # place keys (keys are represented with opposite sign of the door they open)
-    grid = jnp.max(jax.vmap(lambda key: grid.at[tuple(key.position)].set(-key.id))(state.keys), axis=0)
+    grid = jnp.max(jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.id))(state.keys), axis=0)
     # place doors
     grid = jnp.max(jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.requires))(state.doors), axis=0)
+    # place goals
+    grid = jnp.max(jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(2))(state.goals), axis=0)
+    # place player last, always on top
+    grid = grid.at[tuple(state.player.position)].set(1)
     return grid
 
 
