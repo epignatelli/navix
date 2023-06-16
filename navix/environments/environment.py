@@ -29,7 +29,7 @@ from jax import Array
 from flax import struct
 
 from ..tasks import navigation
-from ..components import State, Timestep, StepType, update_state
+from ..components import State, Timestep, StepType
 from ..termination import on_navigation_completion, check_truncation
 from ..actions import ACTIONS
 
@@ -53,11 +53,9 @@ class Environment(struct.PyTreeNode):
     def reset(self, key: KeyArray) -> Timestep:
         raise NotImplementedError()
 
-    def _step(
-        self, timestep: Timestep, action: Array, actions_set=ACTIONS
-    ) -> Timestep:
+    def _step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
         # update agents
-        state = update_state(timestep.state, action, actions_set)
+        state = jax.lax.switch(action, actions_set.values(), timestep.state)
 
         # build timestep
         return Timestep(
@@ -85,7 +83,9 @@ class Environment(struct.PyTreeNode):
     def reward(self, state: State, action: Array, new_state: State):
         return self.reward_fn(state, action, new_state)
 
-    def termination(self, prev_state: State, action: Array, state: State, t: Array) -> Array:
+    def termination(
+        self, prev_state: State, action: Array, state: State, t: Array
+    ) -> Array:
         terminated = self.termination_fn(prev_state, action, state)
         truncated = t >= self.max_steps
         return check_truncation(terminated, truncated)

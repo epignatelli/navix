@@ -21,71 +21,80 @@
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict
 
 import jax
 from jax import Array
 from flax import struct
 from jax.random import KeyArray
 import jax.numpy as jnp
-from jax.typing import ArrayLike
-
-from .grid import remove_entity
 
 
 class Component(struct.PyTreeNode):
-    id: int
-    requires_update: bool = False
-    can_act: bool = False
-    can_pickup: bool = False
-    can_consume: bool = False
-    is_goal: bool = False
+    """A component is a part of the state of the environment."""
+    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
 
-    def update(self, state: State, **kwargs) -> State:
-        return state
+
+# class HasId(Component):
+#     """A component that has an id"""
+
+#     id: Array = jnp.asarray(0)
+
+
+# class HasPosition(Component):
+#     """A component that has a position in the environment"""
+
+#     position: Array = jnp.asarray(0)
+
+
+# class HasDirection(Component):
+#     """A component that has a direction"""
+
+#     direction: Array = jnp.asarray(0)
+
+
+# class Stochastic(Component):
+#     """A component that has a probability"""
+
+#     # key: KeyArray
+#     probability: Array = jnp.asarray(1.0)
+
+
+# class Holder(Component):
+#     """A component wiht a 1-slot pocket to hold other components (id)"""
+
+#     pocket: Array = jnp.asarray(0)
+
+
+# class Replaceable(Component):
+#     """A component that can be replaced by another component (id)"""
+
+#     replacement: Array = jnp.asarray(0)
+
+
+# class Consumable(Component):
+#     """A component that can be consumed by another component (id)"""
+
+#     requires: Array = jnp.asarray(0)
 
 
 class Player(Component):
     """Players are entities that can act around the environment"""
 
-    can_act: bool = True
-    direction: int = 0
-    pocket: List[int] = struct.field(default_factory=list)
-
-    def update(self, state: State, action: Array, actions_set) -> State:
-        return jax.lax.switch(action, actions_set.values(), state)
+    direction: Array = jnp.asarray(0)
+    pocket: Array = jnp.asarray(0)
 
 
 class Goal(Component):
     """Goals are entities that can be reached by the player"""
 
-    is_goal: bool = True
-
-    def update(self, state: State) -> State:
-        return state
-
+    probability: Array = jnp.ones((1,), dtype=jnp.float32)
 
 class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
-    can_pickup: bool = True
-    picked: bool = False
-
-    def update(self, state: State) -> State:
-        # add the item to the player's pocket
-        pocket = state.player.pocket + [self.id]
-        player = state.player.replace(pocket=pocket)
-
-        # remove the item from the grid
-        grid = remove_entity(state.grid, self.id)
-
-        # remove the item from the state.entities collection
-        # state.entities.pop(self.id)  # do not pop or the number of entities will change
-        # instead, we can replace the entity with a new one
-        entity = self.replace(picked=True, requires_update=False)
-        state.entities[self.id] = entity
-        return state.replace(grid=grid, player=player, entitites=state.entities)
+    id: Array = jnp.asarray(-1)
 
 
 class Consumable(Component):
@@ -96,21 +105,8 @@ class Consumable(Component):
     by the item specified in the `replacement` field (0 = floor by default).
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
-
-    can_consume: bool = True
-    consumed: bool = False
-    requires: int = -1
-    replacement: int = 0
-
-    def update(self, state: State, tool: int = -1) -> State:
-        tool_not_required = jnp.greater_equal(self.requires, 0)
-        can_replace = jnp.array_equal(self.requires, tool)
-        can_replace = jnp.logical_or(tool_not_required, can_replace)
-        replacement = jnp.asarray(can_replace * self.replacement, dtype=jnp.int32)
-        grid = jnp.where(state.grid == self.id, replacement, state.grid)
-
-        state.entities[self.id] = self.replace(consumed=True, requires_update=False)
-        return state.replace(grid=grid, entities=state.entities)
+    requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    replacement: Array = jnp.zeros((1,), dtype=jnp.float32)
 
 
 class State(struct.PyTreeNode):
@@ -122,47 +118,12 @@ class State(struct.PyTreeNode):
     """The 2D-grid containing the ids of the entities in each position"""
     player: Player  # we can potentially extend this to multiple players easily
     """The player entity"""
-    # TODO(epignatelli): ideally we would like an entity to have
-    # a list of components (e.g. a key can be a pickable AND consumable, where
-    # Pickable updates the player's pocket and Consumable updates the grid)
-    entities: Dict[ArrayLike, Component] = struct.field(
-        pytree_node=False, default_factory=dict
-    )
-    """The entities in the environment"""
-
-
-def update_state(state, action: Array, actions_set) -> State:
-    # update the player entity first
-    state = state.player.update(state, action, actions_set)
-
-    # TODO(epignatelli): we can't really work with lax.scan here
-    # because entities are different and we cannot transpose the pytree
-    # def body_fun(carry, x):
-    #     state = carry
-    #     entity = x
-    #     state = jax.lax.cond(
-    #         entity.requires_update,
-    #         lambda state: entity.update(state),
-    #         lambda state: state,
-    #         state
-    #     )
-    #     return state, ()
-
-    # entities = tuple(state.entities.values())
-    # state, _ = jax.lax.scan(body_fun, state, entities)
-
-    # but we can do this instead, assuming that the number
-    # of registered entities does not change during traning
-    # and that it is small enough (~<15) to not unroll
-    # into a long set of instructions
-    for _, entity in state.entities.items():
-        state = jax.lax.cond(
-            entity.requires_update,
-            lambda state: entity.update(state),
-            lambda state: state,
-            state,
-        )
-    return state
+    goals: Goal = Goal()
+    """The goal entity, batched over the number of goals"""
+    keys: Pickable = Pickable()
+    """The key entity, batched over the number of keys"""
+    doors: Consumable = Consumable()
+    """The door entity, batched over the number of doors"""
 
 
 class StepType(IntEnum):

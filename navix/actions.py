@@ -16,18 +16,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Contains the update functions for the Player component, which
-NAVIX treats as a special entity as its update depends on an external action input.
-The update of all the other components is described in the `navix.transitions module"""
-
 
 from __future__ import annotations
+from typing import Tuple
 
+import chex
 import jax
 import jax.numpy as jnp
+from jax import Array
 
-from .components import State, Component
-from .grid import mask_entity, remove_entity
+from .components import Consumable, State
 
 
 DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
@@ -39,26 +37,22 @@ def _rotate(state: State, spin: int) -> State:
     return state.replace(player=player)
 
 
-def _move(state: State, entity_id: int, direction: int) -> State:
+def _translate(position: Array, direction: Array) -> Array:
     moves = (
-        lambda x: jnp.roll(x, 1, axis=1),  # east
-        lambda x: jnp.roll(x, 1, axis=0),  # south
-        lambda x: jnp.roll(x, -1, axis=1),  # west
-        lambda x: jnp.roll(x, -1, axis=0),  # north
+        lambda position: position + jnp.asarray((0, 1)),  # east
+        lambda position: position + jnp.asarray((1, 0)),  # south
+        lambda position: position + jnp.asarray((0, -1)),  # west
+        lambda position: position + jnp.asarray((-1, 0)),  # north
     )
-    mask = mask_entity(state.grid, entity_id)
-    new_mask = jax.lax.switch(direction, moves, mask)
-    walkable = mask_entity(state.grid, 0)
-    legal = jnp.sum(new_mask * walkable) > 0
+    return jax.lax.switch(direction, moves, position)
 
-    # hitting obstacles lead to no-ops
-    grid = jax.lax.cond(
-        legal,
-        lambda grid: jnp.where(new_mask, entity_id, remove_entity(grid, entity_id)),
-        lambda grid: grid,
-        state.grid,
-    )
-    return state.replace(grid=grid)
+
+def _move(state: State, direction: Array) -> State:
+    new_position = _translate(state.player.position, direction)
+    can_move = jnp.equal(state.grid[tuple(state.player.position)], 0)
+    new_position = jnp.where(can_move, new_position, state.player.position)
+    player = state.player.replace(position=new_position)
+    return state.replace(player=player)
 
 
 def undefined(state: State) -> State:
@@ -85,51 +79,76 @@ def rotate_ccw(state: State) -> State:
 
 
 def forward(state: State) -> State:
-    entity_id = state.player.id
-    direction = state.player.direction
-    return _move(state, entity_id, direction)
+    return _move(state, state.player.direction)
 
 
 def right(state: State) -> State:
-    entity_id = state.player.id
-    direction = state.player.direction + 1
-    return _move(state, entity_id, direction)
+    return _move(state, state.player.direction + 1)
 
 
 def backward(state: State) -> State:
-    entity_id = state.player.id
-    direction = state.player.direction + 2
-    return _move(state, entity_id, direction)
+    return _move(state, state.player.direction + 2)
 
 
 def left(state: State) -> State:
-    entity_id = state.player.id
-    direction = state.player.direction + 3
-    return _move(state, entity_id, direction)
+    return _move(state,state.player.direction + 3)
 
 
 def pickup(state: State) -> State:
-    in_front = mask_entity(forward(state).grid, state.player.id)
-    id_in_front = jnp.sum(in_front * state.grid, dtype=jnp.int32)
+    position_in_front = _translate(state.player.position, state.player.direction)
 
-    can_pickup = jnp.isin(id_in_front, jnp.asarray(list(state.entities.keys())))
-    entity = state.entities[id_in_front]
-    can_pickup = jnp.logical_and(can_pickup, entity.can_pickup)
+    # def _update(key: Pickable):
+    #     match = jnp.array_equal(position_in_front, key.position)
+    #     pocket = jnp.where(match, key.id, state.player.pocket)
+    #     # update player's pocket
+    #     player = state.player.replace(pocket=pocket)
+    #     # set to (-1, -1) the position of the key that was picked up
+    #     unset_position = jnp.asarray((-1, -1))
+    #     position = jnp.where(match, unset_position, key.position)
+    #     key = key.replace(position=position)
+    #     return player, key
 
-    state.entities.update({id_in_front: entity.replace(requires_update=can_pickup)})
-    return state
+    # player, keys = jax.vmap(_update)(state.keys)
+
+    # TODO(epignatelli): optimise this, we can just carry the vector of mathcing items
+    # and mask the update only to the matching ones
+    keys_match = jax.vmap(jnp.array_equal, in_axes=(None, 0))(position_in_front, state.keys.position)
+    matching_ids = jnp.where(keys_match, state.keys.id, 0)
+    item_id = jnp.nonzero(matching_ids, size=1)
+
+    # we have to map item_id to a scalar
+    item_id = item_id[0][0]
+    assert item_id.shape == (), f"Item id must be a scalar but got shape {item_id.shape}"
+
+    # update player's pocket
+    player = state.player.replace(pocket=item_id)
+
+    # set to (-1, -1) the position of the key that was picked up
+    keys = state.keys.replace(position=jnp.where(keys_match, jnp.asarray((-1, -1)), state.keys.position))
+    return state.replace(player=player, keys=keys)
 
 
-def consume(state: State) -> State:
-    in_front = mask_entity(forward(state).grid, state.player.id)
-    id_in_front = jnp.sum(in_front * state.grid, dtype=jnp.int32)
+def open(state: State) -> State:
+    position_in_front = _translate(state.player.position, state.player.direction)
 
-    can_consume = jnp.isin(id_in_front, jnp.asarray(list(state.entities.keys())))
-    entity = state.entities[id_in_front]
-    can_consume = jnp.logical_and(can_consume, entity.can_consume)
+    def _update(door: Consumable) -> Tuple[Array, Consumable]:
+        match = jnp.array_equal(position_in_front, door.position)
+        replacement = jnp.asarray((match - 1) * door.replacement, dtype=jnp.int32)
 
-    state.entities.update({id_in_front: entity.replace(requires_update=can_consume)})
-    return state
+        # update grid
+        grid = jnp.zeros_like(state.grid).at[tuple(door.position)].set(replacement)
+
+        # set to (-1, -1) the position of the door that was opened
+        unset_position = jnp.asarray((-1, -1))
+        position = jnp.where(match, unset_position, door.position)
+        door = door.replace(position=position)
+        return grid, door
+
+    grid, doors = jax.vmap(_update)(state.doors)
+    # the max makes sure that if there was a wall (-1), and it has been opened (x>0)
+    # we get the new value of the grid
+    grid = jnp.max(grid, axis=0)
+    return state.replace(grid=grid, doors=doors)
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous
@@ -142,6 +161,6 @@ ACTIONS = {
     4: right,
     5: backward,
     6: left,
-    # 7: pickup,
-    # 8: consume,
+    7: pickup,
+    8: open,
 }

@@ -39,20 +39,19 @@ class Room(Environment):
         key, k1, k2 = jax.random.split(key, 3)
 
         # player
-        player = Player(id=1)
-        # entities
-        goal = Goal(id=2)
-        entities: Dict[ArrayLike, Component] = {
-            -1: Component(id=-1),  # wall
-            0: Component(id=0),  # empty
-            goal.id: goal,
-        }
-
-        # system
+        player = Player(position=jnp.asarray([0, 0]))
+        # goal
+        goal = Goal(position=jnp.asarray([self.width - 1, self.height - 1]))
+        # map
         grid = room(self.width, self.height)
-        grid = spawn_entity(grid, player.id, k1)
-        grid = spawn_entity(grid, goal.id, k2)
-        state = State(key=key, grid=grid, player=player, entities=entities)
+
+        # systems
+        state = State(
+            key=key,
+            grid=grid,
+            player=player,
+            goals=goal,
+        )
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
