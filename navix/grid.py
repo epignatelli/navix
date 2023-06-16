@@ -49,7 +49,7 @@ def random_positions(key: KeyArray, grid: Array, n=1) -> Array:
     probs = jnp.log(mask).reshape((-1,))
     idx = jax.random.categorical(key, probs, shape=(n,))
 
-    positions = jnp.stack(jnp.divmod(idx, grid.shape[0])).T
+    positions = jnp.stack(jnp.divmod(idx, grid.shape[1])).T
     return positions.squeeze()
 
 
