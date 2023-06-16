@@ -23,7 +23,6 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Any, Dict
 
-import jax
 from jax import Array
 from flax import struct
 from jax.random import KeyArray
@@ -33,6 +32,7 @@ import jax.numpy as jnp
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
     position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
+    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
 
 # class HasId(Component):
@@ -82,19 +82,23 @@ class Player(Component):
     """Players are entities that can act around the environment"""
 
     direction: Array = jnp.asarray(0)
+    """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
     pocket: Array = jnp.asarray(0)
+    """The id of the item in the pocket (0 if empty)"""
 
 
 class Goal(Component):
     """Goals are entities that can be reached by the player"""
 
     probability: Array = jnp.ones((1,), dtype=jnp.float32)
+    """The probability of receiving the reward, if reached."""
 
 class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
     id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    """The id of the item. If set, it must be >= 1."""
 
 
 class Consumable(Component):
@@ -106,7 +110,9 @@ class Consumable(Component):
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
     requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    """The id of the item required to consume this item. If set, it must be >= 1."""
     replacement: Array = jnp.zeros((1,), dtype=jnp.float32)
+    """The grid signature to replace the item with, usually 0 (floor). If set, it must be >= 1."""
 
 
 class State(struct.PyTreeNode):
@@ -137,9 +143,16 @@ class StepType(IntEnum):
 
 class Timestep(struct.PyTreeNode):
     t: Array
+    """The number of timesteps elapsed from the last reset of the environment"""
     observation: Array
+    """The observation corresponding to the current state (for POMDPs)"""
     action: Array
+    """The action taken by the agent at the current timestep a_t = $\\pi(s_t)$, where $s_t$ is `state`"""
     reward: Array
+    """The reward $r_{t=1}$ received by the agent after taking action $a_t$"""
     step_type: Array
+    """The type of the current timestep (see `StepType`)"""
     state: State
+    """The true state of the MDP, $s_t$ before taking action `action`"""
     info: Dict[str, Any] = struct.field(default_factory=dict)
+    """Additional information about the environment. Useful for accumulations (e.g. returns)"""

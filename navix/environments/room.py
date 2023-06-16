@@ -20,17 +20,12 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
-from jax.typing import ArrayLike
-
-from navix.components import Component
 
 from ..components import Goal, Player, State, Timestep
-from ..grid import room, spawn_entity
+from ..grid import random_positions, random_directions, room
 from .environment import Environment
 
 
@@ -38,12 +33,14 @@ class Room(Environment):
     def reset(self, key: KeyArray) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
-        # player
-        player = Player(position=jnp.asarray([0, 0]))
-        # goal
-        goal = Goal(position=jnp.asarray([self.width - 1, self.height - 1]))
         # map
         grid = room(self.width, self.height)
+        positions = random_positions(k1, grid, n=2)
+        direction = random_directions(k2, n=1)
+        # player
+        player = Player(position=positions[0], direction=direction)
+        # goal
+        goal = Goal(position=positions[1][None])
 
         # systems
         state = State(

@@ -28,10 +28,11 @@ from jax.random import KeyArray
 from jax import Array
 from flax import struct
 
-from ..tasks import navigation
+from .. import tasks
 from ..components import State, Timestep, StepType
-from ..termination import on_navigation_completion, check_truncation
+from .. import terminations
 from ..actions import ACTIONS
+from .. import observations
 
 
 class Environment(struct.PyTreeNode):
@@ -40,13 +41,13 @@ class Environment(struct.PyTreeNode):
     max_steps: int = struct.field(pytree_node=False)
     gamma: float = struct.field(pytree_node=False, default=1.0)
     observation_fn: Callable[[State], Array] = struct.field(
-        pytree_node=False, default=lambda x: None
+        pytree_node=False, default=observations.categorical
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=navigation
+        pytree_node=False, default=tasks.navigation
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=on_navigation_completion
+        pytree_node=False, default=terminations.on_navigation_completion
     )
 
     @abc.abstractmethod
@@ -88,4 +89,4 @@ class Environment(struct.PyTreeNode):
     ) -> Array:
         terminated = self.termination_fn(prev_state, action, state)
         truncated = t >= self.max_steps
-        return check_truncation(terminated, truncated)
+        return terminations.check_truncation(terminated, truncated)

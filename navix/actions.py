@@ -32,7 +32,7 @@ DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
-    direction = (state.player.direction + spin) % 3
+    direction = (state.player.direction + spin) % 4
     player = state.player.replace(direction=direction)
     return state.replace(player=player)
 
@@ -91,7 +91,7 @@ def backward(state: State) -> State:
 
 
 def left(state: State) -> State:
-    return _move(state,state.player.direction + 3)
+    return _move(state, state.player.direction + 3)
 
 
 def pickup(state: State) -> State:

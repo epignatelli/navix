@@ -36,60 +36,28 @@ def room(width: int, height: int):
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def coordinates_to_idx(grid: Array, coordinates: Coordinates):
-    return coordinates[0] * grid.shape[0] + coordinates[1]
-
-
-def idx_to_coordinates(grid: Array, idx: Array):
-    return jnp.stack(jnp.divmod(idx, grid.shape[0]))
-
-
-def entity_coordinates(grid: Array, entity_id: int) -> Tuple[int, int]:
-    idx = mask_entity(grid, entity_id).reshape(
-        -1,
-    )
-    idx = jnp.asarray(idx, dtype=jnp.int32)
-    coordinates = tuple(idx_to_coordinates(grid, idx))
-    return coordinates
-
-
-def mask_entity(grid: Array, entity_id: int) -> Array:
-    return jnp.asarray(grid == entity_id, dtype=jnp.float32)
-
-
-def place_entity(grid: Array, entity_id: int, coordinates: Coordinates) -> Array:
-    return grid.at[coordinates].set(entity_id)
-
-
-def spawn_entity(grid: Array, entity_id: int, key: KeyArray) -> Array:
-    assert entity_id > 0, f"Reserved id {entity_id}, please specify an id > 0"
-    mask = mask_entity(grid, 0)
-    idx = jax.random.categorical(
-        key,
-        jnp.log(
-            mask.reshape(
-                -1,
-            )
-        ),
-    )
-    coordinates = tuple(idx_to_coordinates(grid, idx))
-    grid = place_entity(grid, entity_id, coordinates)
+def two_rooms(width: int, height: int) -> Array:
+    """Two rooms separated by a vertical wall at `width // 2`"""
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
+    grid = grid.at[1:-1, width // 2].set(-1)
     return grid
 
 
-def remove_entity(grid: Array, entity_id: int, replacement: int = 0) -> Array:
-    mask = mask_entity(grid, entity_id)
-    return jnp.where(mask, replacement, grid)
+def random_positions(key: KeyArray, grid: Array, n=1) -> Array:
+    mask = jnp.where(grid, 0, 1)  # all floor tiles
+    probs = jnp.log(mask).reshape((-1,))
+    idx = jax.random.categorical(key, probs, shape=(n,))
+
+    positions = jnp.stack(jnp.divmod(idx, grid.shape[0])).T
+    return positions.squeeze()
 
 
-def mask_walkable(grid: Array, walkable_ids: Array) -> Array:
-    walkable_ids = jnp.concatenate([walkable_ids, jnp.asarray(0)])
-    walkable_ids = jnp.unique(walkable_ids, return_counts=False)  # type: ignore
-    mask = jnp.sum(jax.vmap(mask_entity, in_axes=(None, 0))(grid, walkable_ids), axis=0)
-    return mask
+def random_directions(key: KeyArray, n=1) -> Array:
+    return jax.random.randint(key, (n,), 0, 4).squeeze()
 
 
-def from_ascii(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:
+def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:
     mapping = {**{"#": -1, ".": 0}, **mapping}
 
     ascii_map = ascii_map.strip()

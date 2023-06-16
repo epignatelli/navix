@@ -25,10 +25,8 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 from jax import Array
-import chex
 
 from .components import State
-from .grid import mask_entity
 
 
 def compose(*fns: Callable[[State, Array, State], Array]):
@@ -45,10 +43,10 @@ def free(state: State) -> Array:
     return jnp.asarray(0.0)
 
 
-def navigation(
-    prev_state: State, action: Array, state: State
-) -> Array:
-    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(state.player.position, state.goals.position)
+def navigation(prev_state: State, action: Array, state: State) -> Array:
+    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
+        state.player.position, state.goals.position
+    )
     any_reached = jnp.sum(reached)
 
     draw = jax.random.uniform(state.key, ())

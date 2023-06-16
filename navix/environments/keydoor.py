@@ -1,29 +1,30 @@
 import jax
 import jax.numpy as jnp
 
-from .environment import Environment
-from ..components import Component, State, Timestep, Player, Pickable, Consumable, Goal
-from ..grid import spawn_entity, place_entity
+from navix.environments import Environment
+from navix.components import State, Timestep, Player, Pickable, Consumable, Goal
+from navix.grid import two_rooms, random_positions, random_directions
 
 
 class KeyDoor(Environment):
     def reset(self, key) -> Timestep:
         key, k1, k2, k3 = jax.random.split(key, 4)
 
-        width, rem = divmod(self.width - 1, 2)
-        room_1 = jnp.zeros((self.height, width + rem), dtype=jnp.int32)
-        room_1 = jnp.pad(room_1, ((0, 0), (0, 1)), mode="constant", constant_values=-1)
-        player_id = 1
+        room = two_rooms(self.width, self.height)
+
+        # spawn player and key in the first room
+        first_room = room.at[:, self.width // 2:].set(-1)
+        player_pos, key_pos = random_positions(k1, first_room, n=2)
+        player_dir = random_directions(k2)
+        player = Player(position=player_pos, direction=player_dir)
+        key = Pickable(position=key_pos, id=jnp.asarray(2))
+
+        # and goal in the second room
+        second_room = room.at[:, :self.width // 2].set(-1)
+        goal_pos = random_positions(k2, second_room, n=1)[0]
+
         key_id = 2
-        room_1 = spawn_entity(room_1, player_id, k1)
-        room_1 = spawn_entity(room_1, key_id, k1)
 
-        room_2 = jnp.zeros((self.height, width), dtype=jnp.int32)
-        goal_id = 3
-        room_2 = spawn_entity(room_2, goal_id, k2)  # goal
-
-        grid = jnp.concatenate([room_1, room_2], axis=1)
-        grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
         door_coordinates = (
             jax.random.randint(k3, (), 1, self.height),
