@@ -21,30 +21,34 @@
 from __future__ import annotations
 
 import jax
-from jax.random import KeyArray
 import jax.numpy as jnp
+from jax.random import KeyArray
+
+from ..components import Goal, Player, State, Timestep
+from ..grid import random_positions, random_directions, room
 from .environment import Environment
-from ..components import State, Component, StepType, Timestep
-from ..grid import room, spawn_entity
 
 
 class Room(Environment):
     def reset(self, key: KeyArray) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
-        # entities
-        player = Component(id=1, direction=0)
-        goal = Component(id=2)
-        entities = {
-            "player/0": player,
-            "goal/0": goal,
-        }
-
-        # system
+        # map
         grid = room(self.width, self.height)
-        grid = spawn_entity(grid, player.id, k1)
-        grid = spawn_entity(grid, goal.id, k2)
-        state = State(key=key, grid=grid, entities=entities)
+        positions = random_positions(k1, grid, n=2)
+        direction = random_directions(k2, n=1)
+        # player
+        player = Player(position=positions[0], direction=direction)
+        # goal
+        goal = Goal(position=positions[1][None])
+
+        # systems
+        state = State(
+            key=key,
+            grid=grid,
+            player=player,
+            goals=goal,
+        )
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

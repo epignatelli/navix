@@ -22,5 +22,5 @@ def test_tasks_composition():
     print(jax.jit(_test)())
 
 
-if __name__ == "__main__":
-    test_tasks_composition()
+# if __name__ == "__main__":
+#     test_tasks_composition()

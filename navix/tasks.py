@@ -24,11 +24,9 @@ from typing import Callable
 
 import jax
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 from jax import Array
 
 from .components import State
-from .grid import mask_entity
 
 
 def compose(*fns: Callable[[State, Array, State], Array]):
@@ -45,18 +43,19 @@ def free(state: State) -> Array:
     return jnp.asarray(0.0)
 
 
-def navigation(
-    prev_state: State, action: Array, state: State, prob: ArrayLike = 1.0
-) -> Array:
-    player_mask = mask_entity(state.grid, state.entities["player/0"].id)
-    goal_mask = mask_entity(state.grid, state.entities["goal/0"].id)
-    condition = jax.random.uniform(state.key, ()) >= prob
-    return jax.lax.cond(
-        condition,
-        lambda _: jnp.sum(player_mask * goal_mask),
-        lambda _: jnp.asarray(0.0),
-        (),
+def navigation(prev_state: State, action: Array, state: State) -> Array:
+    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
+        state.player.position, state.goals.position
     )
+    any_reached = jnp.sum(reached)
+
+    draw = jax.random.uniform(state.key, ())
+    reward = any_reached * jnp.greater_equal(draw, state.goals.probability)
+    reward = jnp.asarray(reward, jnp.float32).squeeze()
+
+    # make sure that reward is a scalar
+    assert reward.shape == (), f"Reward must be a scalar but got shape {reward.shape}"
+    return reward
 
 
 def action_cost(
@@ -77,12 +76,7 @@ def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
     # if state is unchanged, maybe the wall was hit
-    player_before = mask_entity(prev_state.grid, prev_state.entities["player/0"].id)
-    player_now = mask_entity(state.grid, state.entities["player/0"].id)
-    hit = jnp.array_equal(player_before, player_now)
-
-    # if action is a move action, the wall was hit
-    hit *= jnp.less_equal(3, action)
-    hit *= jnp.less_equal(action, 6)
-
+    didnt_move = jnp.array_equal(prev_state.player.position, state.player.position)
+    but_wanted_to = jnp.less_equal(3, action) * jnp.less_equal(action, 6)
+    hit = jnp.logical_and(didnt_move, but_wanted_to)
     return -jnp.asarray(cost) * hit

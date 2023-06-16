@@ -28,7 +28,6 @@ from . import (
     grid,
     observations,
     tasks,
-    termination,
-    transitions,
     environments,
+    terminations,
 )

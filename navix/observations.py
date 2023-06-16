@@ -21,6 +21,8 @@
 from __future__ import annotations
 
 from jax import Array
+import jax
+import jax.numpy as jnp
 
 from .components import State
 
@@ -34,7 +36,16 @@ def first_person_view(state: State, radius: int) -> Array:
 
 
 def categorical(state: State) -> Array:
-    raise NotImplementedError()
+    # updates are in reverse order of display
+    # place keys (keys are represented with opposite sign of the door they open)
+    grid = jnp.max(jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.id))(state.keys), axis=0)
+    # place doors
+    grid = jnp.max(jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.requires))(state.doors), axis=0)
+    # place goals
+    grid = jnp.max(jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(2))(state.goals), axis=0)
+    # place player last, always on top
+    grid = grid.at[tuple(state.player.position)].set(1)
+    return grid
 
 
 def one_hot(state: State) -> Array:
