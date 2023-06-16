@@ -94,7 +94,7 @@ class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
-    id: Array = jnp.asarray(-1)
+    id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
 
 
 class Consumable(Component):

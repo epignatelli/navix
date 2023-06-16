@@ -25,7 +25,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .components import Consumable, State
+from .components import Consumable, Pickable, State
 
 
 DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
@@ -97,34 +97,19 @@ def left(state: State) -> State:
 def pickup(state: State) -> State:
     position_in_front = _translate(state.player.position, state.player.direction)
 
-    # def _update(key: Pickable):
-    #     match = jnp.array_equal(position_in_front, key.position)
-    #     pocket = jnp.where(match, key.id, state.player.pocket)
-    #     # update player's pocket
-    #     player = state.player.replace(pocket=pocket)
-    #     # set to (-1, -1) the position of the key that was picked up
-    #     unset_position = jnp.asarray((-1, -1))
-    #     position = jnp.where(match, unset_position, key.position)
-    #     key = key.replace(position=position)
-    #     return player, key
+    def _update(key: Pickable) -> Tuple[Array, Pickable]:
+        match = jnp.array_equal(position_in_front, key.position)
+        # update player's pocket
+        pocket = jnp.where(match, key.id, state.player.pocket)
+        # set to (-1, -1) the position of the key that was picked up
+        unset_position = jnp.asarray((-1, -1))
+        position = jnp.where(match, unset_position, key.position)
+        key = key.replace(position=position)
+        return pocket, key
 
-    # player, keys = jax.vmap(_update)(state.keys)
-
-    # TODO(epignatelli): optimise this, we can just carry the vector of mathcing items
-    # and mask the update only to the matching ones
-    keys_match = jax.vmap(jnp.array_equal, in_axes=(None, 0))(position_in_front, state.keys.position)
-    matching_ids = jnp.where(keys_match, state.keys.id, 0)
-    item_id = jnp.nonzero(matching_ids, size=1)
-
-    # we have to map item_id to a scalar
-    item_id = item_id[0][0]
-    assert item_id.shape == (), f"Item id must be a scalar but got shape {item_id.shape}"
-
-    # update player's pocket
-    player = state.player.replace(pocket=item_id)
-
-    # set to (-1, -1) the position of the key that was picked up
-    keys = state.keys.replace(position=jnp.where(keys_match, jnp.asarray((-1, -1)), state.keys.position))
+    pockets, keys = jax.vmap(_update)(state.keys)
+    pocket = jnp.max(pockets, axis=0)
+    player = state.player.replace(pocket=pocket)
     return state.replace(player=player, keys=keys)
 
 
