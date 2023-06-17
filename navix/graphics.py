@@ -196,7 +196,7 @@ def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
 def floor_tile(size: int = TILE_SIZE, colour: Array = GRAY_90) -> Array:
     floor = jnp.ones((size - 2, size - 2), dtype=jnp.int32)
     floor = jnp.pad(floor, 1, "constant", constant_values=0)
-    return colorise_tile(floor, colour)
+    return colorise_tile(floor, colour, background=GRAY_50)
 
 
 def wall_tile(size: int = TILE_SIZE, colour: Array = GRAY_50) -> Array:
