@@ -15,9 +15,10 @@ CYAN = jnp.asarray([0, 255, 255], dtype=jnp.uint8)
 ORANGE = jnp.asarray([255, 128, 0], dtype=jnp.uint8)
 PINK = jnp.asarray([255, 0, 128], dtype=jnp.uint8)
 BROWN = jnp.asarray([128, 64, 0], dtype=jnp.uint8)
-GRAY = jnp.asarray([128, 128, 128], dtype=jnp.uint8)
-LIGHT_GRAY = jnp.asarray([192, 192, 192], dtype=jnp.uint8)
-DARK_GRAY = jnp.asarray([64, 64, 64], dtype=jnp.uint8)
+GRAY_20 = jnp.asarray([51, 51, 51], dtype=jnp.uint8)
+GRAY_50 = jnp.asarray([128, 128, 128], dtype=jnp.uint8)
+GRAY_70 = jnp.asarray([180, 180, 180], dtype=jnp.uint8)
+GRAY_90 = jnp.asarray([230, 230, 230], dtype=jnp.uint8)
 GOLD = jnp.asarray([255, 215, 0], dtype=jnp.uint8)
 SILVER = jnp.asarray([192, 192, 192], dtype=jnp.uint8)
 BRONZE = jnp.asarray([205, 127, 50], dtype=jnp.uint8)
@@ -54,9 +55,10 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
         ORANGE,
         PINK,
         BROWN,
-        GRAY,
-        LIGHT_GRAY,
-        DARK_GRAY,
+        GRAY_20,
+        GRAY_50,
+        GRAY_70,
+        GRAY_90,
         GOLD,
         SILVER,
         BRONZE,
@@ -88,13 +90,14 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
     return grid
 
 
-def colorise_tile(tile: Array, colour: Array) -> Array:
+def colorise_tile(tile: Array, colour: Array, background: Array = GRAY_90) -> Array:
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
-    tile = jnp.where(tile, colour, tile)
+    background = jnp.ones_like(tile, dtype=jnp.uint8) * background
+    tile = jnp.where(tile, colour, GRAY_90)
     return tile
 
 
-def rectangle_tile(size: int = TILE_SIZE, colour: Array = DARK_GRAY) -> Array:
+def rectangle_tile(size: int = TILE_SIZE, colour: Array = BLACK) -> Array:
     rectangle = jnp.ones((size - 2, size - 2), dtype=jnp.int32)
     rectangle = jnp.pad(rectangle, 1, "constant", constant_values=0)
     return colorise_tile(rectangle, colour)
@@ -189,12 +192,15 @@ def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
     return colorise_tile(key, colour)
 
 
-def floor_tile(size: int = TILE_SIZE, colour: Array = GRAY) -> Array:
-    return rectangle_tile(size, colour)
+def floor_tile(size: int = TILE_SIZE, colour: Array = GRAY_90) -> Array:
+    floor = jnp.ones((size - 2, size - 2), dtype=jnp.int32)
+    floor = jnp.pad(floor, 1, "constant", constant_values=0)
+    return colorise_tile(floor, colour)
 
 
-def wall_tile(size: int = TILE_SIZE, colour: Array = DARK_GRAY) -> Array:
-    return rectangle_tile(size, colour)
+def wall_tile(size: int = TILE_SIZE, colour: Array = GRAY_50) -> Array:
+    wall = jnp.ones((size, size), dtype=jnp.int32)
+    return colorise_tile(wall, colour)
 
 
 def mosaic(grid: Array, tile: Array) -> Array:
