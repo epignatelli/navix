@@ -140,7 +140,7 @@ def diamond_tile(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
 
 
 def door_tile(size: int = TILE_SIZE, colour: Array = APRICOT) -> Array:
-    frame_size = TILE_SIZE - TILE_SIZE // 20
+    frame_size = TILE_SIZE - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
     door = jnp.pad(door, 1, "constant", constant_values=0)
