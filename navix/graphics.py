@@ -189,6 +189,14 @@ def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
     return colorise_tile(key, colour)
 
 
+def floor_tile(size: int = TILE_SIZE, colour: Array = GRAY) -> Array:
+    return rectangle_tile(size, colour)
+
+
+def wall_tile(size: int = TILE_SIZE, colour: Array = DARK_GRAY) -> Array:
+    return rectangle_tile(size, colour)
+
+
 def mosaic(grid: Array, tile: Array) -> Array:
     tiled = jnp.tile(tile, (*grid.shape, 1))
     return jnp.asarray(tiled, dtype=jnp.uint8)
