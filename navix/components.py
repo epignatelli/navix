@@ -31,6 +31,7 @@ import jax.numpy as jnp
 
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
+
     position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
@@ -93,6 +94,7 @@ class Goal(Component):
     probability: Array = jnp.ones((1,), dtype=jnp.float32)
     """The probability of receiving the reward, if reached."""
 
+
 class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
@@ -109,6 +111,7 @@ class Consumable(Component):
     by the item specified in the `replacement` field (0 = floor by default).
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
+
     requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
     """The id of the item required to consume this item. If set, it must be >= 1."""
     replacement: Array = jnp.zeros((1,), dtype=jnp.float32)
