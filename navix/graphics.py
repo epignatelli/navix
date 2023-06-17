@@ -15,10 +15,12 @@ CYAN = jnp.asarray([0, 255, 255], dtype=jnp.uint8)
 ORANGE = jnp.asarray([255, 128, 0], dtype=jnp.uint8)
 PINK = jnp.asarray([255, 0, 128], dtype=jnp.uint8)
 BROWN = jnp.asarray([128, 64, 0], dtype=jnp.uint8)
-GRAY_20 = jnp.asarray([51, 51, 51], dtype=jnp.uint8)
+GRAY_20 = jnp.asarray([205, 205, 205], dtype=jnp.uint8)
+GRAY_40 = jnp.asarray([153, 153, 153], dtype=jnp.uint8)
 GRAY_50 = jnp.asarray([128, 128, 128], dtype=jnp.uint8)
-GRAY_70 = jnp.asarray([180, 180, 180], dtype=jnp.uint8)
-GRAY_90 = jnp.asarray([230, 230, 230], dtype=jnp.uint8)
+GRAY_70 = jnp.asarray([77, 77, 77], dtype=jnp.uint8)
+GRAY_80 = jnp.asarray([51, 51, 51], dtype=jnp.uint8)
+GRAY_90 = jnp.asarray([25, 25, 25], dtype=jnp.uint8)
 GOLD = jnp.asarray([255, 215, 0], dtype=jnp.uint8)
 SILVER = jnp.asarray([192, 192, 192], dtype=jnp.uint8)
 BRONZE = jnp.asarray([205, 127, 50], dtype=jnp.uint8)
@@ -92,8 +94,7 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
 
 def colorise_tile(tile: Array, colour: Array, background: Array = GRAY_90) -> Array:
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
-    background = jnp.ones_like(tile, dtype=jnp.uint8) * background
-    tile = jnp.where(tile, colour, GRAY_90)
+    tile = jnp.where(tile, colour, background)
     return tile
 
 
