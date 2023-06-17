@@ -89,7 +89,7 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
 
 
 def colorise_tile(tile: Array, colour: Array) -> Array:
-    tile = jnp.stack([tile] * 4, axis=-1)
+    tile = jnp.stack([tile] * colour.shape[0], axis=-1)
     tile = jnp.where(tile, colour, tile)
     return tile
 
@@ -190,4 +190,5 @@ def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
 
 
 def mosaic(grid: Array, tile: Array) -> Array:
-    return jnp.tile(tile, (*grid.shape, 1))
+    tiled = jnp.tile(tile, (*grid.shape, 1))
+    return jnp.asarray(tiled, dtype=jnp.uint8)

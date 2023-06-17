@@ -99,11 +99,14 @@ def rgb(state: State) -> Array:
         grid = state.grid.at[tuple(position)].set(1)
         mask = jnp.where(grid== 1, 0, 1)
         mask = jax.image.resize(mask,(mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE), method='nearest')
+        tile = diamond_tile()
+        mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
         tiled = mosaic(grid, diamond_tile())
 
         image = jnp.where(mask, image, tiled)
+        # image = jnp.asarray(image, dtype=jnp.uint8)
         return (image), ()
 
-    background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3))
+    background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3), dtype=jnp.uint8)
     image, _ = jax.lax.scan(body_fun, background, positions)
     return image
