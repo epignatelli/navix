@@ -27,12 +27,11 @@ import jax.numpy as jnp
 from .components import State
 from .graphics import (
     triangle_east_tile,
-    triangle_south_tile,
-    triangle_west_tile,
-    triangle_north_tile,
     diamond_tile,
     door_tile,
     key_tile,
+    floor_tile,
+    wall_tile,
     mosaic,
     TILE_SIZE
 )
@@ -72,41 +71,50 @@ def categorical(state: State) -> Array:
 
 
 def rgb(state: State) -> Array:
-    tiles = [
-        key_tile(),  # keys
-        door_tile(),  # doors
-        diamond_tile(),  # goals
-        [triangle_east_tile()],  # player TODO(epignatelli): handle player's direction
-    ]
-
     positions = jnp.stack([
         *state.keys.position,
         *state.doors.position,
         *state.goals.position,
-        # state.player.position,
+        state.player.position,
     ])
 
-    # tiles = jnp.stack([
-    #     *([key_tile()] * len(state.keys.position)),
-    #     *([door_tile()] * len(state.doors.position)),
-    #     *([diamond_tile()] * len(state.goals.position)),
-    #     # triangle_east_tile(),
-    # ])
+    tiles = jnp.stack([
+        *([key_tile()] * len(state.keys.position)),
+        *([door_tile()] * len(state.doors.position)),
+        *([diamond_tile()] * len(state.goals.position)),
+        triangle_east_tile(),
+    ])
 
-    def body_fun(carry, x):
+    def draw(carry, x):
         image = carry
-        position = x
-        grid = state.grid.at[tuple(position)].set(1)
-        mask = jnp.where(grid== 1, 0, 1)
+        mask, tile = x
         mask = jax.image.resize(mask,(mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE), method='nearest')
-        tile = diamond_tile()
         mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
-        tiled = mosaic(grid, diamond_tile())
-
+        tiled = mosaic(state.grid, tile)
         image = jnp.where(mask, image, tiled)
-        # image = jnp.asarray(image, dtype=jnp.uint8)
         return (image), ()
 
+    def body_fun(carry, x):
+        position, tile = x
+        grid = state.grid.at[tuple(position)].set(1)
+        mask = jnp.where(grid == 1, 0, 1)
+        return draw(carry, (mask, tile))
+
     background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3), dtype=jnp.uint8)
-    image, _ = jax.lax.scan(body_fun, background, positions)
+
+    # add floor
+    floor_mask = jnp.where(state.grid == 0, 1, 0)
+    floor = floor_tile()
+    background, _ = draw(background, (floor_mask, floor))
+
+    # add walls
+    wall_mask = jnp.where(state.grid == -1, 1, 0)
+    wall = wall_tile()
+    background, _ = draw(background, (wall_mask, wall))
+
+    # add entities
+    image, _ = jax.lax.scan(body_fun, background, (positions, tiles))
+
+    # add player
+
     return image
