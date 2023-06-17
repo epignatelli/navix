@@ -96,8 +96,7 @@ def rgb(state: State) -> Array:
 
     def body_fun(carry, x):
         position, tile = x
-        grid = state.grid.at[tuple(position)].set(1)
-        mask = jnp.where(grid == 1, 0, 1)
+        mask = jnp.zeros_like(state.grid).at[tuple(position)].set(1)
         return draw(carry, (mask, tile))
 
     background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3), dtype=jnp.uint8)
@@ -114,7 +113,4 @@ def rgb(state: State) -> Array:
 
     # add entities
     image, _ = jax.lax.scan(body_fun, background, (positions, tiles))
-
-    # add player
-
-    return image
+    return image  # type: ignore
