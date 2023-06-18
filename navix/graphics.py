@@ -143,17 +143,17 @@ def diamond_tile(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
     return colorise_tile(diamond, colour)
 
 
-def door_tile(size: int = TILE_SIZE, colour: Array = APRICOT) -> Array:
+def door_tile(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     frame_size = TILE_SIZE - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
     door = jnp.pad(door, 1, "constant", constant_values=0)
     door = jnp.pad(door, 1, "constant", constant_values=1)
-    x_0 = TILE_SIZE - TILE_SIZE // 5
-    x_1 = x_0 + TILE_SIZE // 5
-    y_0 = TILE_SIZE // 2 - TILE_SIZE - TILE_SIZE // 5
-    y_1 = y_0 + TILE_SIZE // 5
-    door = door.at[y_0:y_1, x_0:x_1].set(1)
+
+    x_0 = TILE_SIZE - TILE_SIZE // 4
+    y_centre = TILE_SIZE // 2
+    y_size = TILE_SIZE // 5
+    door = door.at[y_centre - y_size // 2:y_centre + y_size // 2, x_0:x_0 + 1].set(1)
     return colorise_tile(door, colour)
 
 

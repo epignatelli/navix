@@ -19,3 +19,4 @@ To do this we have the following components:
 
 - Coordinates (-1, -1) are a discard pile for entities that are not in the grid.
 - Every entity but the Player is batched, such that its properties have shape (B, *prop_shape).
+- Every entity has a `tag`, which we use to represent the entity in categorical form. The `tag` must be an `int` greater than `1`.
