@@ -49,24 +49,24 @@ def categorical(state: State) -> Array:
     # updates are in reverse order of display
     # place keys (keys are represented with opposite sign of the door they open)
     grid = jnp.max(
-        jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.id))(
+        jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.tag))(
             state.keys
         ),
         axis=0,
     )
     # place doors
     grid = jnp.max(
-        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.requires))(
+        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.tag))(
             state.doors
         ),
         axis=0,
     )
     # place goals
     grid = jnp.max(
-        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(2))(state.goals), axis=0
+        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(goal.tag))(state.goals), axis=0
     )
     # place player last, always on top
-    grid = grid.at[tuple(state.player.position)].set(1)
+    grid = grid.at[tuple(state.player.position)].set(state.player.tag)
     return grid
 
 
@@ -91,7 +91,7 @@ def rgb(state: State) -> Array:
         mask = jax.image.resize(mask,(mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE), method='nearest')
         mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
         tiled = mosaic(state.grid, tile)
-        image = jnp.where(mask, image, tiled)
+        image = jnp.where(mask, tiled, image)
         return (image), ()
 
     def body_fun(carry, x):

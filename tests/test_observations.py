@@ -1,5 +1,6 @@
 import jax
 import navix as nx
+import matplotlib.pyplot as plt
 
 
 def test_rgb():
@@ -7,6 +8,7 @@ def test_rgb():
     key = jax.random.PRNGKey(4)
     state = jax.jit(env.reset)(key)
     print(state.observation)
+    plt.imshow(state.observation)
 
 
 if __name__ == "__main__":
