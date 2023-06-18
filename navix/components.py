@@ -32,6 +32,8 @@ import jax.numpy as jnp
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
 
+    tag: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
     position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
@@ -82,6 +84,9 @@ class Component(struct.PyTreeNode):
 class Player(Component):
     """Players are entities that can act around the environment"""
 
+    # TODO(epignatelli): consider batching player over the number of players
+    # to allow tranposing the entities pytree for faster computation
+    # and to prepare the ground for multi-agent environments
     direction: Array = jnp.asarray(0)
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
     pocket: Array = jnp.asarray(0)
@@ -102,6 +107,10 @@ class Pickable(Component):
     id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
     """The id of the item. If set, it must be >= 1."""
 
+    @property
+    def tag(self):
+        return - self.id
+
 
 class Consumable(Component):
     """Consumable items are world objects that can be consumed by the player.
@@ -116,6 +125,10 @@ class Consumable(Component):
     """The id of the item required to consume this item. If set, it must be >= 1."""
     replacement: Array = jnp.zeros((1,), dtype=jnp.float32)
     """The grid signature to replace the item with, usually 0 (floor). If set, it must be >= 1."""
+
+    @property
+    def tag(self):
+        return self.requires
 
 
 class State(struct.PyTreeNode):
