@@ -36,8 +36,8 @@ from .. import observations
 
 
 class Environment(struct.PyTreeNode):
-    width: int = struct.field(pytree_node=False)
     height: int = struct.field(pytree_node=False)
+    width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
     gamma: float = struct.field(pytree_node=False, default=1.0)
     observation_fn: Callable[[State], Array] = struct.field(

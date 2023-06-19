@@ -10,7 +10,7 @@ class KeyDoor(Environment):
     def reset(self, key) -> Timestep:
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
-        grid, wall_at = two_rooms(self.width, self.height, k4)
+        grid, wall_at = two_rooms(height=self.height, width=self.width, key=k4)
 
         # spawn player and key in the first room
         out_of_bounds = jnp.asarray(self.height)

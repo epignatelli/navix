@@ -59,13 +59,13 @@ def mask_by_address(
     return mask
 
 
-def room(width: int, height: int):
+def room(height: int, width: int):
     """A grid of ids of size `width` x `height`"""
     grid = jnp.zeros((height, width), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def two_rooms(width: int, height: int, key: KeyArray) -> Tuple[Array, Array]:
+def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     """Two rooms separated by a vertical wall at `width // 2`"""
     # create room
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)

@@ -10,7 +10,7 @@ def test_tasks_composition():
         nx.tasks.wall_hit_cost,
     )
 
-    env = nx.environments.Room(3, 3, 8, reward_fn=reward_fn)
+    env = nx.environments.Room(height=3, width=3, max_steps=8, reward_fn=reward_fn)
     key = jax.random.PRNGKey(0)
 
     def _test():

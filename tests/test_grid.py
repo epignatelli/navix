@@ -30,9 +30,9 @@ def test_grid():
 
 
 def test_idx_from_coordinates():
-    width = 3
     height = 2
-    grid = two_rooms(width, height, jax.random.PRNGKey(7))[0]
+    width = 3
+    grid = two_rooms(height=height, width=width, key=jax.random.PRNGKey(7))[0]
 
     coordinates = jnp.mgrid[0:width, 0:height].reshape(2, -1).T
     coordinates = jnp.asarray(coordinates, dtype=jnp.int32)
@@ -52,7 +52,7 @@ def test_idx_from_coordinates():
 
 def test_random_positions():
     def f():
-        env = nx.environments.KeyDoor(18, 6, 100)
+        env = nx.environments.KeyDoor(height=18, width=6, max_steps=100)
         key = jax.random.PRNGKey(7)
         timestep = env.reset(key)
         # without the `exclude` params in `random_positions` this

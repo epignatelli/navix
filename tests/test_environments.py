@@ -5,7 +5,7 @@ import navix as nx
 
 def test_room():
     def f():
-        env = nx.environments.Room(3, 3, 8)
+        env = nx.environments.Room(height=3, width=3, max_steps=8)
         key = jax.random.PRNGKey(4)
         reset = jax.jit(env.reset)
         step = jax.jit(env.step)
@@ -35,7 +35,7 @@ def test_room():
 
 def test_keydoor():
     def f():
-        env = nx.environments.KeyDoor(10, 5, 8)
+        env = nx.environments.KeyDoor(height=5, width=10, max_steps=8)
         key = jax.random.PRNGKey(1)
         reset = jax.jit(env.reset)
         step = jax.jit(env.step)
@@ -73,4 +73,4 @@ def test_keydoor():
 
 if __name__ == "__main__":
     test_room()
-    test_keydoor()
+    # test_keydoor()

@@ -6,7 +6,7 @@ import navix as nx
 
 def test_termination():
     def f():
-        env = nx.environments.Room(3, 3, 100)
+        env = nx.environments.Room(height=3, width=3, max_steps=100)
         key = jax.random.PRNGKey(4)
         reset = jax.jit(env.reset)
         step = jax.jit(env.step)
@@ -36,7 +36,7 @@ def test_termination():
 
 def test_truncation():
     def f():
-        env = nx.environments.Room(3, 3, 4)
+        env = nx.environments.Room(height=3, width=3, max_steps=4)
         key = jax.random.PRNGKey(4)
         reset = jax.jit(env.reset)
         step = jax.jit(env.step)
