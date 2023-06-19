@@ -30,7 +30,7 @@ class KeyDoor(Environment):
         door_coordinates = jnp.asarray(
             [
                 jax.random.randint(k3, (), 1, self.height - 1),
-                jnp.asarray(self.width // 2),
+                wall_at,
             ]
         )
         doors = Consumable(
