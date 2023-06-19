@@ -1,3 +1,5 @@
+import jax
+import jax.numpy as jnp
 import navix as nx
 
 
@@ -26,5 +28,22 @@ def test_grid():
     print(grid)
 
 
-# if __name__ == "__main__":
-#     test_grid()
+def test_random_positions():
+    def f():
+        env = nx.environments.KeyDoor(18, 6, 100)
+        key = jax.random.PRNGKey(7)
+        reset = jax.jit(env.reset)
+        timestep = reset(key)
+        # without the `exclude` params in `random_positions` this
+        # specific configuration draws player pos [2, 1] and key
+        # pos [2, 1] check that this does not happen anymore
+        assert not jnp.array_equal(timestep.state.player.position, timestep.state.keys.position[0])
+
+
+    f()
+    jax.jit(f)()
+
+
+if __name__ == "__main__":
+    test_grid()
+    test_random_positions()

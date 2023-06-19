@@ -36,5 +36,5 @@ def test_rotation():
     return
 
 
-# if __name__ == "__main__":
-#     test_rotation()
+if __name__ == "__main__":
+    test_rotation()
