@@ -20,9 +20,6 @@
 
 from __future__ import annotations
 
-from enum import IntEnum
-from typing import Any, Dict
-
 from jax import Array
 from flax import struct
 from jax.random import KeyArray
@@ -34,49 +31,6 @@ class Component(struct.PyTreeNode):
 
     position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
-
-
-# class HasId(Component):
-#     """A component that has an id"""
-
-#     id: Array = jnp.asarray(0)
-
-
-# class HasPosition(Component):
-#     """A component that has a position in the environment"""
-
-#     position: Array = jnp.asarray(0)
-
-
-# class HasDirection(Component):
-#     """A component that has a direction"""
-
-#     direction: Array = jnp.asarray(0)
-
-
-# class Stochastic(Component):
-#     """A component that has a probability"""
-
-#     # key: KeyArray
-#     probability: Array = jnp.asarray(1.0)
-
-
-# class Holder(Component):
-#     """A component wiht a 1-slot pocket to hold other components (id)"""
-
-#     pocket: Array = jnp.asarray(0)
-
-
-# class Replaceable(Component):
-#     """A component that can be replaced by another component (id)"""
-
-#     replacement: Array = jnp.asarray(0)
-
-
-# class Consumable(Component):
-#     """A component that can be consumed by another component (id)"""
-
-#     requires: Array = jnp.asarray(0)
 
 
 class Player(Component):
@@ -148,29 +102,3 @@ class State(struct.PyTreeNode):
     """The key entity, batched over the number of keys"""
     doors: Consumable = Consumable()
     """The door entity, batched over the number of doors"""
-
-
-class StepType(IntEnum):
-    TRANSITION = 0
-    """discount > 0, episode continues"""
-    TRUNCATION = 1
-    """discount > 0, episode ends"""
-    TERMINATION = 2
-    """discount == 0, episode ends"""
-
-
-class Timestep(struct.PyTreeNode):
-    t: Array
-    """The number of timesteps elapsed from the last reset of the environment"""
-    observation: Array
-    """The observation corresponding to the current state (for POMDPs)"""
-    action: Array
-    """The action taken by the agent at the current timestep a_t = $\\pi(s_t)$, where $s_t$ is `state`"""
-    reward: Array
-    """The reward $r_{t=1}$ received by the agent after taking action $a_t$"""
-    step_type: Array
-    """The type of the current timestep (see `StepType`)"""
-    state: State
-    """The true state of the MDP, $s_t$ before taking action `action`"""
-    info: Dict[str, Any] = struct.field(default_factory=dict)
-    """Additional information about the environment. Useful for accumulations (e.g. returns)"""

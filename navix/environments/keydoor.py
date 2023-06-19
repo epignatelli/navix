@@ -2,7 +2,8 @@ import jax
 import jax.numpy as jnp
 
 from navix.environments import Environment
-from navix.components import State, Timestep, Player, Pickable, Consumable, Goal
+from navix.components import State, Player, Pickable, Consumable, Goal
+from navix.environments import Timestep
 from navix.grid import two_rooms, random_positions, random_directions, mask_by_coordinates
 
 

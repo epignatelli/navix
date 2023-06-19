@@ -24,9 +24,9 @@ import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 
-from ..components import Goal, Player, State, Timestep
+from ..components import Goal, Player, State
 from ..grid import random_positions, random_directions, room
-from .environment import Environment
+from .environment import Environment, Timestep
 
 
 class Room(Environment):

@@ -21,7 +21,8 @@
 from __future__ import annotations
 
 import abc
-from typing import Callable
+from enum import IntEnum
+from typing import Any, Callable, Dict
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
@@ -29,10 +30,36 @@ from jax import Array
 from flax import struct
 
 from .. import tasks
-from ..components import State, Timestep, StepType
+from ..components import State
 from .. import terminations
 from ..actions import ACTIONS
 from .. import observations
+
+
+class StepType(IntEnum):
+    TRANSITION = 0
+    """discount > 0, episode continues"""
+    TRUNCATION = 1
+    """discount > 0, episode ends"""
+    TERMINATION = 2
+    """discount == 0, episode ends"""
+
+
+class Timestep(struct.PyTreeNode):
+    t: Array
+    """The number of timesteps elapsed from the last reset of the environment"""
+    observation: Array
+    """The observation corresponding to the current state (for POMDPs)"""
+    action: Array
+    """The action taken by the agent at the current timestep a_t = $\\pi(s_t)$, where $s_t$ is `state`"""
+    reward: Array
+    """The reward $r_{t=1}$ received by the agent after taking action $a_t$"""
+    step_type: Array
+    """The type of the current timestep (see `StepType`)"""
+    state: State
+    """The true state of the MDP, $s_t$ before taking action `action`"""
+    info: Dict[str, Any] = struct.field(default_factory=dict)
+    """Additional information about the environment. Useful for accumulations (e.g. returns)"""
 
 
 class Environment(struct.PyTreeNode):
