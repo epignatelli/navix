@@ -13,9 +13,9 @@ class KeyDoor(Environment):
         grid, wall_at = two_rooms(self.width, self.height, k4)
 
         # spawn player and key in the first room
-        out_of_bounds = jnp.asarray(-1)
-        first_room_mask = mask_by_address(grid, (out_of_bounds, wall_at), jnp.greater_equal)
-        first_room = jnp.where(first_room_mask, -1, grid)
+        out_of_bounds = jnp.asarray(self.height)
+        first_room_mask = mask_by_address(grid, (out_of_bounds, wall_at), jnp.less)
+        first_room = jnp.where(first_room_mask, grid, -1)
         player_pos, key_pos = random_positions(k1, first_room, n=2)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
