@@ -83,7 +83,7 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
         LILAC,
         TAN,
     ]
-    grid = jnp.zeros((size * len(colours), size * len(colours), 4), dtype=jnp.uint8)
+    grid = jnp.zeros((size * len(colours), size * len(colours), 3), dtype=jnp.uint8)
     for i, colour in enumerate(colours):
         for j, colour in enumerate(colours):
             grid = grid.at[
