@@ -16,14 +16,19 @@ class KeyDoor(Environment):
         out_of_bounds = jnp.asarray(self.height)
         first_room_mask = mask_by_address(grid, (out_of_bounds, wall_at), jnp.less)
         first_room = jnp.where(first_room_mask, grid, -1)
-        player_pos, key_pos = random_positions(k1, first_room, n=2)
+
+        # player
+        player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
+
+        # key
+        key_pos = random_positions(k2, first_room, exclude=player_pos[None])
         keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
         second_room = jnp.where(first_room_mask, -1, grid)
-        goal_pos = random_positions(k2, second_room, n=1)
+        goal_pos = random_positions(k2, second_room, exclude=jnp.stack([player_pos, key_pos]))
         goals = Goal(position=goal_pos[None])
 
         # add the door

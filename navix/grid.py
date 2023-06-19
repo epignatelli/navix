@@ -31,6 +31,14 @@ from jax import Array
 Coordinates = Tuple[Array, Array]
 
 
+def idx_from_coordinates(grid: Array, coordinates: Array):
+    return coordinates[0] * grid.shape[0] + coordinates[1]
+
+
+def coordinates_from_idx(grid: Array, idx: Array):
+    return jnp.stack(jnp.divmod(idx, grid.shape[1]))
+
+
 def mask_by_address(grid: Array, address: Coordinates, comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal) -> Array:
     mesh = jnp.mgrid[0:grid.shape[0], 0:grid.shape[1]]
     cond_1 = comparison_fn(mesh[0], address[0])
@@ -56,12 +64,18 @@ def two_rooms(width: int, height: int, key: KeyArray) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def random_positions(key: KeyArray, grid: Array, n=1) -> Array:
-    mask = jnp.where(grid, 0, 1)  # all floor tiles
-    probs = jnp.log(mask).reshape((-1,))
-    idx = jax.random.categorical(key, probs, shape=(n,))
+def random_positions(key: KeyArray, grid: Array, n=1, exclude: Array = jnp.asarray([(-1, -1)])) -> Array:
+    # all floor tiles
+    # TODO(epignatelli): switch to all walkable tiles
+    mask = jnp.where(grid, 0, 1).reshape((-1,))  # all floor tiles
 
-    positions = jnp.stack(jnp.divmod(idx, grid.shape[1])).T
+    excluded_idx = idx_from_coordinates(grid, exclude)
+    mask = jnp.max(jax.vmap(lambda idx: mask.at[idx].set(0))(excluded_idx), axis=0)
+
+    log_probs = jnp.log(mask)
+    idx = jax.random.categorical(key, log_probs, shape=(n,))
+
+    positions = coordinates_from_idx(grid, idx).T
     return positions.squeeze()
 
 
