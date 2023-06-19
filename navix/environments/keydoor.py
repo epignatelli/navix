@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from navix.environments import Environment
 from navix.components import State, Timestep, Player, Pickable, Consumable, Goal
-from navix.grid import two_rooms, random_positions, random_directions, mask_by_address
+from navix.grid import two_rooms, random_positions, random_directions, mask_by_coordinates
 
 
 class KeyDoor(Environment):
@@ -14,7 +14,7 @@ class KeyDoor(Environment):
 
         # spawn player and key in the first room
         out_of_bounds = jnp.asarray(self.height)
-        first_room_mask = mask_by_address(grid, (out_of_bounds, wall_at), jnp.less)
+        first_room_mask = mask_by_coordinates(grid, (out_of_bounds, wall_at), jnp.less)
         first_room = jnp.where(first_room_mask, grid, -1)
 
         # player

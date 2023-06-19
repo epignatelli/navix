@@ -52,7 +52,7 @@ def test_idx_from_coordinates():
 
 def test_random_positions():
     def f():
-        env = nx.environments.KeyDoor(height=18, width=6, max_steps=100)
+        env = nx.environments.KeyDoor(height=6, width=18, max_steps=100)
         key = jax.random.PRNGKey(7)
         timestep = env.reset(key)
         # without the `exclude` params in `random_positions` this

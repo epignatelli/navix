@@ -33,18 +33,18 @@ Coordinates = Tuple[Array, Array]
 
 def idx_from_coordinates(grid: Array, coordinates: Array):
     """Converts a 2D coordinate (col, row) into a flat index"""
-    idx = coordinates[0] * grid.shape[0] + coordinates[1]
+    idx = coordinates[0] * grid.shape[1] + coordinates[1]
     return jnp.asarray(idx, dtype=jnp.int32)
 
 
 def coordinates_from_idx(grid: Array, idx: Array):
     """Converts a flat index into a 2D coordinate (col, row)"""
-    col, row = jnp.divmod(idx, grid.shape[0])
+    col, row = jnp.divmod(idx, grid.shape[1])
     coords = jnp.stack([col, row])
     return jnp.asarray(coords, dtype=jnp.int32)
 
 
-def mask_by_address(
+def mask_by_coordinates(
     grid: Array,
     address: Coordinates,
     comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal,
