@@ -18,8 +18,7 @@
 # under the License.
 
 
-__version__ = open("VERSION", "r").read().strip()
-print(__version__)
+__version__ = open("VERSION.txt", "r").read().strip()
 __version_info__ = tuple(int(i) for i in __version__.split(".") if i.isdigit())
 
 
