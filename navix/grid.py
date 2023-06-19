@@ -48,7 +48,7 @@ def two_rooms(width: int, height: int, key: KeyArray) -> Array:
     """Two rooms separated by a vertical wall at `width // 2`"""
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
 
-    wall_at = jax.random.randint(key, (), 0, height - 1)
+    wall_at = jax.random.randint(key, (), 2, width - 2)
 
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
     grid = grid.at[1:-1, wall_at].set(-1)

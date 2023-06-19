@@ -11,7 +11,7 @@ class KeyDoor(Environment):
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
         grid = two_rooms(self.width, self.height, k4)
-        wall_at = jax.random.randint(k4, (), 0, self.height - 1)  # same key to match the wall
+        wall_at = jax.random.randint(k4, (), 2, self.width - 2)  # same key to match the wall
 
 
         # spawn player and key in the first room
