@@ -3,24 +3,28 @@ import jax.numpy as jnp
 
 from navix.environments import Environment
 from navix.components import State, Timestep, Player, Pickable, Consumable, Goal
-from navix.grid import two_rooms, random_positions, random_directions
+from navix.grid import two_rooms, random_positions, random_directions, mask_by_address
 
 
 class KeyDoor(Environment):
     def reset(self, key) -> Timestep:
-        key, k1, k2, k3 = jax.random.split(key, 4)
+        key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
-        room = two_rooms(self.width, self.height)
+        grid = two_rooms(self.width, self.height, k4)
+        wall_at = jax.random.randint(k4, (), 0, self.height - 1)  # same key to match the wall
+
 
         # spawn player and key in the first room
-        first_room = room.at[:, self.width // 2 :].set(-1)
+        out_of_bounds = jnp.asarray(-1)
+        first_room_mask = mask_by_address(grid, (out_of_bounds, wall_at), jnp.less)
+        first_room = jnp.where(first_room_mask, -1, grid)
         player_pos, key_pos = random_positions(k1, first_room, n=2)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
         keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
-        second_room = room.at[:, : self.width // 2].set(-1)
+        second_room = jnp.where(first_room_mask, grid, -1)
         goal_pos = random_positions(k2, second_room, n=1)
         goals = Goal(position=goal_pos[None])
 
@@ -37,7 +41,7 @@ class KeyDoor(Environment):
 
         state = State(
             key=key,
-            grid=room,
+            grid=grid,
             player=player,
             goals=goals,
             keys=keys,

@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 
-from typing import Dict, Tuple
+from typing import Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
@@ -31,16 +31,27 @@ from jax import Array
 Coordinates = Tuple[Array, Array]
 
 
+def mask_by_address(grid: Array, address: Coordinates, comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal) -> Array:
+    mesh = jnp.mgrid[0:grid.shape[0], 0:grid.shape[1]]
+    cond_1 = comparison_fn(mesh[0], address[0])
+    cond_2 = comparison_fn(mesh[1], address[1])
+    mask = jnp.asarray(jnp.logical_and(cond_1, cond_2), dtype=jnp.int32)
+    return mask
+
+
 def room(width: int, height: int):
     grid = jnp.zeros((height, width), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def two_rooms(width: int, height: int) -> Array:
+def two_rooms(width: int, height: int, key: KeyArray) -> Array:
     """Two rooms separated by a vertical wall at `width // 2`"""
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+
+    wall_at = jax.random.randint(key, (), 0, height - 1)
+
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
-    grid = grid.at[1:-1, width // 2].set(-1)
+    grid = grid.at[1:-1, wall_at].set(-1)
     return grid
 
 
