@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import navix as nx
+from navix.grid import two_rooms
 
 
 def test_grid():
@@ -28,6 +29,27 @@ def test_grid():
     print(grid)
 
 
+def test_idx_from_coordinates():
+    width = 3
+    height = 2
+    grid = two_rooms(width, height, jax.random.PRNGKey(7))[0]
+
+    coordinates = jnp.mgrid[0:width, 0:height].reshape(2, -1).T
+    coordinates = jnp.asarray(coordinates, dtype=jnp.int32)
+
+    def _test(coord):
+        idx = nx.grid.idx_from_coordinates(grid, coord)
+        coord_after = nx.grid.coordinates_from_idx(grid, idx)
+        return coord_after
+
+    coordinates_after = jax.vmap(_test)(coordinates)
+
+    assert jnp.all(jnp.array_equal(coordinates, coordinates_after)), (
+        coordinates,
+        coordinates_after,
+    )
+
+
 def test_random_positions():
     def f():
         env = nx.environments.KeyDoor(18, 6, 100)
@@ -47,3 +69,4 @@ def test_random_positions():
 if __name__ == "__main__":
     # test_grid()
     test_random_positions()
+    # test_idx_from_coordinates()

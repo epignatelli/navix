@@ -32,11 +32,16 @@ Coordinates = Tuple[Array, Array]
 
 
 def idx_from_coordinates(grid: Array, coordinates: Array):
-    return coordinates[0] * grid.shape[0] + coordinates[1]
+    """Converts a 2D coordinate (col, row) into a flat index"""
+    idx = coordinates[0] * grid.shape[0] + coordinates[1]
+    return jnp.asarray(idx, dtype=jnp.int32)
 
 
 def coordinates_from_idx(grid: Array, idx: Array):
-    return jnp.stack(jnp.divmod(idx, grid.shape[0]))
+    """Converts a flat index into a 2D coordinate (col, row)"""
+    col, row = jnp.divmod(idx, grid.shape[0])
+    coords = jnp.stack([col, row])
+    return jnp.asarray(coords, dtype=jnp.int32)
 
 
 def mask_by_address(
@@ -44,6 +49,9 @@ def mask_by_address(
     address: Coordinates,
     comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal,
 ) -> Array:
+    """Returns a mask of the same shape as `grid` where the value is 1 if the
+    corresponding element in `grid` satisfies the `comparison_fn` with the
+    corresponding element in `address` (col, row) and 0 otherwise."""
     mesh = jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]]
     cond_1 = comparison_fn(mesh[0], address[0])
     cond_2 = comparison_fn(mesh[1], address[1])
@@ -52,6 +60,7 @@ def mask_by_address(
 
 
 def room(width: int, height: int):
+    """A grid of ids of size `width` x `height`"""
     grid = jnp.zeros((height, width), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
