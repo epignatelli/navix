@@ -95,8 +95,8 @@ def random_positions(
     log_probs = jnp.log(mask)
     idx = jax.random.categorical(key, log_probs, shape=(n,))
 
-    positions = coordinates_from_idx(grid, idx).T
-    return positions.squeeze()
+    positions = jax.vmap(coordinates_from_idx, in_axes=(None, 0))(grid, idx)
+    return positions.T.squeeze()
 
 
 def random_directions(key: KeyArray, n=1) -> Array:
