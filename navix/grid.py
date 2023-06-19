@@ -70,7 +70,7 @@ def random_positions(key: KeyArray, grid: Array, n=1, exclude: Array = jnp.asarr
     mask = jnp.where(grid, 0, 1).reshape((-1,))  # all floor tiles
 
     excluded_idx = idx_from_coordinates(grid, exclude)
-    mask = jnp.max(jax.vmap(lambda idx: mask.at[idx].set(0))(excluded_idx), axis=0)
+    mask = jnp.max(jax.vmap(lambda idx: mask.at[idx].set(-1))(excluded_idx), axis=0)
 
     log_probs = jnp.log(mask)
     idx = jax.random.categorical(key, log_probs, shape=(n,))
