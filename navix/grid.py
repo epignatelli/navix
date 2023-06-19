@@ -76,7 +76,7 @@ def random_positions(
     mask = jnp.where(grid, 0, 1).reshape((-1,))  # all floor tiles
 
     # temporarily set excluded positions to 0 probability
-    mask = jnp.max(
+    mask = jnp.min(
         jax.vmap(
             lambda position: mask.at[idx_from_coordinates(grid, position)].set(0)
         )(exclude),
