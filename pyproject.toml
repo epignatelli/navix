@@ -58,7 +58,7 @@ bug_tracker = "https://github.com/epignatelli/navix/issues"
 
 
 [tool.setuptools.dynamic]
-version = {attr = "navix.__version__"}
+version = {file = "VERSION.txt"}
 dependencies = {file = "./requirements.txt"}
 
 

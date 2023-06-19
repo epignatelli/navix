@@ -2,7 +2,7 @@
 SCRIPT=$(readlink -f "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT")
 echo "Script dir is: $SCRIPT_DIR"
-VERSION=$SCRIPT_DIR/../VERSION
+VERSION=$SCRIPT_DIR/../VERSION.txt
 echo "Current version is: $(cat $VERSION)"
 
 # cd to repo dir

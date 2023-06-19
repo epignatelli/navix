@@ -19,6 +19,7 @@
 
 
 __version__ = open("VERSION", "r").read().strip()
+print(__version__)
 __version_info__ = tuple(int(i) for i in __version__.split(".") if i.isdigit())
 
 
