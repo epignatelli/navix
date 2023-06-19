@@ -25,6 +25,16 @@ import jax
 import jax.numpy as jnp
 
 from .components import State
+from .graphics import (
+    triangle_east_tile,
+    diamond_tile,
+    door_tile,
+    key_tile,
+    floor_tile,
+    wall_tile,
+    mosaic,
+    TILE_SIZE
+)
 
 
 def third_person_view(state: State, radius: int) -> Array:
@@ -38,19 +48,69 @@ def first_person_view(state: State, radius: int) -> Array:
 def categorical(state: State) -> Array:
     # updates are in reverse order of display
     # place keys (keys are represented with opposite sign of the door they open)
-    grid = jnp.max(jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.id))(state.keys), axis=0)
+    grid = jnp.max(
+        jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.tag))(
+            state.keys
+        ),
+        axis=0,
+    )
     # place doors
-    grid = jnp.max(jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.requires))(state.doors), axis=0)
+    grid = jnp.max(
+        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.tag))(
+            state.doors
+        ),
+        axis=0,
+    )
     # place goals
-    grid = jnp.max(jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(2))(state.goals), axis=0)
+    grid = jnp.max(
+        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(goal.tag))(state.goals), axis=0
+    )
     # place player last, always on top
-    grid = grid.at[tuple(state.player.position)].set(1)
+    grid = grid.at[tuple(state.player.position)].set(state.player.tag)
     return grid
 
 
-def one_hot(state: State) -> Array:
-    raise NotImplementedError()
+def rgb(state: State) -> Array:
+    positions = jnp.stack([
+        *state.keys.position,
+        *state.doors.position,
+        *state.goals.position,
+        state.player.position,
+    ])
 
+    tiles = jnp.stack([
+        *([key_tile()] * len(state.keys.position)),
+        *([door_tile()] * len(state.doors.position)),
+        *([diamond_tile()] * len(state.goals.position)),
+        triangle_east_tile(),
+    ])
 
-def pixels(state: State) -> Array:
-    raise NotImplementedError()
+    def draw(carry, x):
+        image = carry
+        mask, tile = x
+        mask = jax.image.resize(mask,(mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE), method='nearest')
+        mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
+        tiled = mosaic(state.grid, tile)
+        image = jnp.where(mask, tiled, image)
+        return (image), ()
+
+    def body_fun(carry, x):
+        position, tile = x
+        mask = jnp.zeros_like(state.grid).at[tuple(position)].set(1)
+        return draw(carry, (mask, tile))
+
+    background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3), dtype=jnp.uint8)
+
+    # add floor
+    floor_mask = jnp.where(state.grid == 0, 1, 0)
+    floor = floor_tile()
+    background, _ = draw(background, (floor_mask, floor))
+
+    # add walls
+    wall_mask = jnp.where(state.grid == -1, 1, 0)
+    wall = wall_tile()
+    background, _ = draw(background, (wall_mask, wall))
+
+    # add entities
+    image, _ = jax.lax.scan(body_fun, background, (positions, tiles))
+    return image  # type: ignore

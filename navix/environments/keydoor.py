@@ -13,23 +13,27 @@ class KeyDoor(Environment):
         room = two_rooms(self.width, self.height)
 
         # spawn player and key in the first room
-        first_room = room.at[:, self.width // 2:].set(-1)
+        first_room = room.at[:, self.width // 2 :].set(-1)
         player_pos, key_pos = random_positions(k1, first_room, n=2)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
         keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
-        second_room = room.at[:, :self.width // 2].set(-1)
+        second_room = room.at[:, : self.width // 2].set(-1)
         goal_pos = random_positions(k2, second_room, n=1)
         goals = Goal(position=goal_pos[None])
 
         # add the door
-        door_coordinates = jnp.asarray([
-            jax.random.randint(k3, (), 1, self.height),
-            jnp.asarray(self.width // 2),
-        ])
-        doors = Consumable(position=door_coordinates[None], requires=jnp.asarray(3)[None])
+        door_coordinates = jnp.asarray(
+            [
+                jax.random.randint(k3, (), 1, self.height),
+                jnp.asarray(self.width // 2),
+            ]
+        )
+        doors = Consumable(
+            position=door_coordinates[None], requires=jnp.asarray(3)[None]
+        )
 
         state = State(
             key=key,

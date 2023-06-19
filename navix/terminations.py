@@ -31,5 +31,7 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
 
 
 def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
-    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(state.player.position, state.goals.position)
+    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
+        state.player.position, state.goals.position
+    )
     return jnp.any(reached)
