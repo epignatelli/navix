@@ -34,13 +34,14 @@ def test_random_positions():
         key = jax.random.PRNGKey(7)
         timestep = env.reset(key)
         # without the `exclude` params in `random_positions` this
-        # specific configuration draws player pos [2, 1] and key
-        # pos [2, 1] check that this does not happen anymore
-        assert not jnp.array_equal(timestep.state.player.position, timestep.state.keys.position[0])
+        # specific configuration of seed and (width, height) draws player
+        # pos [2, 1] and key pos [2, 1] check that this does not happen anymore
+        return timestep.state.player.position, timestep.state.keys.position[0]
 
-
-    f()
-    jax.jit(f)()
+    player_pos, key_pos = f()
+    assert not jnp.array_equal(player_pos, key_pos)
+    player_pos, key_pos = jax.jit(f)()
+    assert not jnp.array_equal(player_pos, key_pos)
 
 
 if __name__ == "__main__":
