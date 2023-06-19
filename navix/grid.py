@@ -44,15 +44,16 @@ def room(width: int, height: int):
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def two_rooms(width: int, height: int, key: KeyArray) -> Array:
+def two_rooms(width: int, height: int, key: KeyArray) -> Tuple[Array, Array]:
     """Two rooms separated by a vertical wall at `width // 2`"""
+    # create room
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
-
-    wall_at = jax.random.randint(key, (), 2, width - 2)
-
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
+
+    # add separation wall
+    wall_at = jax.random.randint(key, (), 2, width - 2)
     grid = grid.at[1:-1, wall_at].set(-1)
-    return grid
+    return grid, wall_at
 
 
 def random_positions(key: KeyArray, grid: Array, n=1) -> Array:
