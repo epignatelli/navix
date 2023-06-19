@@ -34,7 +34,7 @@ class Room(Environment):
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
-        grid = room(self.width, self.height)
+        grid = room(height=self.height, width=self.width)
         positions = random_positions(k1, grid, n=2)
         direction = random_directions(k2, n=1)
         # player

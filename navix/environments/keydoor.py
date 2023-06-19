@@ -3,32 +3,39 @@ import jax.numpy as jnp
 
 from navix.environments import Environment
 from navix.components import State, Timestep, Player, Pickable, Consumable, Goal
-from navix.grid import two_rooms, random_positions, random_directions
+from navix.grid import two_rooms, random_positions, random_directions, mask_by_coordinates
 
 
 class KeyDoor(Environment):
     def reset(self, key) -> Timestep:
-        key, k1, k2, k3 = jax.random.split(key, 4)
+        key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
-        room = two_rooms(self.width, self.height)
+        grid, wall_at = two_rooms(height=self.height, width=self.width, key=k4)
 
         # spawn player and key in the first room
-        first_room = room.at[:, self.width // 2 :].set(-1)
-        player_pos, key_pos = random_positions(k1, first_room, n=2)
+        out_of_bounds = jnp.asarray(self.height)
+        first_room_mask = mask_by_coordinates(grid, (out_of_bounds, wall_at), jnp.less)
+        first_room = jnp.where(first_room_mask, grid, -1)
+
+        # player
+        player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
+
+        # key
+        key_pos = random_positions(k2, first_room, exclude=player_pos[None])
         keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
-        second_room = room.at[:, : self.width // 2].set(-1)
-        goal_pos = random_positions(k2, second_room, n=1)
+        second_room = jnp.where(first_room_mask, -1, grid)
+        goal_pos = random_positions(k2, second_room, exclude=jnp.stack([player_pos, key_pos]))
         goals = Goal(position=goal_pos[None])
 
         # add the door
         door_coordinates = jnp.asarray(
             [
                 jax.random.randint(k3, (), 1, self.height - 1),
-                jnp.asarray(self.width // 2),
+                wall_at,
             ]
         )
         doors = Consumable(
@@ -37,7 +44,7 @@ class KeyDoor(Environment):
 
         state = State(
             key=key,
-            grid=room,
+            grid=grid,
             player=player,
             goals=goals,
             keys=keys,

@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 
-from typing import Dict, Tuple
+from typing import Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
@@ -31,26 +31,72 @@ from jax import Array
 Coordinates = Tuple[Array, Array]
 
 
-def room(width: int, height: int):
+def idx_from_coordinates(grid: Array, coordinates: Array):
+    """Converts a 2D coordinate (col, row) into a flat index"""
+    idx = coordinates[0] * grid.shape[1] + coordinates[1]
+    return jnp.asarray(idx, dtype=jnp.int32)
+
+
+def coordinates_from_idx(grid: Array, idx: Array):
+    """Converts a flat index into a 2D coordinate (col, row)"""
+    col, row = jnp.divmod(idx, grid.shape[1])
+    coords = jnp.stack([col, row])
+    return jnp.asarray(coords, dtype=jnp.int32)
+
+
+def mask_by_coordinates(
+    grid: Array,
+    address: Coordinates,
+    comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal,
+) -> Array:
+    """Returns a mask of the same shape as `grid` where the value is 1 if the
+    corresponding element in `grid` satisfies the `comparison_fn` with the
+    corresponding element in `address` (col, row) and 0 otherwise."""
+    mesh = jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]]
+    cond_1 = comparison_fn(mesh[0], address[0])
+    cond_2 = comparison_fn(mesh[1], address[1])
+    mask = jnp.asarray(jnp.logical_and(cond_1, cond_2), dtype=jnp.int32)
+    return mask
+
+
+def room(height: int, width: int):
+    """A grid of ids of size `width` x `height`"""
     grid = jnp.zeros((height, width), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def two_rooms(width: int, height: int) -> Array:
+def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     """Two rooms separated by a vertical wall at `width // 2`"""
+    # create room
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
-    grid = grid.at[1:-1, width // 2].set(-1)
-    return grid
+
+    # add separation wall
+    wall_at = jax.random.randint(key, (), 2, width - 2)
+    grid = grid.at[1:-1, wall_at].set(-1)
+    return grid, wall_at
 
 
-def random_positions(key: KeyArray, grid: Array, n=1) -> Array:
-    mask = jnp.where(grid, 0, 1)  # all floor tiles
-    probs = jnp.log(mask).reshape((-1,))
-    idx = jax.random.categorical(key, probs, shape=(n,))
+def random_positions(
+    key: KeyArray, grid: Array, n=1, exclude: Array = jnp.asarray([(-1, -1)])
+) -> Array:
+    # all floor tiles
+    # TODO(epignatelli): switch to all walkable tiles
+    mask = jnp.where(grid, 0, 1).reshape((-1,))  # all floor tiles
 
-    positions = jnp.stack(jnp.divmod(idx, grid.shape[1])).T
-    return positions.squeeze()
+    # temporarily set excluded positions to 0 probability
+    mask = jnp.min(
+        jax.vmap(
+            lambda position: mask.at[idx_from_coordinates(grid, position)].set(0)
+        )(exclude),
+        axis=0,
+    )
+
+    log_probs = jnp.log(mask)
+    idx = jax.random.categorical(key, log_probs, shape=(n,))
+
+    positions = jax.vmap(coordinates_from_idx, in_axes=(None, 0))(grid, idx)
+    return positions.T.squeeze()
 
 
 def random_directions(key: KeyArray, n=1) -> Array:
