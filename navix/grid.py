@@ -36,7 +36,7 @@ def idx_from_coordinates(grid: Array, coordinates: Array):
 
 
 def coordinates_from_idx(grid: Array, idx: Array):
-    return jnp.stack(jnp.divmod(idx, grid.shape[1]))
+    return jnp.stack(jnp.divmod(idx, grid.shape[0]))
 
 
 def mask_by_address(
