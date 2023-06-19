@@ -32,8 +32,7 @@ def test_random_positions():
     def f():
         env = nx.environments.KeyDoor(18, 6, 100)
         key = jax.random.PRNGKey(7)
-        reset = jax.jit(env.reset)
-        timestep = reset(key)
+        timestep = env.reset(key)
         # without the `exclude` params in `random_positions` this
         # specific configuration draws player pos [2, 1] and key
         # pos [2, 1] check that this does not happen anymore
@@ -45,5 +44,5 @@ def test_random_positions():
 
 
 if __name__ == "__main__":
-    test_grid()
+    # test_grid()
     test_random_positions()
