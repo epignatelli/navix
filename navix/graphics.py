@@ -86,9 +86,9 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
     grid = jnp.zeros((size * len(colours), size * len(colours), 3), dtype=jnp.uint8)
     for i, colour in enumerate(colours):
         for j, colour in enumerate(colours):
-            grid = grid.at[
-                i * size : (i + 1) * size, j * size : (j + 1) * size
-            ].set(colour)
+            grid = grid.at[i * size : (i + 1) * size, j * size : (j + 1) * size].set(
+                colour
+            )
     return grid
 
 
@@ -153,7 +153,9 @@ def door_tile(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     x_0 = TILE_SIZE - TILE_SIZE // 4
     y_centre = TILE_SIZE // 2
     y_size = TILE_SIZE // 5
-    door = door.at[y_centre - y_size // 2:y_centre + y_size // 2, x_0:x_0 + 1].set(1)
+    door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
+        1
+    )
     return colorise_tile(door, colour)
 
 

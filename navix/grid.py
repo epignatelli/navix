@@ -86,9 +86,9 @@ def random_positions(
 
     # temporarily set excluded positions to 0 probability
     mask = jnp.min(
-        jax.vmap(
-            lambda position: mask.at[idx_from_coordinates(grid, position)].set(0)
-        )(exclude),
+        jax.vmap(lambda position: mask.at[idx_from_coordinates(grid, position)].set(0))(
+            exclude
+        ),
         axis=0,
     )
 
