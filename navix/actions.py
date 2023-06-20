@@ -46,19 +46,19 @@ def _translate(position: Array, direction: Array) -> Array:
     return jax.lax.switch(direction, moves, position)
 
 
-def _walkable(state: State, position: Array) -> Array:
+def _move_allowed(state: State, position: Array) -> Array:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
     # and not occupied by another non-walkable entity
-    occupied_keys = jax.vmap(lambda x: jnp.equal(x, position))(state.keys.position)
-    occupied_doors = jax.vmap(lambda x: jnp.equal(x, position))(state.doors.position)
+    occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(state.keys.position)
+    occupied_doors = jax.vmap(lambda x: jnp.array_equal(x, position))(state.doors.position)
     occupied = jnp.any(jnp.concatenate([occupied_keys, occupied_doors]))
     return jnp.logical_and(walkable, jnp.logical_not(occupied))
 
 
 def _move(state: State, direction: Array) -> State:
     new_position = _translate(state.player.position, direction)
-    can_move = _walkable(state, new_position)
+    can_move = _move_allowed(state, new_position)
     new_position = jnp.where(can_move, new_position, state.player.position)
     player = state.player.replace(position=new_position)
     return state.replace(player=player)

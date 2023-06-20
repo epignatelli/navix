@@ -36,5 +36,19 @@ def test_rotation():
     return
 
 
+def test_walkable():
+    height = 6
+    width = 18
+    env = nx.environments.KeyDoor(height=height, width=width, max_steps=100, observation_fn=nx.observations.categorical)
+
+    key = jax.random.PRNGKey(0)
+    timestep = env.reset(key)
+    actions = (1, 1, 3, 3, 3, 3, 3)
+    for action in actions:
+        timestep = env.step(timestep, jnp.asarray(action))
+        print(timestep.state.player.position)
+
+
 if __name__ == "__main__":
-    test_rotation()
+    # test_rotation()
+    test_walkable()
