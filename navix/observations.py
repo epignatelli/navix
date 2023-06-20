@@ -33,7 +33,7 @@ from .graphics import (
     floor_tile,
     wall_tile,
     mosaic,
-    TILE_SIZE
+    TILE_SIZE,
 )
 
 
@@ -56,14 +56,13 @@ def categorical(state: State) -> Array:
     )
     # place doors
     grid = jnp.max(
-        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.tag))(
-            state.doors
-        ),
+        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.tag))(state.doors),
         axis=0,
     )
     # place goals
     grid = jnp.max(
-        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(goal.tag))(state.goals), axis=0
+        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(goal.tag))(state.goals),
+        axis=0,
     )
     # place player last, always on top
     grid = grid.at[tuple(state.player.position)].set(state.player.tag)
@@ -71,24 +70,32 @@ def categorical(state: State) -> Array:
 
 
 def rgb(state: State) -> Array:
-    positions = jnp.stack([
-        *state.keys.position,
-        *state.doors.position,
-        *state.goals.position,
-        state.player.position,
-    ])
+    positions = jnp.stack(
+        [
+            *state.keys.position,
+            *state.doors.position,
+            *state.goals.position,
+            state.player.position,
+        ]
+    )
 
-    tiles = jnp.stack([
-        *([key_tile()] * len(state.keys.position)),
-        *([door_tile()] * len(state.doors.position)),
-        *([diamond_tile()] * len(state.goals.position)),
-        triangle_east_tile(),
-    ])
+    tiles = jnp.stack(
+        [
+            *([key_tile()] * len(state.keys.position)),
+            *([door_tile()] * len(state.doors.position)),
+            *([diamond_tile()] * len(state.goals.position)),
+            triangle_east_tile(),
+        ]
+    )
 
     def draw(carry, x):
         image = carry
         mask, tile = x
-        mask = jax.image.resize(mask,(mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE), method='nearest')
+        mask = jax.image.resize(
+            mask,
+            (mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE),
+            method="nearest",
+        )
         mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
         tiled = mosaic(state.grid, tile)
         image = jnp.where(mask, tiled, image)
@@ -99,7 +106,10 @@ def rgb(state: State) -> Array:
         mask = jnp.zeros_like(state.grid).at[tuple(position)].set(1)
         return draw(carry, (mask, tile))
 
-    background = jnp.zeros((state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3), dtype=jnp.uint8)
+    background = jnp.zeros(
+        (state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3),
+        dtype=jnp.uint8,
+    )
 
     # add floor
     floor_mask = jnp.where(state.grid == 0, 1, 0)

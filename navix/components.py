@@ -65,7 +65,7 @@ class Pickable(Component):
 
     @property
     def tag(self):
-        return - self.id
+        return -self.id
 
 
 class Consumable(Component):
