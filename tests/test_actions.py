@@ -39,15 +39,35 @@ def test_rotation():
 def test_walkable():
     height = 6
     width = 18
-    env = nx.environments.KeyDoor(height=height, width=width, max_steps=100, observation_fn=nx.observations.categorical)
+    env = nx.environments.KeyDoor(
+        height=height,
+        width=width,
+        max_steps=100,
+        observation_fn=nx.observations.categorical,
+    )
 
     key = jax.random.PRNGKey(0)
     timestep = env.reset(key)
-    actions = (1, 1, 3, 3, 3, 3, 3)
+    actions = (
+        2,
+        3, # in front of key after this
+    )
+    actions_stuck = (
+        3, # should not be able to move forward
+        3, # should not be able to move forward
+        2, # rotate towards the wall
+        3, # should not be able to move forward
+        3, # should not be able to move forward
+    )
     for action in actions:
         timestep = env.step(timestep, jnp.asarray(action))
         print(timestep.state.player.position)
 
+    for action in actions_stuck:
+        next_timestep = env.step(timestep, jnp.asarray(action))
+        print(timestep.state.player.position)
+        assert jnp.array_equal(timestep.state.player.position, next_timestep.state.player.position)
+        timestep = next_timestep
 
 if __name__ == "__main__":
     # test_rotation()
