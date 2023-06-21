@@ -41,7 +41,10 @@ class Player(Component):
     # and to prepare the ground for multi-agent environments
     tag: Array = jnp.asarray(1)
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
-    direction: Array = jnp.asarray(0)
+    # we mark direction as static because it is convenient for mapping observations (e.g. jnp.rot90(grid, k=direction)
+    # however, this is feasible because we only have 4 direcitions
+    # will it scale in multi-agent settings?
+    direction: Array = jnp.asarray(0, dtype=jnp.int32)
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
     pocket: Array = jnp.asarray(0)
     """The id of the item in the pocket (0 if empty)"""
