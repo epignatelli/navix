@@ -7,22 +7,22 @@ import minigrid
 import random
 import time
 
-from timeit import timeit
+from timeit import repeat
 
 
-N_TIMEIT_LOOPS = 5
-N_TIMESTEPS = 100
-N_SEEDS = 10
+N_TIMEIT_LOOPS = 3
+N_REPEAT = 5
+N_TIMESTEPS = 100_000
+N_SEEDS = 1000
 
 
-def profile_navix(seed):
-    env = nx.environments.Room(16, 16, 8)
+def profile_navix_scan(seed):
+    env = nx.environments.Room(16, 16, 8, observation_fn=lambda x: None)
     key = jax.random.PRNGKey(seed)
     timestep = env.reset(key)
     actions = jax.random.randint(key, (N_TIMESTEPS,), 0, 6)
 
-    for i in range(N_TIMESTEPS):
-        timestep = env.step(timestep, actions[i])
+    timestep = jax.lax.scan(lambda carry, x: (env.step(carry, x), ()), timestep, actions)[0]
 
     return timestep
 
@@ -41,20 +41,22 @@ def profile_minigrid(seed):
 
 
 if __name__ == "__main__":
-    # profile navix
-    print("Profiling navix, N_SEEDS = {}, N_TIMESTEPS = {}".format(N_SEEDS, N_TIMESTEPS))
+    # profile navix scanned
+    print("Profiling navix with `scan`, N_SEEDS = {}, N_TIMESTEPS = {}".format(N_SEEDS, N_TIMESTEPS))
     seeds = jnp.arange(N_SEEDS)
 
-    print("\tCompiling...")
+    print(f"\tCompiling {profile_navix_scan}...")
     start = time.time()
-    f = jax.jit(jax.vmap(profile_navix)).lower(seeds).compile()
+    f_scan = jax.jit(jax.vmap(profile_navix_scan)).lower(seeds).compile()
     print("\tCompiled in {:.2f}s".format(time.time() - start))
 
     print("\tRunning ...")
-    res_navix = timeit(lambda: f(seeds).state.grid.block_until_ready(), number=N_TIMEIT_LOOPS)
-    print(res_navix)
+    res_navix = repeat(lambda: f_scan(seeds).state.grid.block_until_ready(), number=N_TIMEIT_LOOPS, repeat=N_REPEAT)
+    res_navix = jnp.asarray(res_navix)
+    print(f"\t {jnp.mean(res_navix)} ± {jnp.std(res_navix)}")
 
     # profile minigrid
     print("Profiling minigrid, N_SEEDS = 1, N_TIMESTEPS = {}".format(N_TIMESTEPS))
-    res_minigrid = timeit(lambda: profile_minigrid(0), number=N_TIMEIT_LOOPS)
-    print(res_minigrid)
+    res_minigrid = repeat(lambda: profile_minigrid(0), number=N_TIMEIT_LOOPS, repeat=N_REPEAT)
+    res_minigrid = jnp.asarray(res_minigrid)
+    print(f"\t {jnp.mean(res_minigrid)} ± {jnp.std(res_minigrid)}")
