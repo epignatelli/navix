@@ -1,11 +1,16 @@
+from typing import Callable
 import jax
 import jax.numpy as jnp
+from jax import Array
+from jax.random import KeyArray
 
-from navix.environments import Environment
-from navix.components import State, Player, Pickable, Consumable, Goal
-from navix.environments import Timestep
-from navix.grid import (
-    two_rooms,
+from .. import observations, tasks, terminations
+from ..graphics import RenderingCache
+from ..environments import Environment
+from ..components import State, Player, Pickable, Consumable, Goal, Wall
+from ..environments import Timestep
+from ..grid import (
+    room,
     random_positions,
     random_directions,
     mask_by_coordinates,
@@ -13,50 +18,67 @@ from navix.grid import (
 
 
 class KeyDoor(Environment):
-    def reset(self, key) -> Timestep:
-        key, k1, k2, k3, k4 = jax.random.split(key, 5)
+    @classmethod
+    def create(
+        cls,
+        height: int,
+        width: int,
+        max_steps: int,
+        gamma: float = 1.0,
+        observation_fn: Callable[[State, RenderingCache], Array] = observations.rgb,
+        reward_fn: Callable[[State, Array, State], Array] = tasks.navigation,
+        termination_fn: Callable[
+            [State, Array, State], Array
+        ] = terminations.on_navigation_completion,
+    ) -> Environment:
+        grid = room(height=height, width=width)
+        return cls(
+            max_steps=max_steps,
+            gamma=gamma,
+            observation_fn=observation_fn,
+            reward_fn=reward_fn,
+            termination_fn=termination_fn,
+            cache=RenderingCache.init(grid),
+        )
 
-        grid, wall_at = two_rooms(height=self.height, width=self.width, key=k4)
+    def reset(self, key: KeyArray) -> Timestep:
+        key, k1, k2, k3, k4 = jax.random.split(key, 5)
+        grid = self.cache.grid
+        height, width = grid.shape
+
+        # spawn the wall
+        wall_at = jax.random.randint(k4, (), 1, width - 1)
+        grid_overlay = jnp.zeros_like(grid, dtype=jnp.int32).at[:, wall_at].set(-1)
+
+        # add the door
+        door_pos = jnp.asarray([jax.random.randint(k3, (), 1, height - 1), wall_at])
+        doors = Consumable(position=door_pos[None], requires=jnp.asarray(3)[None])
 
         # spawn player and key in the first room
-        out_of_bounds = jnp.asarray(self.height)
+        out_of_bounds = jnp.asarray(height)
         first_room_mask = mask_by_coordinates(grid, (out_of_bounds, wall_at), jnp.less)
         first_room = jnp.where(first_room_mask, grid, -1)
-
         # player
         player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
         player = Player(position=player_pos, direction=player_dir)
-
         # key
         key_pos = random_positions(k2, first_room, exclude=player_pos[None])
         keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
         second_room = jnp.where(first_room_mask, -1, grid)
-        goal_pos = random_positions(
-            k2, second_room, exclude=jnp.stack([player_pos, key_pos])
-        )
+        goal_pos = random_positions(k2, second_room)
         goals = Goal(position=goal_pos[None])
 
-        # add the door
-        door_coordinates = jnp.asarray(
-            [
-                jax.random.randint(k3, (), 1, self.height - 1),
-                wall_at,
-            ]
-        )
-        doors = Consumable(
-            position=door_coordinates[None], requires=jnp.asarray(3)[None]
-        )
 
         state = State(
             key=key,
-            grid=grid,
             player=player,
             goals=goals,
             keys=keys,
             doors=doors,
+            grid_overlay=grid_overlay
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

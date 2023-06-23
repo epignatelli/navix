@@ -102,7 +102,7 @@ def random_positions(
     log_probs = jnp.log(probs.at[indices].set(0))
     idx = jax.random.categorical(key, log_probs, shape=(n,))
     position = coordinates_from_idx(grid, idx)
-    return position
+    return position.squeeze()
 
 
 def random_directions(key: KeyArray, n=1) -> Array:
