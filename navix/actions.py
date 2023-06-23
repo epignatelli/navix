@@ -25,30 +25,22 @@ import jax.numpy as jnp
 from jax import Array
 
 from .components import Consumable, Pickable, State
+from .grid import translate, rotate
 
 
 DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
-    direction = (state.player.direction + spin) % 4
+    direction = rotate(state.player.direction, spin)
     player = state.player.replace(direction=direction)
     return state.replace(player=player)
 
 
-def _translate(position: Array, direction: Array) -> Array:
-    moves = (
-        lambda position: position + jnp.asarray((0, 1)),  # east
-        lambda position: position + jnp.asarray((1, 0)),  # south
-        lambda position: position + jnp.asarray((0, -1)),  # west
-        lambda position: position + jnp.asarray((-1, 0)),  # north
-    )
-    return jax.lax.switch(direction, moves, position)
-
-
 def _move_allowed(state: State, position: Array) -> Array:
     # according to the grid
-    walkable = jnp.equal(state.grid[tuple(position)], 0)
+    # walkable = jnp.equal(state.grid[tuple(position)], 0)
+    walkable = True
     # and not occupied by another non-walkable entity
     occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(
         state.keys.position
@@ -61,7 +53,7 @@ def _move_allowed(state: State, position: Array) -> Array:
 
 
 def _move(state: State, direction: Array) -> State:
-    new_position = _translate(state.player.position, direction)
+    new_position = translate(state.player.position, direction)
     can_move = _move_allowed(state, new_position)
     new_position = jnp.where(can_move, new_position, state.player.position)
     player = state.player.replace(position=new_position)
@@ -108,7 +100,7 @@ def left(state: State) -> State:
 
 
 def pickup(state: State) -> State:
-    position_in_front = _translate(state.player.position, state.player.direction)
+    position_in_front = translate(state.player.position, state.player.direction)
 
     def _update(key: Pickable) -> Tuple[Array, Pickable]:
         match = jnp.array_equal(position_in_front, key.position)
@@ -127,14 +119,15 @@ def pickup(state: State) -> State:
 
 
 def open(state: State) -> State:
-    position_in_front = _translate(state.player.position, state.player.direction)
+    return state
+    position_in_front = translate(state.player.position, state.player.direction)
 
     def _update(door: Consumable) -> Tuple[Array, Consumable]:
         match = jnp.array_equal(position_in_front, door.position)
         replacement = jnp.asarray((match - 1) * door.replacement, dtype=jnp.int32)
 
         # update grid
-        grid = jnp.zeros_like(state.grid).at[tuple(door.position)].set(replacement)
+        # grid = jnp.zeros_like(state.grid).at[tuple(door.position)].set(replacement)
 
         # set to (-1, -1) the position of the door that was opened
         unset_position = jnp.asarray((-1, -1))
