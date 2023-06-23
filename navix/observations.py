@@ -71,12 +71,12 @@ def categorical(
     tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
-    indices = idx_from_coordinates(state.cache.grid, state.get_positions(axis=-1))
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=-1))
     # get tags corresponding to the entities
     tags = state.get_tags(axis=0)
     # set tags on the flat set of patches
-    shape = state.cache.grid.shape
-    grid = state.cache.grid.reshape(-1).at[indices].set(tags)
+    shape = state.grid.shape
+    grid = state.grid.reshape(-1).at[indices].set(tags)
     # unflatten patches to reconstruct the grid
     return grid.reshape(shape)
 
@@ -89,12 +89,12 @@ def rgb(
     # TODO(epignatelli): render the grid overlay
 
     # get idx of entity on the flat set of patches
-    indices = idx_from_coordinates(state.cache.grid, state.get_positions(axis=-1))
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=-1))
     # get tiles corresponding to the entities
     tiles = state.get_tiles(tiles_registry, axis=0)
     # set tiles on the flat set of patches
     patches = state.cache.patches.at[indices].set(tiles)
     # unflatten patches to reconstruct the image
-    image_size = (state.cache.grid.shape[0] * graphics.TILE_SIZE, state.cache.grid.shape[1] * graphics.TILE_SIZE)
+    image_size = (state.grid.shape[0] * graphics.TILE_SIZE, state.grid.shape[1] * graphics.TILE_SIZE)
     image = graphics.unflatten_patches(patches, image_size)
     return image

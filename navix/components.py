@@ -103,6 +103,8 @@ class State(struct.PyTreeNode):
 
     key: KeyArray
     """The random number generator state"""
+    grid: Array
+    """The base map of the environment that remains constant throughout the training"""
     cache: RenderingCache
     """The rendering cache to speed up rendering"""
     player: Player  # we can potentially extend this to multiple players easily

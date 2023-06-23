@@ -97,8 +97,6 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
 
 
 class RenderingCache(struct.PyTreeNode):
-    grid: Array
-    """The base map of the environment that remains constant throughout the training"""
     patches: Array
     """A flat set of patches representing the RGB values of each tile in the base map"""
 
@@ -106,10 +104,10 @@ class RenderingCache(struct.PyTreeNode):
     def init(cls, grid: Array) -> "RenderingCache":
         background = render_background(grid)
         patches = flatten_patches(background)
-        return cls(grid=grid, patches=patches)
+        return cls(patches=patches)
 
 
-def colorise_tile(tile: Array, colour: Array, background: Array = GRAY_10) -> Array:
+def colorise_tile(tile: Array, colour: Array, background: Array = WHITE) -> Array:
     assert tile.shape == (TILE_SIZE, TILE_SIZE), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
     tile = jnp.where(tile, colour, background)

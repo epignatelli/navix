@@ -7,7 +7,7 @@ from ..environments import Environment
 from ..components import State, Player, Pickable, Consumable, Goal
 from ..environments import Timestep
 from ..grid import (
-    room,
+    two_rooms,
     random_positions,
     random_directions,
     mask_by_coordinates,
@@ -17,12 +17,8 @@ from ..grid import (
 class KeyDoor(Environment):
     def reset(self, key: KeyArray) -> Timestep:
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
-        grid = room(height=self.height, width=self.width)
-        cache = RenderingCache.init(grid)
 
-        # spawn the wall
-        wall_at = jax.random.randint(k4, (), 1, self.width - 1)
-        grid_overlay = jnp.zeros_like(grid, dtype=jnp.int32).at[:, wall_at].set(-1)
+        grid, wall_at = two_rooms(height=self.height, width=self.width, key=k4)
 
         # add the door
         door_pos = jnp.asarray([jax.random.randint(k3, (), 1, self.height - 1), wall_at])
@@ -48,11 +44,12 @@ class KeyDoor(Environment):
 
         state = State(
             key=key,
+            grid=grid,
             player=player,
             goals=goals,
             keys=keys,
             doors=doors,
-            cache=cache,
+            cache=RenderingCache.init(grid),
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
