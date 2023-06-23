@@ -63,18 +63,19 @@ class Timestep(struct.PyTreeNode):
 
 
 class Environment(struct.PyTreeNode):
+    height: int = struct.field(pytree_node=False)
+    width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
-    gamma: float = struct.field(pytree_node=False)
-    observation_fn: Callable[[State, graphics.RenderingCache], Array] = struct.field(
-        pytree_node=False
+    gamma: float = struct.field(pytree_node=False, default=1.0)
+    observation_fn: Callable[[State], Array] = struct.field(
+        pytree_node=False, default=observations.none
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False
+        pytree_node=False, default=tasks.navigation
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False
+        pytree_node=False, default=terminations.on_navigation_completion
     )
-    cache: graphics.RenderingCache
 
     @abc.abstractmethod
     def reset(self, key: KeyArray) -> Timestep:
@@ -105,7 +106,7 @@ class Environment(struct.PyTreeNode):
         )
 
     def observation(self, state: State):
-        return self.observation_fn(state, self.cache)
+        return self.observation_fn(state)
 
     def reward(self, state: State, action: Array, new_state: State):
         return self.reward_fn(state, action, new_state)

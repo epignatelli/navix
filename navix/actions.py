@@ -40,6 +40,7 @@ def _rotate(state: State, spin: int) -> State:
 def _move_allowed(state: State, position: Array) -> Array:
     # according to the grid
     # walkable = jnp.equal(state.grid[tuple(position)], 0)
+    # TODO(epignatelli): this is a hack to test the refactoring
     walkable = True
     # and not occupied by another non-walkable entity
     occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(
@@ -119,6 +120,7 @@ def pickup(state: State) -> State:
 
 
 def open(state: State) -> State:
+    # TODO(epignatelli): this is a hack to test the refactoring
     return state
     position_in_front = translate(state.player.position, state.player.direction)
 

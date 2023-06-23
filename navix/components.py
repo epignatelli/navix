@@ -26,6 +26,8 @@ from flax import struct
 from jax.random import KeyArray
 import jax.numpy as jnp
 
+from .graphics import RenderingCache
+
 
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
@@ -96,27 +98,13 @@ class Consumable(Component):
         return self.requires
 
 
-class Wall(Component):
-    """Walls are static entities that cannot be traversed by the player"""
-
-    start: Array = jnp.zeros((1, 2), dtype=jnp.int32)  # IntArray['b 2']
-    """The (row, column) position of the start of the wall"""
-    end: Array = jnp.zeros((1, 2), dtype=jnp.int32)  # IntArray['b 2']
-    """The (row, column) position of the end of the wall"""
-    tag: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
-
-    @property
-    def position(self):
-        xs = jnp.arange(self.start[:, 0], self.end[:, 0] + 1)
-        ys = jnp.arange(self.start[:, 1], self.end[:, 1] + 1)
-        return jnp.stack(jnp.meshgrid(xs, ys, indexing="ij"), axis=-1).reshape(-1, 2)
-
-
 class State(struct.PyTreeNode):
     """The Markovian state of the environment"""
 
     key: KeyArray
     """The random number generator state"""
+    cache: RenderingCache
+    """The rendering cache to speed up rendering"""
     player: Player  # we can potentially extend this to multiple players easily
     """The player entity"""
     goals: Goal = Goal()
@@ -125,11 +113,6 @@ class State(struct.PyTreeNode):
     """The key entity, batched over the number of keys"""
     doors: Consumable = Consumable()
     """The door entity, batched over the number of doors"""
-    walls: Wall = Wall()
-    """The wall entity,  batched over the number of walls.
-    Usually a separator between two rooms that changes at each reset"""
-    grid_overlay: Array = jnp.asarray(0)
-    """A supplementary, dynamic base map that possibly changes when the environment resets"""
 
     def get_positions(self, axis: int = -1) -> Array:
         return jnp.stack(
