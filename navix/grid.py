@@ -99,8 +99,8 @@ def random_positions(
 ) -> Array:
     probs = grid.reshape(-1)
     indices = idx_from_coordinates(grid, exclude)
-    log_probs = jnp.log(probs.at[indices].set(0))
-    idx = jax.random.categorical(key, log_probs, shape=(n,))
+    probs = probs.at[indices].set(-1) + 1.0
+    idx = jax.random.categorical(key, probs, shape=(n,))
     position = coordinates_from_idx(grid, idx)
     return position.squeeze()
 

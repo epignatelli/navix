@@ -86,8 +86,6 @@ def rgb(
     # cache: graphics.RenderingCache,
     tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
 ) -> Array:
-    # TODO(epignatelli): render the grid overlay
-
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions(axis=-1))
     # get tiles corresponding to the entities
