@@ -22,18 +22,18 @@ from __future__ import annotations
 
 import abc
 from enum import IntEnum
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax import Array
 from flax import struct
 
-from .. import tasks
+
+from .. import tasks, graphics, terminations, observations
+from ..graphics import RenderingCache
 from ..components import State
-from .. import terminations
 from ..actions import ACTIONS
-from .. import observations
 
 
 class StepType(IntEnum):
@@ -63,19 +63,18 @@ class Timestep(struct.PyTreeNode):
 
 
 class Environment(struct.PyTreeNode):
-    height: int = struct.field(pytree_node=False)
-    width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
-    gamma: float = struct.field(pytree_node=False, default=1.0)
-    observation_fn: Callable[[State], Array] = struct.field(
-        pytree_node=False, default=observations.categorical
+    gamma: float = struct.field(pytree_node=False)
+    observation_fn: Callable[[State, graphics.RenderingCache], Array] = struct.field(
+        pytree_node=False
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=tasks.navigation
+        pytree_node=False
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=terminations.on_navigation_completion
+        pytree_node=False
     )
+    cache: graphics.RenderingCache
 
     @abc.abstractmethod
     def reset(self, key: KeyArray) -> Timestep:
@@ -106,7 +105,7 @@ class Environment(struct.PyTreeNode):
         )
 
     def observation(self, state: State):
-        return self.observation_fn(state)
+        return self.observation_fn(state, self.cache)
 
     def reward(self, state: State, action: Array, new_state: State):
         return self.reward_fn(state, action, new_state)

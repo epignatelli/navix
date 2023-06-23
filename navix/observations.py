@@ -19,108 +19,80 @@
 
 
 from __future__ import annotations
+from typing import Dict, Tuple
 
-from jax import Array
 import jax
 import jax.numpy as jnp
+from jax import Array
 
+from . import graphics
 from .components import State
-from .graphics import (
-    triangle_east_tile,
-    diamond_tile,
-    door_tile,
-    key_tile,
-    floor_tile,
-    wall_tile,
-    mosaic,
-    TILE_SIZE,
-)
+from .grid import idx_from_coordinates
 
 
-def third_person_view(state: State, radius: int) -> Array:
-    raise NotImplementedError()
+# def _view_extremes(state: State, radius: Array) -> Tuple[Array, Array]:
+#     pos_left = translate_left(state.player.position, state.player.direction, radius)
+#     pos_forward_left = translate_forward(pos_left, state.player.direction, radius)
+#     pos_right = translate_right(state.player.position, state.player.direction, radius)
+#     pos_forward_right = translate_forward(pos_right, state.player.direction, radius)
+
+#     all_pos = jnp.stack([pos_left, pos_forward_left, pos_right, pos_forward_right], axis=0)
+
+#     north_west = jnp.min(all_pos, axis=0)
+#     south_east = jnp.max(all_pos, axis=0)
+
+#     return north_west, south_east
 
 
-def first_person_view(state: State, radius: int) -> Array:
-    raise NotImplementedError()
+# def _view_mask(state: State, radius: Array) -> Array:
+#     north_west, south_east = _view_extremes(state, radius)
+#     mask = state.grid.at[north_west[0]:south_east[0] + 1, north_west[1]:south_east[1] + 1].set(1)
+#     return mask
 
 
-def categorical(state: State) -> Array:
-    # updates are in reverse order of display
-    # place keys (keys are represented with opposite sign of the door they open)
-    grid = jnp.max(
-        jax.vmap(lambda key: state.grid.at[tuple(key.position)].set(-key.tag))(
-            state.keys
-        ),
-        axis=0,
-    )
-    # place doors
-    grid = jnp.max(
-        jax.vmap(lambda door: grid.at[tuple(door.position)].set(door.tag))(state.doors),
-        axis=0,
-    )
-    # place goals
-    grid = jnp.max(
-        jax.vmap(lambda goal: grid.at[tuple(goal.position)].set(goal.tag))(state.goals),
-        axis=0,
-    )
-    # place player last, always on top
-    grid = grid.at[tuple(state.player.position)].set(state.player.tag)
-    return grid
+# def _first_person_crop(state: State, radius: Array) -> Array:
+#     north_west, south_east = _view_extremes(state, radius)
+#     view = state.grid[north_west[0]:south_east[0] + 1, north_west[1]:south_east[1] + 1]
+#     view = jnp.rot90(view, k=state.player.direction + 1)
+#     return view
 
 
-def rgb(state: State) -> Array:
-    positions = jnp.stack(
-        [
-            *state.keys.position,
-            *state.doors.position,
-            *state.goals.position,
-            state.player.position,
-        ]
-    )
+def none(
+    state: State,
+    cache: graphics.RenderingCache,
+    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+) -> Array:
+    return jnp.asarray(())
 
-    tiles = jnp.stack(
-        [
-            *([key_tile()] * len(state.keys.position)),
-            *([door_tile()] * len(state.doors.position)),
-            *([diamond_tile()] * len(state.goals.position)),
-            triangle_east_tile(),
-        ]
-    )
 
-    def draw(carry, x):
-        image = carry
-        mask, tile = x
-        mask = jax.image.resize(
-            mask,
-            (mask.shape[0] * TILE_SIZE, mask.shape[1] * TILE_SIZE),
-            method="nearest",
-        )
-        mask = jnp.stack([mask] * tile.shape[-1], axis=-1)
-        tiled = mosaic(state.grid, tile)
-        image = jnp.where(mask, tiled, image)
-        return (image), ()
+def categorical(
+    state: State,
+    cache: graphics.RenderingCache,
+    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+) -> Array:
+    # get idx of entity on the set of patches
+    indices = idx_from_coordinates(cache.grid, state.get_positions(axis=-1))
+    # get tags corresponding to the entities
+    tags = state.get_tags(axis=0)
+    # set tags on the flat set of patches
+    shape = cache.grid.shape
+    grid = cache.grid.reshape(-1).at[indices].set(tags)
+    # unflatten patches to reconstruct the grid
+    return grid.reshape(shape)
 
-    def body_fun(carry, x):
-        position, tile = x
-        mask = jnp.zeros_like(state.grid).at[tuple(position)].set(1)
-        return draw(carry, (mask, tile))
 
-    background = jnp.zeros(
-        (state.grid.shape[0] * TILE_SIZE, state.grid.shape[1] * TILE_SIZE, 3),
-        dtype=jnp.uint8,
-    )
-
-    # add floor
-    floor_mask = jnp.where(state.grid == 0, 1, 0)
-    floor = floor_tile()
-    background, _ = draw(background, (floor_mask, floor))
-
-    # add walls
-    wall_mask = jnp.where(state.grid == -1, 1, 0)
-    wall = wall_tile()
-    background, _ = draw(background, (wall_mask, wall))
-
-    # add entities
-    image, _ = jax.lax.scan(body_fun, background, (positions, tiles))
-    return image  # type: ignore
+def rgb(
+    state: State,
+    cache: graphics.RenderingCache,
+    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+) -> Array:
+    # get idx of entity on the flat set of patches
+    indices = idx_from_coordinates(cache.grid, state.get_positions(axis=-1))
+    # get tiles corresponding to the entities
+    tiles = state.get_tiles(tiles_registry, axis=0)
+    # set tiles on the flat set of patches
+    patches = cache.patches.at[indices].set(tiles)
+    # unflatten patches to reconstruct the image
+    image_size = (cache.grid.shape[0] * graphics.TILE_SIZE, cache.grid.shape[1] * graphics.TILE_SIZE)
+    image = graphics.unflatten_patches(patches, image_size)
+    return image

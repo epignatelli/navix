@@ -1,5 +1,8 @@
+from typing import Dict, Tuple
+
 import jax
 import jax.numpy as jnp
+from flax import struct
 from jax import Array
 
 
@@ -15,6 +18,7 @@ CYAN = jnp.asarray([0, 255, 255], dtype=jnp.uint8)
 ORANGE = jnp.asarray([255, 128, 0], dtype=jnp.uint8)
 PINK = jnp.asarray([255, 0, 128], dtype=jnp.uint8)
 BROWN = jnp.asarray([128, 64, 0], dtype=jnp.uint8)
+GRAY_10 = jnp.asarray([230, 230, 230], dtype=jnp.uint8)
 GRAY_20 = jnp.asarray([205, 205, 205], dtype=jnp.uint8)
 GRAY_40 = jnp.asarray([153, 153, 153], dtype=jnp.uint8)
 GRAY_50 = jnp.asarray([128, 128, 128], dtype=jnp.uint8)
@@ -92,19 +96,33 @@ def colour_chart(size: int = TILE_SIZE) -> Array:
     return grid
 
 
-def colorise_tile(tile: Array, colour: Array, background: Array = GRAY_90) -> Array:
+class RenderingCache(struct.PyTreeNode):
+    grid: Array
+    """The base map of the environment that remains constant throughout the training"""
+    patches: Array
+    """A flat set of patches representing the RGB values of each tile in the base map"""
+
+    @classmethod
+    def init(cls, grid: Array) -> "RenderingCache":
+        background = render_background(grid)
+        patches = flatten_patches(background)
+        return cls(grid=grid, patches=patches)
+
+
+def colorise_tile(tile: Array, colour: Array, background: Array = GRAY_10) -> Array:
+    assert tile.shape == (TILE_SIZE, TILE_SIZE), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
     tile = jnp.where(tile, colour, background)
     return tile
 
 
-def rectangle_tile(size: int = TILE_SIZE, colour: Array = BLACK) -> Array:
+def render_rectangle(size: int = TILE_SIZE, colour: Array = BLACK) -> Array:
     rectangle = jnp.ones((size - 2, size - 2), dtype=jnp.int32)
     rectangle = jnp.pad(rectangle, 1, "constant", constant_values=0)
     return colorise_tile(rectangle, colour)
 
 
-def triangle_east_tile(size: int = TILE_SIZE, colour: Array = RED) -> Array:
+def render_triangle_east(size: int = TILE_SIZE, colour: Array = RED) -> Array:
     triangle = jnp.ones((size, size), dtype=jnp.int32)
     triangle = jnp.tril(triangle, k=0)
     triangle = jnp.flip(triangle, axis=0)
@@ -113,25 +131,25 @@ def triangle_east_tile(size: int = TILE_SIZE, colour: Array = RED) -> Array:
     return colorise_tile(triangle, colour)
 
 
-def triangle_south_tile(size: int = TILE_SIZE, colour: Array = RED) -> Array:
-    triangle = triangle_east_tile(size)
+def render_triangle_south(size: int = TILE_SIZE, colour: Array = RED) -> Array:
+    triangle = render_triangle_east(size)
     triangle = jnp.rot90(triangle, k=3)
     return colorise_tile(triangle, colour)
 
 
-def triangle_west_tile(size: int = TILE_SIZE, colour: Array = RED) -> Array:
-    triangle = triangle_east_tile(size)
+def render_triangle_west(size: int = TILE_SIZE, colour: Array = RED) -> Array:
+    triangle = render_triangle_east(size)
     triangle = jnp.rot90(triangle, k=2)
     return colorise_tile(triangle, colour)
 
 
-def triangle_north_tile(size: int = TILE_SIZE, colour: Array = RED) -> Array:
-    triangle = triangle_east_tile(size)
+def render_triangle_north(size: int = TILE_SIZE, colour: Array = RED) -> Array:
+    triangle = render_triangle_east(size)
     triangle = jnp.rot90(triangle, k=1)
     return colorise_tile(triangle, colour)
 
 
-def diamond_tile(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
+def render_diamond(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
     diamond = jnp.ones((size, size), dtype=jnp.int32)
     diamond = jnp.tril(diamond, k=size // 2.5)
     diamond = jnp.flip(diamond, axis=0)
@@ -143,7 +161,7 @@ def diamond_tile(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
     return colorise_tile(diamond, colour)
 
 
-def door_tile(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+def render_door(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     frame_size = TILE_SIZE - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
@@ -159,7 +177,7 @@ def door_tile(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     return colorise_tile(door, colour)
 
 
-def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
+def render_key(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
     key = jnp.zeros((size, size), dtype=jnp.int32)
 
     # Handle (Round Part)
@@ -195,17 +213,81 @@ def key_tile(size: int = TILE_SIZE, colour: Array = BRONZE) -> Array:
     return colorise_tile(key, colour)
 
 
-def floor_tile(size: int = TILE_SIZE, colour: Array = GRAY_90) -> Array:
+def render_floor(size: int = TILE_SIZE, colour: Array = WHITE) -> Array:
     floor = jnp.ones((size - 2, size - 2), dtype=jnp.int32)
     floor = jnp.pad(floor, 1, "constant", constant_values=0)
-    return colorise_tile(floor, colour, background=GRAY_50)
+    return colorise_tile(floor, colour, background=GRAY_10)
 
 
-def wall_tile(size: int = TILE_SIZE, colour: Array = GRAY_50) -> Array:
+def render_wall(size: int = TILE_SIZE, colour: Array = GRAY_80) -> Array:
     wall = jnp.ones((size, size), dtype=jnp.int32)
     return colorise_tile(wall, colour)
 
 
-def mosaic(grid: Array, tile: Array) -> Array:
+def tile_grid(grid: Array, tile: Array) -> Array:
     tiled = jnp.tile(tile, (*grid.shape, 1))
     return jnp.asarray(tiled, dtype=jnp.uint8)
+
+
+TILES_REGISTRY: Dict[str, Array] = {
+    "wall": render_wall(),
+    "floor": render_floor(),
+    "player": render_triangle_east(),
+    "goal": render_diamond(),
+    "key": render_key(),
+    "door": render_door(),
+}
+
+
+def render_background(
+    grid: Array, tiles_registry: Dict[str, Array] = TILES_REGISTRY
+) -> Array:
+    image_width = grid.shape[0] * TILE_SIZE
+    image_height = grid.shape[1] * TILE_SIZE
+    n_channels = 3
+
+    background = jnp.zeros((image_height, image_width, n_channels), dtype=jnp.uint8)
+    grid_resized = jax.image.resize(
+        grid, (grid.shape[0] * TILE_SIZE, grid.shape[1] * TILE_SIZE), method="nearest"
+    )
+
+    mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
+    floor_tile = tile_grid(grid, tiles_registry["floor"])
+    wall_tile = tile_grid(grid, tiles_registry["wall"])
+    background = jnp.where(mask[..., None], wall_tile, floor_tile)
+    return background
+
+
+def flatten_patches(image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)) -> Array:
+    height = image.shape[0] // patch_size[0]
+    width = image.shape[1] // patch_size[1]
+    n_channels = image.shape[2]
+
+    grid = image.reshape(height, patch_size[0], width, patch_size[1], n_channels)
+
+    # Swap the first and second axes of the grid to revert the stacking order
+    grid = jnp.swapaxes(grid, 1, 2)
+
+    # Reshape the grid of tiles into the original list of tiles
+    patches = grid.reshape(height * width, patch_size[0], patch_size[1], n_channels)
+
+    return patches
+
+
+def unflatten_patches(patches: Array, image_size: Tuple[int, int]) -> Array:
+    image_height = image_size[0]
+    image_width = image_size[1]
+    patch_height = patches.shape[1]
+    patch_width = patches.shape[2]
+    n_channels = patches.shape[3]
+
+    # Reshape the list of tiles into a 2D grid
+    grid = patches.reshape(image_height // patch_height, image_width // patch_width, patch_height, patch_width, n_channels)
+
+    # Swap the first and second axes of the grid to change the order of stacking
+    grid = jnp.swapaxes(grid, 1, 2)
+
+    # Reshape and stack the grid tiles horizontally and vertically to form the final image
+    image = grid.reshape(image_height, image_width, n_channels)
+
+    return image

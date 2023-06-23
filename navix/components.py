@@ -19,6 +19,7 @@
 
 
 from __future__ import annotations
+from typing import Dict
 
 from jax import Array
 from flax import struct
@@ -29,33 +30,34 @@ import jax.numpy as jnp
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
 
-    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1
-    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
-
 
 class Player(Component):
     """Players are entities that can act around the environment"""
 
+    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
     # TODO(epignatelli): consider batching player over the number of players
     # to allow tranposing the entities pytree for faster computation
     # and to prepare the ground for multi-agent environments
-    tag: Array = jnp.asarray(1)
+    tag: Array = jnp.asarray(1)  # IntArray['2']
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
     # we mark direction as static because it is convenient for mapping observations (e.g. jnp.rot90(grid, k=direction)
     # however, this is feasible because we only have 4 direcitions
     # will it scale in multi-agent settings?
-    direction: Array = jnp.asarray(0, dtype=jnp.int32)
+    direction: Array = jnp.asarray(0, dtype=jnp.int32)  # IntArray['2']
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
-    pocket: Array = jnp.asarray(0)
+    pocket: Array = jnp.asarray(0)  # IntArray['2']
     """The id of the item in the pocket (0 if empty)"""
 
 
 class Goal(Component):
     """Goals are entities that can be reached by the player"""
 
-    tag: Array = jnp.ones((1,), dtype=jnp.int32) + 1
+    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    tag: Array = jnp.ones((1,), dtype=jnp.int32) + 1  # IntArray['b']
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
-    probability: Array = jnp.ones((1,), dtype=jnp.float32)
+    probability: Array = jnp.ones((1,), dtype=jnp.float32)  # FloatArray['b']
     """The probability of receiving the reward, if reached."""
 
 
@@ -63,7 +65,9 @@ class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
-    id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
     """The id of the item. If set, it must be >= 1."""
 
     @property
@@ -80,14 +84,32 @@ class Consumable(Component):
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
 
-    requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1
+    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
     """The id of the item required to consume this item. If set, it must be >= 1."""
-    replacement: Array = jnp.zeros((1,), dtype=jnp.float32)
+    replacement: Array = jnp.zeros((1,), dtype=jnp.float32)  # IntArray['b']
     """The grid signature to replace the item with, usually 0 (floor). If set, it must be >= 1."""
 
     @property
-    def tag(self):
+    def tag(self) -> Array:  # -> IntArray['b']
         return self.requires
+
+
+class Wall(Component):
+    """Walls are static entities that cannot be traversed by the player"""
+
+    start: Array = jnp.zeros((1, 2), dtype=jnp.int32)  # IntArray['b 2']
+    """The (row, column) position of the start of the wall"""
+    end: Array = jnp.zeros((1, 2), dtype=jnp.int32)  # IntArray['b 2']
+    """The (row, column) position of the end of the wall"""
+    tag: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
+
+    @property
+    def position(self):
+        xs = jnp.arange(self.start[:, 0], self.end[:, 0] + 1)
+        ys = jnp.arange(self.start[:, 1], self.end[:, 1] + 1)
+        return jnp.stack(jnp.meshgrid(xs, ys, indexing="ij"), axis=-1).reshape(-1, 2)
 
 
 class State(struct.PyTreeNode):
@@ -95,8 +117,6 @@ class State(struct.PyTreeNode):
 
     key: KeyArray
     """The random number generator state"""
-    grid: Array
-    """The 2D-grid containing the ids of the entities in each position"""
     player: Player  # we can potentially extend this to multiple players easily
     """The player entity"""
     goals: Goal = Goal()
@@ -105,3 +125,41 @@ class State(struct.PyTreeNode):
     """The key entity, batched over the number of keys"""
     doors: Consumable = Consumable()
     """The door entity, batched over the number of doors"""
+    walls: Wall = Wall()
+    """The wall entity,  batched over the number of walls.
+    Usually a separator between two rooms that changes at each reset"""
+    grid_overlay: Array = jnp.asarray(0)
+    """A supplementary, dynamic base map that possibly changes when the environment resets"""
+
+    def get_positions(self, axis: int = -1) -> Array:
+        return jnp.stack(
+            [
+                *self.keys.position,
+                *self.doors.position,
+                *self.goals.position,
+                self.player.position,
+            ],
+            axis=axis,
+        )
+
+    def get_tags(self, axis: int = -1) -> Array:
+        return jnp.stack(
+            [
+                *self.keys.tag,
+                *self.doors.tag,
+                *self.goals.tag,
+                self.player.tag,
+            ],
+            axis=axis,
+        )
+
+    def get_tiles(self, tiles_registry: Dict[str, Array], axis: int = 0) -> Array:
+        return jnp.stack(
+            [
+                *([tiles_registry["key"]] * len(self.keys.position)),
+                *([tiles_registry["door"]] * len(self.doors.position)),
+                *([tiles_registry["goal"]] * len(self.goals.position)),
+                tiles_registry["player"],
+            ],
+            axis=axis,
+        )
