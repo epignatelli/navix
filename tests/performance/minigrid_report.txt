@@ -1,0 +1,6 @@
+Profiling navix with `scan`, N_SEEDS = 10000, N_TIMESTEPS = 1000
+	Compiling <function profile_navix_scan at 0x7f1318bcd9d0>...
+	Compiled in 0.78s
+	Running ...
+	 0.1666584610939026 ± 0.021019447594881058
+Profiling minigrid, N_SEEDS = 1, N_TIMESTEPS = 1000
