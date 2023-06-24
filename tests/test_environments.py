@@ -73,4 +73,4 @@ def test_keydoor():
 
 if __name__ == "__main__":
     test_room()
-    # test_keydoor()
+    test_keydoor()

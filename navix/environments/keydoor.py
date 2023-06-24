@@ -4,7 +4,7 @@ from jax.random import KeyArray
 
 from ..graphics import RenderingCache
 from ..environments import Environment
-from ..components import State, Player, Pickable, Consumable, Goal
+from ..components import State, Player, Key, Door, Goal
 from ..environments import Timestep
 from ..grid import (
     two_rooms,
@@ -22,7 +22,7 @@ class KeyDoor(Environment):
 
         # add the door
         door_pos = jnp.asarray([jax.random.randint(k3, (), 1, self.height - 1), wall_at])
-        doors = Consumable(position=door_pos[None], requires=jnp.asarray(3)[None])
+        doors = Door(position=door_pos[None], requires=jnp.asarray(3)[None])
 
         # spawn player and key in the first room
         out_of_bounds = jnp.asarray(self.height)
@@ -34,7 +34,7 @@ class KeyDoor(Environment):
         player = Player(position=player_pos, direction=player_dir)
         # key
         key_pos = random_positions(k2, first_room, exclude=player_pos[None])
-        keys = Pickable(position=key_pos[None], id=jnp.asarray(3)[None])
+        keys = Key(position=key_pos[None], id=jnp.asarray(3)[None])
 
         # spawn the goal in the second room
         second_room = jnp.where(first_room_mask, -1, grid)

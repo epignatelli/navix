@@ -15,8 +15,8 @@ def test_rgb():
         grid=grid,
         player=nx.components.Player(position=jnp.asarray((1, 1))),
         goals=nx.components.Goal(position=jnp.asarray((4, 4))[None]),
-        keys=nx.components.Pickable(position=jnp.asarray((2, 2))[None]),
-        doors=nx.components.Consumable(position=jnp.asarray((1, 5))[None]),
+        keys=nx.components.Key(position=jnp.asarray((2, 2))[None]),
+        doors=nx.components.Door(position=jnp.asarray((1, 5))[None]),
         cache=nx.graphics.RenderingCache.init(grid),
     )
     void = jnp.zeros((nx.graphics.TILE_SIZE, nx.graphics.TILE_SIZE, 3), dtype=jnp.uint8)

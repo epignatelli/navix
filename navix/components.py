@@ -67,7 +67,7 @@ class Goal(Component):
     """The probability of receiving the reward, if reached."""
 
 
-class Pickable(Component):
+class Key(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
@@ -81,7 +81,7 @@ class Pickable(Component):
         return -self.id
 
 
-class Consumable(Component):
+class Door(Component):
     """Consumable items are world objects that can be consumed by the player.
     Consuming an item requires a tool (e.g. a key to open a door).
     A tool is an id (int) of another item, specified in the `requires` field (-1 if no tool is required).
@@ -115,9 +115,9 @@ class State(struct.PyTreeNode):
     """The player entity"""
     goals: Goal = Goal()
     """The goal entity, batched over the number of goals"""
-    keys: Pickable = Pickable()
+    keys: Key = Key()
     """The key entity, batched over the number of keys"""
-    doors: Consumable = Consumable()
+    doors: Door = Door()
     """The door entity, batched over the number of doors"""
 
     def get_positions(self, axis: int = -1) -> Array:
