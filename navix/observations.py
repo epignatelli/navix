@@ -26,7 +26,7 @@ import jax.numpy as jnp
 from jax import Array
 
 from . import graphics
-from .components import State
+from .components import DISCARD_PILE_IDX, State
 from .grid import idx_from_coordinates
 
 
@@ -95,6 +95,8 @@ def rgb(
     tiles = state.get_tiles(tiles_registry, axis=0)
     # set tiles on the flat set of patches
     patches = state.cache.patches.at[indices].set(tiles)
+    # remove discard pile
+    patches = patches[:DISCARD_PILE_IDX]
     # unflatten patches to reconstruct the image
     image_size = (state.grid.shape[0] * graphics.TILE_SIZE, state.grid.shape[1] * graphics.TILE_SIZE)
     image = graphics.unflatten_patches(patches, image_size)

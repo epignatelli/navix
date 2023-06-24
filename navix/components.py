@@ -29,6 +29,10 @@ import jax.numpy as jnp
 from .graphics import RenderingCache
 
 
+DISCARD_PILE_COORDS = jnp.asarray((0, -1), dtype=jnp.int32)
+DISCARD_PILE_IDX = jnp.asarray(-1, dtype=jnp.int32)
+
+
 class Component(struct.PyTreeNode):
     """A component is a part of the state of the environment."""
 
@@ -36,7 +40,7 @@ class Component(struct.PyTreeNode):
 class Player(Component):
     """Players are entities that can act around the environment"""
 
-    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    position: Array = DISCARD_PILE_COORDS  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
     # TODO(epignatelli): consider batching player over the number of players
     # to allow tranposing the entities pytree for faster computation
@@ -55,7 +59,7 @@ class Player(Component):
 class Goal(Component):
     """Goals are entities that can be reached by the player"""
 
-    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
     tag: Array = jnp.ones((1,), dtype=jnp.int32) + 1  # IntArray['b']
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
@@ -67,7 +71,7 @@ class Pickable(Component):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
-    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
     id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
     """The id of the item. If set, it must be >= 1."""
@@ -86,7 +90,7 @@ class Consumable(Component):
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
 
-    position: Array = jnp.zeros((1, 2), dtype=jnp.int32) - 1  # IntArray['b 2']
+    position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
     requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
     """The id of the item required to consume this item. If set, it must be >= 1."""

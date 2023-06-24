@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, Tuple
 
 import jax
@@ -101,9 +103,18 @@ class RenderingCache(struct.PyTreeNode):
     """A flat set of patches representing the RGB values of each tile in the base map"""
 
     @classmethod
-    def init(cls, grid: Array) -> "RenderingCache":
+    def init(cls, grid: Array) -> RenderingCache:
         background = render_background(grid)
         patches = flatten_patches(background)
+
+        # add discard pile
+        patches = jnp.concatenate(
+            [
+                patches,
+                jnp.zeros((1, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8),
+            ],
+            axis=0,
+        )
         return cls(patches=patches)
 
 
