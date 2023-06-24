@@ -52,8 +52,11 @@ def test_random_positions():
     positions = nx.grid.random_positions(key, grid, n=4)
     assert positions.shape == (4, 2), positions.shape
 
-    positions = nx.grid.random_positions(key, grid, n=4, exclude=jnp.asarray((1, 1)))
-    assert jnp.all(positions != jnp.asarray((1, 1))), positions
+    exclude = jnp.asarray((1, 1))
+    positions = nx.grid.random_positions(key, grid, n=50, exclude=exclude)
+    for position in positions:
+        assert not jnp.array_equal(position, exclude), position
+        assert jnp.array_equal(grid[tuple(position)], 0), positions
 
 
 if __name__ == "__main__":

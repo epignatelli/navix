@@ -36,7 +36,10 @@ def coordinates(grid: Array) -> Coordinates:
 
 
 def idx_from_coordinates(grid: Array, coordinates: Array):
-    """Converts a 2D coordinate (col, row) into a flat index"""
+    """Converts a batch of 2D coordinates [(col, row), ...] into a flat index"""
+    coordinates = coordinates.T
+    assert coordinates.shape[0] == 2, coordinates.shape
+
     idx = coordinates[0] * grid.shape[1] + coordinates[1]
     return jnp.asarray(idx, dtype=jnp.int32)
 
