@@ -99,7 +99,7 @@ def random_positions(
     probs = grid.reshape(-1)
     indices = idx_from_coordinates(grid, exclude)
     probs = probs.at[indices].set(-1) + 1.0
-    idx = jax.random.categorical(key, probs, shape=(n,))
+    idx = jax.random.categorical(key, jnp.log(probs), shape=(n,))
     position = coordinates_from_idx(grid, idx)
     return position.squeeze()
 
