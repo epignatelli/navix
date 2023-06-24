@@ -43,9 +43,8 @@ def idx_from_coordinates(grid: Array, coordinates: Array):
 
 def coordinates_from_idx(grid: Array, idx: Array):
     """Converts a flat index into a 2D coordinate (col, row)"""
-    col, row = jnp.divmod(idx, grid.shape[1])
-    coords = jnp.stack([col, row])
-    return jnp.asarray(coords, dtype=jnp.int32)
+    coords = jnp.divmod(idx, grid.shape[1])
+    return jnp.asarray(coords, dtype=jnp.int32).T
 
 
 def mask_by_coordinates(
