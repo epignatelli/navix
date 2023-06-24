@@ -71,7 +71,7 @@ def categorical(
     tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=-1))
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
     # get tags corresponding to the entities
     tags = state.get_tags(axis=0)
     # set tags on the flat set of patches
@@ -86,8 +86,15 @@ def rgb(
     # cache: graphics.RenderingCache,
     tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
 ) -> Array:
+    # TODO(epignatelli): we can simplify this by indexing from tuples directly
+    # e.g., background[tuple(positions.T)]
+    # this allows to remove:
+    # the idx_from_coordinates function, the
+    # graphics.unflatten_patches function (replace it with a simpler reshape), and the
+    # graphics.flatten_patches function from `env.reset`
+
     # get idx of entity on the flat set of patches
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=-1))
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
     # get tiles corresponding to the entities
     tiles = state.get_tiles(tiles_registry, axis=0)
     # set tiles on the flat set of patches
