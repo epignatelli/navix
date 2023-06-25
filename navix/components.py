@@ -31,6 +31,7 @@ from .graphics import RenderingCache
 
 DISCARD_PILE_COORDS = jnp.asarray((0, -1), dtype=jnp.int32)
 DISCARD_PILE_IDX = jnp.asarray(-1, dtype=jnp.int32)
+EMPTY_POCKET_ID = jnp.asarray(-1, dtype=jnp.int32)
 
 
 class Component(struct.PyTreeNode):
@@ -52,7 +53,7 @@ class Player(Component):
     # will it scale in multi-agent settings?
     direction: Array = jnp.asarray(0, dtype=jnp.int32)  # IntArray['2']
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
-    pocket: Array = jnp.asarray(0)  # IntArray['2']
+    pocket: Array = EMPTY_POCKET_ID  # IntArray['2']
     """The id of the item in the pocket (0 if empty)"""
 
 
@@ -73,7 +74,7 @@ class Key(Component):
 
     position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
-    id: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
+    id: Array = jnp.ones((1,), dtype=jnp.int32)  # IntArray['b']
     """The id of the item. If set, it must be >= 1."""
 
     @property
@@ -92,7 +93,7 @@ class Door(Component):
 
     position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
-    requires: Array = jnp.zeros((1,), dtype=jnp.int32) - 1  # IntArray['b']
+    requires: Array = EMPTY_POCKET_ID[None]  # IntArray['b']
     """The id of the item required to consume this item. If set, it must be >= 1."""
     replacement: Array = jnp.zeros((1,), dtype=jnp.float32)  # IntArray['b']
     """The grid signature to replace the item with, usually 0 (floor). If set, it must be >= 1."""

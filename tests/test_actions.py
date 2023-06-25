@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.components import EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 
 
 def test_rotation():
@@ -105,13 +106,116 @@ def test_walkable():
 
 
 def test_pickup():
-    raise NotImplementedError
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.components.Player(position=jnp.asarray((1, 1)), direction=jnp.asarray(1))
+    goals = nx.components.Goal(position=jnp.asarray((3, 3))[None])
+    keys = nx.components.Key(position=jnp.asarray((2, 1))[None], id=jnp.asarray(1)[None])
+    doors = nx.components.Door(position=jnp.asarray((1, 3))[None], requires=jnp.asarray(1))
+    cache = nx.graphics.RenderingCache(grid)
+
+    # Looks like this
+    """
+    #  #  #  #  #
+    #  P  .  D  #
+    #  K  .  .  #
+    #  .  .  G  #
+    #  #  #  #  #
+    """
+    state = nx.components.State(
+        grid=grid,
+        player=player,
+        goals=goals,
+        keys=keys,
+        doors=doors,
+        cache=cache,
+        key=key,
+    )
+
+    # check that the player has no keys
+    assert jnp.array_equal(state.player.pocket, EMPTY_POCKET_ID), (
+        "Expected player to have pocket {}, got {}".format(EMPTY_POCKET_ID, state.player.pocket)
+    )
+
+    # pick up the key
+    state = nx.actions.pickup(state)
+
+    # check that the player has the key
+    expected_pocket = jnp.asarray(1)
+    assert jnp.array_equal(state.player.pocket, expected_pocket), (
+        "Expected player to have key {}, got {}".format(expected_pocket, state.player.pocket)
+    )
+
+    # check that the key is no longer on the grid
+    assert jnp.array_equal(state.keys.position[0], DISCARD_PILE_COORDS), (
+        "Expected key to be at {}, got {}".format(DISCARD_PILE_COORDS, state.keys.position)
+    )
 
 
 def test_open():
-    raise NotImplementedError
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.components.Player(position=jnp.asarray((1, 1)), direction=jnp.asarray(0))
+    goals = nx.components.Goal(position=jnp.asarray((3, 3))[None])
+    keys = nx.components.Key(position=jnp.asarray((3, 1))[None], id=jnp.asarray(1))
+    doors = nx.components.Door(position=jnp.asarray((1, 3))[None], requires=jnp.asarray(1))
+    cache = nx.graphics.RenderingCache(grid)
+
+    # Looks like this
+    # W  W  W  W  W
+    # W  P  0  D  W
+    # W  0  0  0  W
+    # W  K  0  G  W
+    # W  W  W  W  W
+
+    state = nx.components.State(
+        grid=grid,
+        player=player,
+        goals=goals,
+        keys=keys,
+        doors=doors,
+        cache=cache,
+        key=key,
+    )
+
+    # check that the player has no keys
+    expected_pocket = EMPTY_POCKET_ID
+    assert jnp.array_equal(state.player.pocket, expected_pocket), (
+        "Expected player to have {}, got {}".format(expected_pocket, state.player.pocket)
+    )
+
+    state = nx.actions.forward(state)
+
+    # check that we cannot open a door without the required key
+    state = nx.actions.open(state)
+    expected_pocket = EMPTY_POCKET_ID
+    # check that pocket is empty
+    assert jnp.array_equal(state.player.pocket, expected_pocket), (
+        "Expected player to have pocket {}, got {}".format(expected_pocket, state.player.pocket)
+    )
+    assert jnp.array_equal(state.doors.position[0], jnp.asarray((1, 3))), (
+        "Expected door position to be {}, got {}".format((1, 3), state.doors.position)
+    )
+
+    # artificially put the right key in the player's pocket
+    state = state.replace(player=state.player.replace(pocket=jnp.asarray(1)))
+
+    # check that we can open the door
+    state = nx.actions.open(state)
+    assert jnp.array_equal(state.doors.position[0], DISCARD_PILE_COORDS), (
+        "Expected door position to be {}, got {}".format(DISCARD_PILE_COORDS, state.doors.position)
+    )
+    expected_pocket = jnp.asarray(1)
+    assert jnp.array_equal(state.player.pocket, expected_pocket), (
+        "Expected player to have pocket {}, got {}".format(expected_pocket, state.player.pocket)
+    )
 
 
 if __name__ == "__main__":
     # test_rotation()
-    test_walkable()
+    # test_walkable()
+    test_pickup()
