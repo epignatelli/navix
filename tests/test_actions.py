@@ -214,6 +214,19 @@ def test_open():
         "Expected player to have pocket {}, got {}".format(expected_pocket, state.player.pocket)
     )
 
+    # check that we cannot open a door that has already been opened
+    state = nx.actions.open(state)
+    assert jnp.array_equal(state.doors.position[0], DISCARD_PILE_COORDS), (
+        "Expected door position to be {}, got {}".format(DISCARD_PILE_COORDS, state.doors.position)
+    )
+
+    # check that we can walk through an open door
+    state = nx.actions.forward(state)
+    expected_position = jnp.asarray((1, 3))
+    assert jnp.array_equal(state.player.position, expected_position), (
+        "Expected player position to be {}, got {}".format(expected_position, state.player.position)
+    )
+
 
 if __name__ == "__main__":
     # test_rotation()

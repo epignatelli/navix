@@ -19,12 +19,13 @@
 
 
 from __future__ import annotations
-from typing import Dict
+from typing import Any, Dict
 
 from jax import Array
 from flax import struct
 from jax.random import KeyArray
 import jax.numpy as jnp
+from jax.tree_util import PyTreeDef
 
 from .graphics import RenderingCache
 
@@ -93,10 +94,14 @@ class Door(Component):
 
     position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    direction: Array = jnp.zeros((1,), dtype=jnp.int32)  # IntArray['b']
+    """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
     requires: Array = EMPTY_POCKET_ID[None]  # IntArray['b']
     """The id of the item required to consume this item. If set, it must be >= 1."""
     replacement: Array = jnp.zeros((1,), dtype=jnp.float32)  # IntArray['b']
     """The grid signature to replace the item with, usually 0 (floor). If set, it must be >= 1."""
+    open: Array = jnp.zeros((1,), dtype=jnp.bool_)  # BoolArray['b']
+    """Whether the door is open or not."""
 
     @property
     def tag(self) -> Array:  # -> IntArray['b']
@@ -150,6 +155,19 @@ class State(struct.PyTreeNode):
                 *([tiles_registry["door"]] * len(self.doors.position)),
                 *([tiles_registry["goal"]] * len(self.goals.position)),
                 tiles_registry["player"],
+            ],
+            axis=axis,
+        )
+
+    def get_tiles2(
+        self, sprites_registry: Dict[str, Array], axis: int = 0
+    ) -> Any:
+        return jnp.stack(
+            [
+                *[sprites_registry["key"] for _ in self.keys.position],
+                *[sprites_registry["door"][self.doors.open[i]][self.doors.direction[i]] for i, _ in enumerate(self.doors.position)],
+                *[sprites_registry["goal"] for _ in self.goals.position],
+                sprites_registry["player"][self.player.direction],
             ],
             axis=axis,
         )

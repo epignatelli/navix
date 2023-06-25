@@ -170,7 +170,7 @@ def render_diamond(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
     return colorise_tile(diamond, colour)
 
 
-def render_door(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+def render_door_closed(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     frame_size = TILE_SIZE - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
@@ -183,6 +183,29 @@ def render_door(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
     door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
         1
     )
+    return colorise_tile(door, colour)
+
+
+def render_door_locked(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+    frame_size = TILE_SIZE - 4
+    door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
+    door = jnp.pad(door, 2, "constant", constant_values=1)
+
+    x_0 = TILE_SIZE - TILE_SIZE // 4
+    y_centre = TILE_SIZE // 2
+    y_size = TILE_SIZE // 5
+    door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
+        1
+    )
+    return colorise_tile(door, colour, background=colour / 2)
+
+
+def render_door_open(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+    door = jnp.zeros((size, size), dtype=jnp.int32)
+    door = door.at[0].set(1)
+    door = door.at[3].set(1)
+    door = door.at[:3, 0].set(1)
+    door = door.at[:3, -1].set(1)
     return colorise_tile(door, colour)
 
 
@@ -244,7 +267,33 @@ TILES_REGISTRY: Dict[str, Array] = {
     "player": render_triangle_east(),
     "goal": render_diamond(),
     "key": render_key(),
-    "door": render_door(),
+    "door": render_door_closed(),
+}
+
+
+TILES_REGISTRY_WITH_DIRECTION = {
+    "player": (
+        TILES_REGISTRY["player"],
+        jnp.rot90(TILES_REGISTRY["player"], k=1, axes=(1, 2)),
+        jnp.rot90(TILES_REGISTRY["player"], k=2, axes=(1, 2)),
+        jnp.rot90(TILES_REGISTRY["player"], k=3, axes=(1, 2)),
+    ),
+    "door": (
+        (
+            jnp.rot90(TILES_REGISTRY["door_closed"], k=3, axes=(1, 2)),
+            jnp.rot90(TILES_REGISTRY["door_closed"], k=2, axes=(1, 2)),
+            jnp.rot90(TILES_REGISTRY["door_closed"], k=1, axes=(1, 2)),
+            TILES_REGISTRY["door_closed"],
+        ),
+        (
+            TILES_REGISTRY["door_open"],
+            jnp.rot90(TILES_REGISTRY["door_open"], k=1, axes=(1, 2)),
+            jnp.rot90(TILES_REGISTRY["door_open"], k=2, axes=(1, 2)),
+            jnp.rot90(TILES_REGISTRY["door_open"], k=3, axes=(1, 2)),
+        ),
+    ),
+    "key": TILES_REGISTRY["key"],
+    "goal": TILES_REGISTRY["goal"],
 }
 
 
