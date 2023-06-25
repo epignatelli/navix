@@ -267,7 +267,9 @@ TILES_REGISTRY: Dict[str, Array] = {
     "player": render_triangle_east(),
     "goal": render_diamond(),
     "key": render_key(),
-    "door": render_door_closed(),
+    "door_closed": render_door_closed(),
+    "door_locked": render_door_locked(),
+    "door_open": render_door_open(),
 }
 
 
