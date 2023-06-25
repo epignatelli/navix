@@ -22,18 +22,18 @@ from __future__ import annotations
 
 import abc
 from enum import IntEnum
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax import Array
 from flax import struct
 
-from .. import tasks
+
+from .. import tasks, graphics, terminations, observations
+from ..graphics import RenderingCache
 from ..components import State
-from .. import terminations
 from ..actions import ACTIONS
-from .. import observations
 
 
 class StepType(IntEnum):
@@ -68,7 +68,7 @@ class Environment(struct.PyTreeNode):
     max_steps: int = struct.field(pytree_node=False)
     gamma: float = struct.field(pytree_node=False, default=1.0)
     observation_fn: Callable[[State], Array] = struct.field(
-        pytree_node=False, default=observations.categorical
+        pytree_node=False, default=observations.none
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
         pytree_node=False, default=tasks.navigation

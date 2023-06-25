@@ -8,11 +8,16 @@
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
 ## What is NAVIX?
-NAVIX is [minigrid](https://github.com/Farama-Foundation/Minigrid) in JAX, **>10000x** faster with Autograd and XLA support.
+---
+NAVIX is [minigrid](https://github.com/Farama-Foundation/Minigrid) in JAX, **>1000x** faster with Autograd and XLA support.
 You can see a superficial performance comparison [here](docs/profiling.ipynb).
+
+The library is in active development, and we are working on adding more environments and features.
+If you want join the development and contribute, please [open a discussion](https://github.com/epignatelli/navix/discussions/new?category=general) and let's have a chat!
 
 
 ## Installation
+---
 We currently support the OSs supported by JAX.
 You can find a description [here](https://github.com/google/jax#installation).
 
@@ -22,13 +27,20 @@ You might want to follow the same guide to install jax for your faviourite accel
 [TPU](https://github.com/google/jax#pip-installation-colab-tpu)
 ).
 
-Then, install `navix` and its dependencies with:
+- ### Stable
+Then, install the stable version of `navix` and its dependencies with:
 ```bash
 pip install navix
 ```
 
----
+- ### Nightly
+Or, if you prefer to install the latest version from source:
+```bash
+pip install git+https://github.com/epignatelli/navix
+```
+
 ## Examples
+---
 
 ### XLA compilation
 One straightforward use case is to accelerate the computation of the environment with XLA compilation.
@@ -64,6 +76,7 @@ TODO(epignatelli): add example.
 
 
 ## Cite
+---
 If you use `helx` please consider citing it as:
 
 ```bibtex
@@ -75,4 +88,3 @@ If you use `helx` please consider citing it as:
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/epignatelli/navix}}
   }
-```

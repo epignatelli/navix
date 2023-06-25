@@ -31,17 +31,23 @@ from jax import Array
 Coordinates = Tuple[Array, Array]
 
 
+def coordinates(grid: Array) -> Coordinates:
+    return tuple(jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]])
+
+
 def idx_from_coordinates(grid: Array, coordinates: Array):
-    """Converts a 2D coordinate (col, row) into a flat index"""
+    """Converts a batch of 2D coordinates [(col, row), ...] into a flat index"""
+    coordinates = coordinates.T
+    assert coordinates.shape[0] == 2, coordinates.shape
+
     idx = coordinates[0] * grid.shape[1] + coordinates[1]
     return jnp.asarray(idx, dtype=jnp.int32)
 
 
 def coordinates_from_idx(grid: Array, idx: Array):
     """Converts a flat index into a 2D coordinate (col, row)"""
-    col, row = jnp.divmod(idx, grid.shape[1])
-    coords = jnp.stack([col, row])
-    return jnp.asarray(coords, dtype=jnp.int32)
+    coords = jnp.divmod(idx, grid.shape[1])
+    return jnp.asarray(coords, dtype=jnp.int32).T
 
 
 def mask_by_coordinates(
@@ -49,14 +55,60 @@ def mask_by_coordinates(
     address: Coordinates,
     comparison_fn: Callable[[Array, Array], Array] = jnp.greater_equal,
 ) -> Array:
-    """Returns a mask of the same shape as `grid` where the value is 1 if the
+    """This is a workaround to compute dynamicly-sized masks in XLA,
+    which would not be possible otherwise.
+    Returns a mask of the same shape as `grid` where the value is 1 if the
     corresponding element in `grid` satisfies the `comparison_fn` with the
-    corresponding element in `address` (col, row) and 0 otherwise."""
+    corresponding element in `address` (col, row) and 0 otherwise.
+    """
     mesh = jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]]
     cond_1 = comparison_fn(mesh[0], address[0])
     cond_2 = comparison_fn(mesh[1], address[1])
     mask = jnp.asarray(jnp.logical_and(cond_1, cond_2), dtype=jnp.int32)
     return mask
+
+
+def translate(
+    position: Array, direction: Array, modulus: Array = jnp.asarray(1)
+) -> Array:
+    moves = (
+        lambda position: position + jnp.asarray((0, modulus)),  # east
+        lambda position: position + jnp.asarray((modulus, 0)),  # south
+        lambda position: position + jnp.asarray((0, -modulus)),  # west
+        lambda position: position + jnp.asarray((-modulus, 0)),  # north
+    )
+    return jax.lax.switch(direction, moves, position)
+
+
+def translate_forward(position: Array, forward_direction: Array, modulus: Array):
+    return translate(position, forward_direction, modulus)
+
+
+def translate_left(position: Array, forward_direction: Array, modulus: Array):
+    return translate(position, (forward_direction + 3) % 4, modulus)
+
+
+def translate_right(position: Array, forward_direction: Array, modulus: Array):
+    return translate(position, (forward_direction + 1) % 4, modulus)
+
+
+def rotate(direction: Array, spin: int) -> Array:
+    return (direction + spin) % 4
+
+
+def random_positions(
+    key: KeyArray, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
+) -> Array:
+    probs = grid.reshape(-1)
+    indices = idx_from_coordinates(grid, exclude)
+    probs = probs.at[indices].set(-1) + 1.0
+    idx = jax.random.categorical(key, jnp.log(probs), shape=(n,))
+    position = coordinates_from_idx(grid, idx)
+    return position.squeeze()
+
+
+def random_directions(key: KeyArray, n=1) -> Array:
+    return jax.random.randint(key, (n,), 0, 4).squeeze()
 
 
 def room(height: int, width: int):
@@ -77,30 +129,9 @@ def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def random_positions(
-    key: KeyArray, grid: Array, n=1, exclude: Array = jnp.asarray([(-1, -1)])
-) -> Array:
-    # all floor tiles
-    # TODO(epignatelli): switch to all walkable tiles
-    mask = jnp.where(grid, 0, 1).reshape((-1,))  # all floor tiles
-
-    # temporarily set excluded positions to 0 probability
-    mask = jnp.min(
-        jax.vmap(lambda position: mask.at[idx_from_coordinates(grid, position)].set(0))(
-            exclude
-        ),
-        axis=0,
-    )
-
-    log_probs = jnp.log(mask)
-    idx = jax.random.categorical(key, log_probs, shape=(n,))
-
-    positions = jax.vmap(coordinates_from_idx, in_axes=(None, 0))(grid, idx)
-    return positions.T.squeeze()
-
-
-def random_directions(key: KeyArray, n=1) -> Array:
-    return jax.random.randint(key, (n,), 0, 4).squeeze()
+def merge_maps(grid_1: Array, grid_2: Array) -> Array:
+    """Merge two overlaying maps of floors (0) and walls (-1) into a single grid"""
+    return jnp.asarray(grid_1 + grid_2, dtype=jnp.int32)
 
 
 def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:

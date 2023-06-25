@@ -24,31 +24,23 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .components import Consumable, Pickable, State
+from .components import Door, Key, State, DISCARD_PILE_COORDS
+from .grid import translate, rotate
 
 
 DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
-    direction = (state.player.direction + spin) % 4
+    direction = rotate(state.player.direction, spin)
     player = state.player.replace(direction=direction)
     return state.replace(player=player)
 
 
-def _translate(position: Array, direction: Array) -> Array:
-    moves = (
-        lambda position: position + jnp.asarray((0, 1)),  # east
-        lambda position: position + jnp.asarray((1, 0)),  # south
-        lambda position: position + jnp.asarray((0, -1)),  # west
-        lambda position: position + jnp.asarray((-1, 0)),  # north
-    )
-    return jax.lax.switch(direction, moves, position)
-
-
-def _move_allowed(state: State, position: Array) -> Array:
+def _walkable(state: State, position: Array) -> Array:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
+
     # and not occupied by another non-walkable entity
     occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(
         state.keys.position
@@ -57,12 +49,13 @@ def _move_allowed(state: State, position: Array) -> Array:
         state.doors.position
     )
     occupied = jnp.any(jnp.concatenate([occupied_keys, occupied_doors]))
+    # return: if walkable and not occupied
     return jnp.logical_and(walkable, jnp.logical_not(occupied))
 
 
 def _move(state: State, direction: Array) -> State:
-    new_position = _translate(state.player.position, direction)
-    can_move = _move_allowed(state, new_position)
+    new_position = translate(state.player.position, direction)
+    can_move = _walkable(state, new_position)
     new_position = jnp.where(can_move, new_position, state.player.position)
     player = state.player.replace(position=new_position)
     return state.replace(player=player)
@@ -107,46 +100,52 @@ def left(state: State) -> State:
     return _move(state, state.player.direction + 3)
 
 
+def _one_many_position_equal(a: Array, b: Array) -> Array:
+    assert a.ndim == 1 and b.ndim == 2
+    is_equal = jnp.sum(a[None] - b, axis=-1) == 0
+    assert is_equal.shape == (b.shape[0],)
+    return is_equal
+
+
 def pickup(state: State) -> State:
-    position_in_front = _translate(state.player.position, state.player.direction)
+    position_in_front = translate(state.player.position, state.player.direction)
 
-    def _update(key: Pickable) -> Tuple[Array, Pickable]:
-        match = jnp.array_equal(position_in_front, key.position)
-        # update player's pocket
-        pocket = jnp.where(match, key.id, state.player.pocket)
-        # set to (-1, -1) the position of the key that was picked up
-        unset_position = jnp.asarray((-1, -1))
-        position = jnp.where(match, unset_position, key.position)
-        key = key.replace(position=position)
-        return pocket, key
+    key_found = _one_many_position_equal(position_in_front, state.keys.position)
 
-    pockets, keys = jax.vmap(_update)(state.keys)
-    pocket = jnp.max(pockets, axis=0)
-    player = state.player.replace(pocket=pocket)
+    # update keys
+    positions = jnp.where(key_found, DISCARD_PILE_COORDS, state.keys.position)
+    keys = state.keys.replace(position=positions)
+
+    # update player's pocket, if the pocket has something else, we overwrite it
+    key = jnp.sum(state.keys.id * key_found, dtype=jnp.int32)
+    player = jax.lax.cond(jnp.any(key_found), lambda: state.player.replace(pocket=key), lambda: state.player)
+
     return state.replace(player=player, keys=keys)
 
 
 def open(state: State) -> State:
-    position_in_front = _translate(state.player.position, state.player.direction)
+    # get the tile in front of the player
+    position_in_front = translate(state.player.position, state.player.direction)
 
-    def _update(door: Consumable) -> Tuple[Array, Consumable]:
-        match = jnp.array_equal(position_in_front, door.position)
-        replacement = jnp.asarray((match - 1) * door.replacement, dtype=jnp.int32)
+    # check if there is a door in front of the player
+    door_found = position_in_front[None] == state.doors.position
+    # and that, if so, either it does not require a key or the player has the key
+    requires_key = state.doors.requires != -1
+    key_match = state.player.pocket == state.doors.requires
+    can_open = door_found & (key_match | ~requires_key )
 
-        # update grid
-        grid = jnp.zeros_like(state.grid).at[tuple(door.position)].set(replacement)
+    # update doors
+    # TODO(epignatelli): in the future we want to mark the door as open, instead
+    # and have a different rendering for it
+    # if the door can be opened, move it to the discard pile
+    new_positions = jnp.where(can_open, DISCARD_PILE_COORDS, state.doors.position)
+    doors = state.doors.replace(position=new_positions)
 
-        # set to (-1, -1) the position of the door that was opened
-        unset_position = jnp.asarray((-1, -1))
-        position = jnp.where(match, unset_position, door.position)
-        door = door.replace(position=position)
-        return grid, door
+    # remove key from player's pocket
+    pocket = jnp.asarray(state.player.pocket * jnp.any(can_open), dtype=jnp.int32)
+    player = jax.lax.cond(jnp.any(can_open), lambda: state.player.replace(pocket=pocket), lambda: state.player)
 
-    grid, doors = jax.vmap(_update)(state.doors)
-    # the max makes sure that if there was a wall (-1), and it has been opened (x>0)
-    # we get the new value of the grid
-    grid = jnp.max(grid, axis=0)
-    return state.replace(grid=grid, doors=doors)
+    return state.replace(player=player, doors=doors)
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous

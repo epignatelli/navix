@@ -19,14 +19,17 @@
 
 
 from __future__ import annotations
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 
-from ..components import Goal, Player, State
+
+from ..components import Goal, Player
 from ..grid import random_positions, random_directions, room
-from .environment import Environment, Timestep
+from ..graphics import RenderingCache
+from .environment import Environment, Timestep, State
 
 
 class Room(Environment):
@@ -35,17 +38,24 @@ class Room(Environment):
 
         # map
         grid = room(height=self.height, width=self.width)
-        positions = random_positions(k1, grid, n=2)
-        direction = random_directions(k2, n=1)
+        # TODO(epignatelli): if rendering gets slower, we can always
+        # split `reset`` into `init` and `reset`, start the cache in `init`
+        # and change it only when necessary in `reset`
+        # e.g., Room doesn't need to change the cache
+        # at every reset (and so many others) but KeyDoor does
+
         # player
-        player = Player(position=positions[0], direction=direction)
+        player_pos, goal_pos = random_positions(k1, grid, n=2)
+        direction = random_directions(k2, n=1)
+        player = Player(position=player_pos, direction=direction)
         # goal
-        goal = Goal(position=positions[1][None])
+        goal = Goal(position=goal_pos[None])
 
         # systems
         state = State(
             key=key,
             grid=grid,
+            cache=RenderingCache.init(grid),
             player=player,
             goals=goal,
         )
