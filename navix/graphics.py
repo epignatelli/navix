@@ -261,46 +261,56 @@ def tile_grid(grid: Array, tile: Array) -> Array:
     return jnp.asarray(tiled, dtype=jnp.uint8)
 
 
-TILES_REGISTRY: Dict[str, Array] = {
-    "wall": render_wall(),
-    "floor": render_floor(),
-    "player": render_triangle_east(),
-    "goal": render_diamond(),
-    "key": render_key(),
-    "door_closed": render_door_closed(),
-    "door_locked": render_door_locked(),
-    "door_open": render_door_open(),
-}
+class SpritesRegistry(tuple):
+    def __new__(cls):
+        wall = render_wall()
+        floor = render_floor()
+        player = render_triangle_east()
+        goal = render_diamond()
+        key = render_key()
+        door_closed = render_door_closed()
+        door_locked = render_door_locked()
+        door_open = render_door_open()
 
-
-TILES_REGISTRY_WITH_DIRECTION = {
-    "player": (
-        TILES_REGISTRY["player"],
-        jnp.rot90(TILES_REGISTRY["player"], k=1, axes=(1, 2)),
-        jnp.rot90(TILES_REGISTRY["player"], k=2, axes=(1, 2)),
-        jnp.rot90(TILES_REGISTRY["player"], k=3, axes=(1, 2)),
-    ),
-    "door": (
+        return tuple.__new__(cls, (
+        wall,
+        floor,
         (
-            jnp.rot90(TILES_REGISTRY["door_closed"], k=3, axes=(1, 2)),
-            jnp.rot90(TILES_REGISTRY["door_closed"], k=2, axes=(1, 2)),
-            jnp.rot90(TILES_REGISTRY["door_closed"], k=1, axes=(1, 2)),
-            TILES_REGISTRY["door_closed"],
+            player,
+            jnp.rot90(player, k=1, axes=(1, 2)),
+            jnp.rot90(player, k=2, axes=(1, 2)),
+            jnp.rot90(player, k=3, axes=(1, 2)),
         ),
         (
-            TILES_REGISTRY["door_open"],
-            jnp.rot90(TILES_REGISTRY["door_open"], k=1, axes=(1, 2)),
-            jnp.rot90(TILES_REGISTRY["door_open"], k=2, axes=(1, 2)),
-            jnp.rot90(TILES_REGISTRY["door_open"], k=3, axes=(1, 2)),
+            (
+                jnp.rot90(door_closed, k=3, axes=(1, 2)),
+                jnp.rot90(door_closed, k=2, axes=(1, 2)),
+                jnp.rot90(door_closed, k=1, axes=(1, 2)),
+                door_closed,
+            ),
+            (
+                jnp.rot90(door_locked, k=3, axes=(1, 2)),
+                jnp.rot90(door_locked, k=2, axes=(1, 2)),
+                jnp.rot90(door_locked, k=1, axes=(1, 2)),
+                door_locked,
+            ),
+            (
+                door_open,
+                jnp.rot90(door_open, k=1, axes=(1, 2)),
+                jnp.rot90(door_open, k=2, axes=(1, 2)),
+                jnp.rot90(door_open, k=3, axes=(1, 2)),
+            ),
         ),
-    ),
-    "key": TILES_REGISTRY["key"],
-    "goal": TILES_REGISTRY["goal"],
-}
+        key,
+        goal,
+    ))
+
+
+SPRITES_REGISTRY: SpritesRegistry = SpritesRegistry()
 
 
 def render_background(
-    grid: Array, tiles_registry: Dict[str, Array] = TILES_REGISTRY
+    grid: Array, sprites_registry: SpritesRegistry = SPRITES_REGISTRY
 ) -> Array:
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
@@ -312,8 +322,8 @@ def render_background(
     )
 
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
-    floor_tile = tile_grid(grid, tiles_registry["floor"])
-    wall_tile = tile_grid(grid, tiles_registry["wall"])
+    wall_tile = tile_grid(grid, sprites_registry[0])
+    floor_tile = tile_grid(grid, sprites_registry[1])
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 
