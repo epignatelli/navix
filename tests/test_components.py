@@ -2,19 +2,26 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.entities import Goal
 
 
-def test_get_tiles():
-    state = nx.components.State(
-        key=jax.random.PRNGKey(0),
-        grid=jnp.zeros((3, 3), dtype=jnp.int32),
-        player=nx.components.Player(position=jnp.asarray((1, 1))),
-        goals=nx.components.Goal(position=jnp.asarray((2, 2))[None]),
-        keys=nx.components.Key(position=jnp.asarray((0, 0))[None]),
-        doors=nx.components.Door(position=jnp.asarray((1, 2))[None]),
-        cache=nx.graphics.RenderingCache.init(jnp.zeros((3, 3), dtype=jnp.int32)),
-    )
+def test_get_sprites():
+    # unbatched entity
+    entity = Goal.create(position=jnp.asarray((1, 1)), probability=jnp.asarray(1.0))
+    sprite = entity.get_sprite(nx.graphics.SPRITES_REGISTRY)
+    assert sprite.shape == (nx.graphics.TILE_SIZE, nx.graphics.TILE_SIZE, 3)
 
-    tiles_registry = nx.graphics.TILES_REGISTRY_WITH_DIRECTION
+    # batched entity with batch size 1
+    entity = Goal.create(position=jnp.ones((1, 2)), probability=jnp.ones((1,)), tag=jnp.ones((1,)))
+    sprite = entity.get_sprite(nx.graphics.SPRITES_REGISTRY)
+    assert sprite.shape == (1, nx.graphics.TILE_SIZE, nx.graphics.TILE_SIZE, 3)
 
-    tiles = state.get_tiles(tiles_registry=tiles_registry)
+    # batched entity with batch size > 1
+    entity = Goal.create(position=jnp.ones((5, 2)), probability=jnp.ones((5,)), tag=jnp.ones((5,)))
+    sprite = entity.get_sprite(nx.graphics.SPRITES_REGISTRY)
+    assert sprite.shape == (5, nx.graphics.TILE_SIZE, nx.graphics.TILE_SIZE, 3)
+
+
+if __name__ == "__main__":
+    test_get_sprites()
+    jax.jit(test_get_sprites)()

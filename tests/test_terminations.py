@@ -4,61 +4,43 @@ import jax.numpy as jnp
 import navix as nx
 
 
-def test_termination():
-    def f():
-        env = nx.environments.Room(height=3, width=3, max_steps=100)
-        key = jax.random.PRNGKey(4)
-        reset = jax.jit(env.reset)
-        step = jax.jit(env.step)
-        timestep = reset(key)
-        print(timestep)
-        print()
-        # these are optimal actions for navigation + action_cost
-        actions = (
-            0,  # noop sanity check
-            2,  # rotate_ccw
-            3,  # forward
-            3,  # forward
-            2,  # rotate_ccw
-            3,  # forward
-        )
-        for action in actions:
-            timestep = step(timestep, jnp.asarray(action))
-            print(nx.actions.ACTIONS[action])
-            print(timestep)
-            print()
-        return timestep
+def test_on_navigation_completion():
+    grid = jnp.zeros((5, 5), dtype=jnp.int32)
+    state = nx.entities.State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=nx.entities.RenderingCache.init(grid),
+        players=nx.entities.Player.create(jnp.asarray((1, 1)), jnp.asarray(0)),
+        goals=nx.entities.Goal.create(jnp.asarray((3, 3)), jnp.asarray(1)),
+    )
+    # shpuld not terminate
+    termination = nx.terminations.on_navigation_completion(state, jnp.asarray(0), state)
+    assert not termination, f"Should not terminate, got {termination} instead"
 
-    timestep = f()
-    msg = f"Timestep should be terminataed ({jnp.asarray(2)}), got {timestep.step_type} instead"
-    assert timestep.step_type == jnp.asarray(2), msg
+    # artificially put agent on goal
+    new_state = state.replace(player=state.players.replace(position=state.goals.position))
+    termination = nx.terminations.on_navigation_completion(state, jnp.asarray(0), new_state)
+    assert termination, f"Should terminate, got {termination} instead"
 
 
-def test_truncation():
-    def f():
-        env = nx.environments.Room(height=3, width=3, max_steps=4)
-        key = jax.random.PRNGKey(4)
-        reset = jax.jit(env.reset)
-        step = jax.jit(env.step)
-        timestep = reset(key)
-        # these are optimal actions for navigation + action_cost
-        actions = (
-            0,  # t_0 noop sanity check
-            2,  # t_1 rotate_ccw
-            0,  # t_2 noop
-            0,  # t_3 noop - should be truncated
-        )
-        for action in actions:
-            timestep = step(timestep, jnp.asarray(action))
-        return timestep
+def test_check_truncation():
+    terminated = jnp.asarray(False)
+    truncated = jnp.asarray(False)
+    assert nx.terminations.check_truncation(terminated, truncated) == jnp.asarray(0, dtype=jnp.int32)
 
-    f()
-    timestep = jax.jit(f)()
-    print(timestep)
-    msg = f"Timestep should be truncated ({jnp.asarray(1)}), got {timestep.step_type} instead"
-    assert timestep.step_type == jnp.asarray(1), msg
+    terminated = jnp.asarray(True)
+    truncated = jnp.asarray(False)
+    assert nx.terminations.check_truncation(terminated, truncated) == jnp.asarray(2, dtype=jnp.int32)
+
+    terminated = jnp.asarray(False)
+    truncated = jnp.asarray(True)
+    assert nx.terminations.check_truncation(terminated, truncated) == jnp.asarray(1, dtype=jnp.int32)
+
+    terminated = jnp.asarray(True)
+    truncated = jnp.asarray(True)
+    assert nx.terminations.check_truncation(terminated, truncated) == jnp.asarray(2, dtype=jnp.int32)
 
 
 if __name__ == "__main__":
-    test_termination()
-    test_truncation()
+    test_on_navigation_completion()
+    test_check_truncation()
