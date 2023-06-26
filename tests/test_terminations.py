@@ -18,7 +18,7 @@ def test_on_navigation_completion():
     assert not termination, f"Should not terminate, got {termination} instead"
 
     # artificially put agent on goal
-    new_state = state.replace(player=state.players.replace(position=state.goals.position))
+    new_state = state.replace(players=state.players.replace(position=state.goals.position))
     termination = nx.terminations.on_navigation_completion(state, jnp.asarray(0), new_state)
     assert termination, f"Should terminate, got {termination} instead"
 

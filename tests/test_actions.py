@@ -203,7 +203,7 @@ def test_open():
     )
 
     # artificially put the right key in the player's pocket
-    state = state.replace(player=state.players.replace(pocket=jnp.asarray(1)))
+    state = state.replace(players=state.players.replace(pocket=jnp.asarray(1)))
 
     # check that we can open the door
     state = nx.actions.open(state)
@@ -231,5 +231,5 @@ def test_open():
 
 if __name__ == "__main__":
     # test_rotation()
-    # test_walkable()
-    test_pickup()
+    test_walkable()
+    # test_pickup()

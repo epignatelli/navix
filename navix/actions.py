@@ -43,13 +43,9 @@ def _walkable(state: State, position: Array) -> Array:
     walkable = jnp.equal(state.grid[tuple(position)], 0)
 
     # and not occupied by another non-walkable entity
-    occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(
-        state.keys.position
-    )
-    occupied_doors = jax.vmap(lambda x: jnp.array_equal(x, position))(
-        state.doors.position
-    )
-    occupied = jnp.any(jnp.concatenate([occupied_keys, occupied_doors]))
+    occupied_keys = positions_equal(position, state.keys.position)
+    occupied_doors = positions_equal(position, state.doors.position)
+    occupied = jnp.any(jnp.logical_or(occupied_keys, occupied_doors))
     # return: if walkable and not occupied
     return jnp.logical_and(walkable, jnp.logical_not(occupied))
 

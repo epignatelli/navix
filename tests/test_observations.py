@@ -35,13 +35,13 @@ def test_rgb():
     player_tile = get_tile(state.players.position)
     assert jnp.array_equal(player_tile, sprites_registry[2][0]), player_tile
 
-    goal_tile = get_tile(state.goals.position)
+    goal_tile = get_tile(state.goals.position[0])
     assert jnp.array_equal(goal_tile, sprites_registry[3][0]), goal_tile
 
-    key_tile = get_tile(state.keys.position)
+    key_tile = get_tile(state.keys.position[0])
     assert jnp.array_equal(key_tile, sprites_registry[4][0]), key_tile
 
-    door_tile = get_tile(state.doors.position)
+    door_tile = get_tile(state.doors.position[0])
     assert jnp.array_equal(door_tile, sprites_registry[5][0]), door_tile
 
     return

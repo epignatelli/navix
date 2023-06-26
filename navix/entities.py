@@ -9,6 +9,12 @@ from .components import Component, Positionable, Directional, HasTag, Stochastic
 from .graphics import RenderingCache
 
 
+def ensure_batched(x: Array, unbached_dims: int) -> Array:
+    if x.ndim <= unbached_dims:
+        return x[None]
+    return x
+
+
 class Entity(Component, Positionable, HasTag):
     """Entities are components that can be placed in the environment"""
 
@@ -22,7 +28,7 @@ class Player(Entity, Directional, Holder):
     @classmethod
     def create(cls, position: Array = DISCARD_PILE_COORDS, direction: Array = jnp.asarray(0), tag: Array = jnp.asarray(1)) -> Player:
         return cls(
-            entity_type=jnp.broadcast_to(jnp.asarray(2), direction.shape),
+            entity_type=jnp.asarray(2),
             position=position,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
@@ -38,11 +44,19 @@ class Goal(Entity, Stochastic):
 
     @classmethod
     def create(cls, position: Array, probability: Array, tag: Array = jnp.asarray(2)) -> Goal:
+        # ensure that the inputs are batched
+        position = ensure_batched(position, 1)
+        probability = ensure_batched(probability, 0)
+        tag = ensure_batched(tag, 0)
+
+        # check that the batch sizes are the same
+        assert len(position) == len(probability) == len(tag)
+
         return cls(
             entity_type=jnp.broadcast_to(jnp.asarray(3), probability.shape),
-            position=position,
-            tag=tag,
-            probability=probability,
+            position=ensure_batched(position, 1),
+            tag=ensure_batched(tag, 0),
+            probability=ensure_batched(probability, 0),
         )
 
     def get_sprite(self, registry: Array) -> Array:
@@ -55,6 +69,13 @@ class Key(Entity, Pickable):
 
     @classmethod
     def create(cls, position: Array, id: Array = jnp.asarray(3)) -> Key:
+        # ensure that the inputs are batched
+        position = ensure_batched(position, 1)
+        id = ensure_batched(id, 0)
+
+        # check that the batch sizes are the same
+        assert len(position) == len(id)
+
         return cls(
             entity_type=jnp.broadcast_to(jnp.asarray(4), id.shape),
             position=position,
@@ -82,13 +103,20 @@ class Door(Entity, Directional, HasLock):
         direction: Array = jnp.asarray(0),
         requires: Array = jnp.asarray(3),
     ) -> Door:
+        # ensure that the inputs are batched
+        position = ensure_batched(position, 1)
+        direction = ensure_batched(direction, 0)
+        requires = ensure_batched(requires, 0)
+
+        # check that the batch sizes are the same
+        assert len(position) == len(direction) == len(requires)
         return cls(
             entity_type=jnp.broadcast_to(jnp.asarray(5), direction.shape),
             position=position,
             direction=direction,
             requires=requires,
             tag=requires,
-            lock=jnp.zeros((1,), dtype=jnp.int32),
+            lock=jnp.broadcast_to(jnp.asarray(0), direction.shape),
         )
 
     def get_sprite(self, registry: Array) -> Array:
@@ -116,9 +144,9 @@ class State(struct.PyTreeNode):
     def get_positions(self, axis: int = -1) -> Array:
         return jnp.stack(
             [
-                self.keys.position,
-                self.doors.position,
-                self.goals.position,
+                *self.keys.position,
+                *self.doors.position,
+                *self.goals.position,
                 self.players.position,
             ],
             axis=axis,
@@ -127,9 +155,9 @@ class State(struct.PyTreeNode):
     def get_tags(self, axis: int = -1) -> Array:
         return jnp.stack(
             [
-                self.keys.tag,
-                self.doors.tag,
-                self.goals.tag,
+                *self.keys.tag,
+                *self.doors.tag,
+                *self.goals.tag,
                 self.players.tag,
             ],
             axis=axis,
@@ -143,9 +171,9 @@ class State(struct.PyTreeNode):
 
         return jnp.stack(
             [
-                key_sprites,
-                door_sprites,
-                goal_sprites,
+                *key_sprites,
+                *door_sprites,
+                *goal_sprites,
                 player_sprite,
             ],
             axis=axis,
