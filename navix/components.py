@@ -43,34 +43,34 @@ class EntityType(IntEnum):
 
 
 class Component(struct.PyTreeNode):
-    entity_type: Array = jnp.zeros((1,), dtype=jnp.int32)  # IntArray['b']
+    entity_type: Array = jnp.asarray(0, dtype=jnp.int32)
     """The type of the entity, 0 = player, 1 = goal, 2 = key, 3 = door"""
 
 
 class Positionable(struct.PyTreeNode):
-    position: Array = DISCARD_PILE_COORDS[None]  # IntArray['b 2']
+    position: Array = DISCARD_PILE_COORDS
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
 
 class Directional(struct.PyTreeNode):
-    direction: Array = jnp.zeros((1,), dtype=jnp.int32)  # IntArray['b']
+    direction: Array = jnp.asarray(0, dtype=jnp.int32)
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
 
 
 class HasTag(struct.PyTreeNode):
-    tag: Array = jnp.zeros((1,), dtype=jnp.int32)  # IntArray['b']
+    tag: Array = jnp.asarray(0, dtype=jnp.int32)
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
 
 
 class Stochastic(struct.PyTreeNode):
-    probability: Array = jnp.ones((1,), dtype=jnp.float32)  # FloatArray['b']
+    probability: Array = jnp.asarray(1.0, dtype=jnp.float32)
     """The probability of receiving the reward, if reached."""
 
 
 class HasLock(struct.PyTreeNode):
     requires: Array = EMPTY_POCKET_ID
     """The id of the item required to consume this item. If set, it must be >= 1."""
-    lock: Array = jnp.zeros((1,), dtype=jnp.bool_)  # IntArray['b']
+    lock: Array = jnp.asarray(0, dtype=jnp.int32)
     """Whether the item has been consumed"""
 
 
