@@ -171,15 +171,15 @@ def render_diamond(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
 
 
 def render_door_closed(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
-    frame_size = TILE_SIZE - 6
+    frame_size = size - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
     door = jnp.pad(door, 1, "constant", constant_values=0)
     door = jnp.pad(door, 1, "constant", constant_values=1)
 
-    x_0 = TILE_SIZE - TILE_SIZE // 4
-    y_centre = TILE_SIZE // 2
-    y_size = TILE_SIZE // 5
+    x_0 = size - size // 4
+    y_centre = size // 2
+    y_size = size // 5
     door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
         1
     )
@@ -187,13 +187,13 @@ def render_door_closed(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
 
 
 def render_door_locked(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
-    frame_size = TILE_SIZE - 4
+    frame_size = size - 4
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 2, "constant", constant_values=1)
 
-    x_0 = TILE_SIZE - TILE_SIZE // 4
-    y_centre = TILE_SIZE // 2
-    y_size = TILE_SIZE // 5
+    x_0 = size - size // 4
+    y_centre = size // 2
+    y_size = size // 5
     door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
         1
     )
@@ -271,35 +271,35 @@ def build_sprites_registry() -> Array:
     door_locked = render_door_locked()
     door_open = render_door_open()
 
-    sprites = jnp.zeros((5, 4, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
+    sprites = jnp.zeros((6, 4, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
-    # set wall sprites
+    # 0: set wall sprites
     sprites = sprites.at[0].set(jnp.stack([wall] * 4))
 
-    # set floor sprites
+    # 1: set floor sprites
     sprites = sprites.at[1].set(jnp.stack([floor] * 4))
 
-    # set player sprites
+    # 2: set player sprites
     player_sprites = jnp.stack([
         player,
-        jnp.rot90(player, k=1),
-        jnp.rot90(player, k=2),
         jnp.rot90(player, k=3),
+        jnp.rot90(player, k=2),
+        jnp.rot90(player, k=1),
     ])
     sprites = sprites.at[2].set(player_sprites)
 
-    # set goal sprites
+    # 3: set goal sprites
     sprites = sprites.at[3].set(jnp.stack([goal] * 4))
 
-    # set key sprites
+    # 4: set key sprites
     sprites = sprites.at[4].set(jnp.stack([key] * 4))
 
-    # set door sprites
+    # 5: set door sprites
     door_sprites =jnp.stack([
-        door_closed,
         jnp.rot90(door_closed, k=1),
-        jnp.rot90(door_closed, k=2),
+        door_closed,
         jnp.rot90(door_closed, k=3),
+        jnp.rot90(door_closed, k=2),
     ])
     sprites = sprites.at[5].set(door_sprites)
 
