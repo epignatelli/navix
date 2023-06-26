@@ -26,7 +26,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .components import State
+from .entities import State
 
 
 def compose(*fns: Callable[[State, Array, State], Array]):
@@ -45,7 +45,7 @@ def free(state: State) -> Array:
 
 def navigation(prev_state: State, action: Array, state: State) -> Array:
     reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
-        state.player.position, state.goals.position
+        state.players.position, state.goals.position
     )
     any_reached = jnp.sum(reached)
 
@@ -76,7 +76,7 @@ def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
     # if state is unchanged, maybe the wall was hit
-    didnt_move = jnp.array_equal(prev_state.player.position, state.player.position)
+    didnt_move = jnp.array_equal(prev_state.players.position, state.players.position)
     but_wanted_to = jnp.less_equal(3, action) * jnp.less_equal(action, 6)
     hit = jnp.logical_and(didnt_move, but_wanted_to)
     return -jnp.asarray(cost) * hit

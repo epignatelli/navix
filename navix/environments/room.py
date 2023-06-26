@@ -26,10 +26,10 @@ import jax.numpy as jnp
 from jax.random import KeyArray
 
 
-from ..components import Goal, Player
+from ..entities import Goal, Player, State
 from ..grid import random_positions, random_directions, room
 from ..graphics import RenderingCache
-from .environment import Environment, Timestep, State
+from .environment import Environment, Timestep
 
 
 class Room(Environment):
@@ -47,16 +47,16 @@ class Room(Environment):
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2)
         direction = random_directions(k2, n=1)
-        player = Player(position=player_pos, direction=direction)
+        player = Player.create(position=player_pos, direction=direction)
         # goal
-        goal = Goal(position=goal_pos[None])
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # systems
         state = State(
             key=key,
             grid=grid,
             cache=RenderingCache.init(grid),
-            player=player,
+            players=player,
             goals=goal,
         )
 

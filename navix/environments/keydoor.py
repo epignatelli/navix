@@ -4,7 +4,7 @@ from jax.random import KeyArray
 
 from ..graphics import RenderingCache
 from ..environments import Environment
-from ..components import State, Player, Key, Door, Goal
+from ..entities import State, Player, Key, Door, Goal
 from ..environments import Timestep
 from ..grid import (
     two_rooms,
@@ -22,7 +22,7 @@ class KeyDoor(Environment):
 
         # add the door
         door_pos = jnp.asarray([jax.random.randint(k3, (), 1, self.height - 1), wall_at])
-        doors = Door(position=door_pos[None], requires=jnp.asarray(3)[None])
+        doors = Door.create(position=door_pos, requires=jnp.asarray(3))
 
         # spawn player and key in the first room
         out_of_bounds = jnp.asarray(self.height)
@@ -31,21 +31,21 @@ class KeyDoor(Environment):
         # player
         player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
-        player = Player(position=player_pos, direction=player_dir)
+        player = Player.create(position=player_pos, direction=player_dir)
         # key
-        key_pos = random_positions(k2, first_room, exclude=player_pos[None])
-        keys = Key(position=key_pos[None], id=jnp.asarray(3)[None])
+        key_pos = random_positions(k2, first_room, exclude=player_pos)
+        keys = Key.create(position=key_pos, id=jnp.asarray(3))
 
         # spawn the goal in the second room
         second_room = jnp.where(first_room_mask, -1, grid)
         goal_pos = random_positions(k2, second_room)
-        goals = Goal(position=goal_pos[None])
+        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
 
         state = State(
             key=key,
             grid=grid,
-            player=player,
+            players=player,
             goals=goals,
             keys=keys,
             doors=doors,

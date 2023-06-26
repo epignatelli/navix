@@ -24,8 +24,8 @@ import jax.numpy as jnp
 from jax import Array
 
 from . import graphics
-from .graphics import SpritesRegistry
-from .components import DISCARD_PILE_IDX, State
+from .components import DISCARD_PILE_IDX
+from .entities import State
 from .grid import idx_from_coordinates
 
 
@@ -58,16 +58,14 @@ from .grid import idx_from_coordinates
 
 def none(
     state: State,
-    # cache: graphics.RenderingCache,
-    sprites_registry: SpritesRegistry = graphics.SPRITES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     return jnp.asarray(())
 
 
 def categorical(
     state: State,
-    # cache: graphics.RenderingCache,
-    sprites_registry: SpritesRegistry = graphics.SPRITES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
@@ -82,8 +80,7 @@ def categorical(
 
 def rgb(
     state: State,
-    # cache: graphics.RenderingCache,
-    sprites_registry: SpritesRegistry = graphics.SPRITES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # for 1-d vs 2-d indexing benchamarks
     # see https://github.com/epignatelli/navix/tree/observation/2dindexing

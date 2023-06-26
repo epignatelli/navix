@@ -111,6 +111,17 @@ def random_directions(key: KeyArray, n=1) -> Array:
     return jax.random.randint(key, (n,), 0, 4).squeeze()
 
 
+def positions_equal(a: Array, b: Array) -> Array:
+    if b.ndim == 1:
+        b = b[None]
+    if a.ndim == 1:
+        a = a[None]
+    assert a.ndim == b.ndim == 2, (a.shape, b.shape)
+    is_equal = jnp.all(jnp.equal(a, b), axis=-1)
+    assert is_equal.shape == (max(b.shape[0], a.shape[0]),)
+    return is_equal
+
+
 def room(height: int, width: int):
     """A grid of ids of size `width` x `height`"""
     grid = jnp.zeros((height, width), dtype=jnp.int32)
