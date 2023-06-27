@@ -44,6 +44,75 @@ def test_rotation():
     return
 
 
+def test_move():
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.entities.Player.create(position=jnp.asarray((1, 1)), direction=jnp.asarray(0))
+    goals = nx.entities.Goal.create(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)[None])
+    keys = nx.entities.Key.create(position=jnp.asarray((3, 1)))
+    doors = nx.entities.Door.create(position=jnp.asarray((2, 2)))
+    cache = nx.graphics.RenderingCache.init(grid)
+    """
+    #  #  #  #  #
+    #  P  .  . #
+    #  .  D  . #
+    #  K  .  G #
+    #  #  #  #  #
+    """
+
+    state = nx.entities.State(
+        grid=grid,
+        players=player,
+        goals=goals,
+        keys=keys,
+        doors=doors,
+        cache=cache,
+        key=key,
+    )
+
+    # check forward
+    state = nx.actions.forward(state)
+    expected_position = jnp.asarray((1, 2))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check backward
+    state = nx.actions.backward(state)
+    expected_position = jnp.asarray((1, 1))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check right
+    state = nx.actions.right(state)
+    expected_position = jnp.asarray((2, 1))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check left
+    state = nx.actions.left(state)
+    expected_position = jnp.asarray((1, 1))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check that we can't walk through a closed door
+    state = nx.actions.forward(state)
+    state = nx.actions.rotate_cw(state)
+    state = nx.actions.forward(state)
+    expected_position = jnp.asarray((1, 2))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check that we can walk through an open door
+    state = state.replace(doors=state.doors.replace(open=jnp.asarray(True)[None]))
+    state = nx.actions.forward(state)
+    state = nx.actions.forward(state)
+    expected_position = jnp.asarray((3, 2))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+    # check that we can walk through a door backwards
+    state = nx.actions.backward(state)
+    state = nx.actions.backward(state)
+    expected_position = jnp.asarray((1, 2))
+    assert jnp.array_equal(state.players.position, expected_position)
+
+
 def test_walkable():
     heigh, width = 5, 5
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
@@ -55,12 +124,13 @@ def test_walkable():
     doors = nx.entities.Door.create(position=jnp.asarray((1, 3)))
     cache = nx.graphics.RenderingCache.init(grid)
     # Looks like this
-    # -1 -1 -1 -1 -1
-    # -1  P  0  D -1
-    # -1  0  0  0 -1
-    # -1  K  0  G -1
-    # -1 -1 -1 -1 -1
-
+    """
+    #  #  #  #  #
+    #  P  .  D #
+    #  .  .  . #
+    #  K  .  G #
+    #  #  #  #  #
+    """
     state = nx.entities.State(
         grid=grid,
         players=player,
