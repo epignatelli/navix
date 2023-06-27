@@ -29,4 +29,4 @@ git push --tags
 gh release create $VERSION
 
 # trigger CD
-gh workflow run CD
+gh workflow run CD -r main
