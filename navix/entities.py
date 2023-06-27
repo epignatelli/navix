@@ -36,7 +36,7 @@ class Player(Entity, Directional, Holder):
         )
 
     def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, self.direction]
+        return registry[self.entity_type, self.direction, 0]
 
 
 class Goal(Entity, Stochastic):
@@ -60,7 +60,7 @@ class Goal(Entity, Stochastic):
         )
 
     def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0]
+        return registry[self.entity_type, 0, 0]
 
 
 class Key(Entity, Pickable):
@@ -84,7 +84,7 @@ class Key(Entity, Pickable):
         )
 
     def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0]
+        return registry[self.entity_type, 0, 0]
 
 
 class Door(Entity, Directional, Openable):
@@ -120,7 +120,8 @@ class Door(Entity, Directional, Openable):
         )
 
     def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, self.direction]
+        open = jnp.asarray(self.open, dtype=jnp.int32)
+        return registry[self.entity_type, self.direction, open]
 
 
 class State(struct.PyTreeNode):
