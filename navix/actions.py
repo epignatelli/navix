@@ -44,7 +44,10 @@ def _walkable(state: State, position: Array) -> Array:
 
     # and not occupied by another non-walkable entity
     occupied_keys = positions_equal(position, state.keys.position)
+    # occupied by a door, and door is not open
     occupied_doors = positions_equal(position, state.doors.position)
+    occupied_doors = occupied_doors & ~state.doors.open
+
     occupied = jnp.any(jnp.logical_or(occupied_keys, occupied_doors))
     # return: if walkable and not occupied
     return jnp.logical_and(walkable, jnp.logical_not(occupied))
@@ -114,6 +117,7 @@ def pickup(state: State) -> State:
 
 
 def open(state: State) -> State:
+    """Unlocks and opens an openable object (like a door) if possible"""
     # get the tile in front of the player
     position_in_front = translate(state.players.position, state.players.direction)
 
@@ -125,12 +129,10 @@ def open(state: State) -> State:
     key_match = state.players.pocket == state.doors.requires
     can_open = door_found & (key_match | ~requires_key )
 
-    # update doors
-    # TODO(epignatelli): in the future we want to mark the door as open, instead
-    # and have a different rendering for it
-    # if the door can be opened, move it to the discard pile
-    new_positions = jnp.where(can_open, DISCARD_PILE_COORDS, state.doors.position)
-    doors = state.doors.replace(position=new_positions)
+    # update doors if closed and can_open
+    do_open = (~state.doors.open & can_open)
+    open = jnp.where(do_open, True, state.doors.open)
+    doors = state.doors.replace(open=open)
 
     # remove key from player's pocket
     pocket = jnp.asarray(state.players.pocket * jnp.any(can_open), dtype=jnp.int32)

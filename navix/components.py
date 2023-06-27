@@ -67,11 +67,11 @@ class Stochastic(struct.PyTreeNode):
     """The probability of receiving the reward, if reached."""
 
 
-class HasLock(struct.PyTreeNode):
+class Openable(struct.PyTreeNode):
     requires: Array = EMPTY_POCKET_ID
     """The id of the item required to consume this item. If set, it must be >= 1."""
-    lock: Array = jnp.asarray(0, dtype=jnp.int32)
-    """Whether the item has been consumed"""
+    open: Array = jnp.asarray(False, dtype=jnp.bool_)
+    """Whether the item is open or not."""
 
 
 class Pickable(struct.PyTreeNode):

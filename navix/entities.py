@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from flax import struct
 from jax.random import KeyArray
 
-from .components import Component, Positionable, Directional, HasTag, Stochastic, HasLock, Pickable, Holder, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
+from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 from .graphics import RenderingCache
 
 
@@ -43,7 +43,7 @@ class Goal(Entity, Stochastic):
     """Goals are entities that can be reached by the player"""
 
     @classmethod
-    def create(cls, position: Array, probability: Array, tag: Array = jnp.asarray(2)) -> Goal:
+    def create(cls, position: Array = DISCARD_PILE_COORDS[None], probability: Array = jnp.asarray((1.0,)), tag: Array = jnp.asarray((2,))) -> Goal:
         # ensure that the inputs are batched
         position = ensure_batched(position, 1)
         probability = ensure_batched(probability, 0)
@@ -68,7 +68,7 @@ class Key(Entity, Pickable):
     Examples of pickable items are keys, coins, etc."""
 
     @classmethod
-    def create(cls, position: Array, id: Array = jnp.asarray(3)) -> Key:
+    def create(cls, position: Array =  DISCARD_PILE_COORDS[None], id: Array = jnp.asarray((3,))) -> Key:
         # ensure that the inputs are batched
         position = ensure_batched(position, 1)
         id = ensure_batched(id, 0)
@@ -87,7 +87,7 @@ class Key(Entity, Pickable):
         return registry[self.entity_type, 0]
 
 
-class Door(Entity, Directional, HasLock):
+class Door(Entity, Directional, Openable):
     """Consumable items are world objects that can be consumed by the player.
     Consuming an item requires a tool (e.g. a key to open a door).
     A tool is an id (int) of another item, specified in the `requires` field (-1 if no tool is required).
@@ -99,9 +99,9 @@ class Door(Entity, Directional, HasLock):
     @classmethod
     def create(
         cls,
-        position: Array,
-        direction: Array = jnp.asarray(0),
-        requires: Array = jnp.asarray(3),
+        position: Array =  DISCARD_PILE_COORDS[None],
+        direction: Array = jnp.asarray((0,)),
+        requires: Array = jnp.asarray((3,)),
     ) -> Door:
         # ensure that the inputs are batched
         position = ensure_batched(position, 1)
@@ -116,7 +116,7 @@ class Door(Entity, Directional, HasLock):
             direction=direction,
             requires=requires,
             tag=requires,
-            lock=jnp.broadcast_to(jnp.asarray(0), direction.shape),
+            open=jnp.broadcast_to(jnp.asarray(False), direction.shape),
         )
 
     def get_sprite(self, registry: Array) -> Array:
@@ -134,11 +134,11 @@ class State(struct.PyTreeNode):
     """The rendering cache to speed up rendering"""
     players: Player = Player.create()
     """The player entity"""
-    goals: Goal = Goal()
+    goals: Goal = Goal.create()
     """The goal entity, batched over the number of goals"""
-    keys: Key = Key()
+    keys: Key = Key.create()
     """The key entity, batched over the number of keys"""
-    doors: Door = Door()
+    doors: Door = Door.create()
     """The door entity, batched over the number of doors"""
 
     def get_positions(self, axis: int = -1) -> Array:

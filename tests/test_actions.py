@@ -78,31 +78,33 @@ def test_walkable():
             "Expected position {} to be not walkable, since it is a {}".format(pos, state.grid[tuple(pos)])
         )
 
+    # should not be able to walk on/through a closed door
     state = nx.actions.forward(state)
-
-    # should not be able to walk on/through a door
     check_forward_position(state)
 
+    # should be able to walk through an open door
+    state = state.replace(doors=state.doors.replace(open=jnp.asarray(True)[None]))
+    state = nx.actions.forward(state)
+    state = nx.actions.backward(state)
+
+    # should not be able to walk on/through a key
     state = nx.actions.backward(state)
     state = nx.actions.rotate_cw(state)
     state = nx.actions.forward(state)
-
-    # should not be able to walk on/through a key
     check_forward_position(state)
 
+    # should not be able to walk on/through a wall
     state = nx.actions.rotate_ccw(state)
     state = nx.actions.forward(state)
     state = nx.actions.rotate_cw(state)
     state = nx.actions.forward(state)
-
-    # should not be able to walk on/through a wall
     check_forward_position(state)
 
+    # should be able to walk on/through a goal
     state = nx.actions.rotate_ccw(state)
 
-    # should be able to walk on/through a goal
-    state = nx.actions.forward(state)
     # but not on/through a wall
+    state = nx.actions.forward(state)
     check_forward_position(state)
 
 
@@ -191,34 +193,39 @@ def test_open():
 
     state = nx.actions.forward(state)
 
-    # check that we cannot open a door without the required key
-    state = nx.actions.open(state)
-    expected_pocket = EMPTY_POCKET_ID
     # check that pocket is empty
+    expected_pocket = EMPTY_POCKET_ID
     assert jnp.array_equal(state.players.pocket, expected_pocket), (
         "Expected player to have pocket {}, got {}".format(expected_pocket, state.players.pocket)
     )
-    assert jnp.array_equal(state.doors.position[0], jnp.asarray((1, 3))), (
-        "Expected door position to be {}, got {}".format((1, 3), state.doors.position)
+
+    # check that we cannot open a door without the required key
+    state = nx.actions.open(state)
+    # and that the door is still closed
+    expected_open = jnp.asarray(False)[None]
+    assert jnp.array_equal(state.doors.open, expected_open), (
+        "Expected door open status {}, got {}".format(expected_open, state.doors.open)
     )
 
     # artificially put the right key in the player's pocket
     state = state.replace(players=state.players.replace(pocket=jnp.asarray(1)))
-
-    # check that we can open the door
-    state = nx.actions.open(state)
-    assert jnp.array_equal(state.doors.position[0], DISCARD_PILE_COORDS), (
-        "Expected door position to be {}, got {}".format(DISCARD_PILE_COORDS, state.doors.position)
-    )
     expected_pocket = jnp.asarray(1)
     assert jnp.array_equal(state.players.pocket, expected_pocket), (
         "Expected player to have pocket {}, got {}".format(expected_pocket, state.players.pocket)
     )
 
-    # check that we cannot open a door that has already been opened
+    # check that we can open the door with the right key
     state = nx.actions.open(state)
-    assert jnp.array_equal(state.doors.position[0], DISCARD_PILE_COORDS), (
-        "Expected door position to be {}, got {}".format(DISCARD_PILE_COORDS, state.doors.position)
+    expected_open = jnp.asarray(True)[None]
+    assert jnp.array_equal(state.doors.open, expected_open), (
+        "Expected door open status {}, got {}".format(expected_open, state.doors.open)
+    )
+
+    # check that opening an open door keeps it open
+    state = nx.actions.open(state)
+    expected_open = jnp.asarray(True)[None]
+    assert jnp.array_equal(state.doors.open, expected_open), (
+        "Expected door open status {}, got {}".format(expected_open, state.doors.open)
     )
 
     # check that we can walk through an open door
