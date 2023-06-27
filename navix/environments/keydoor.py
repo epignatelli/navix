@@ -41,6 +41,8 @@ class KeyDoor(Environment):
         goal_pos = random_positions(k2, second_room)
         goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
+        # remove the wall beneath the door
+        grid = grid.at[tuple(door_pos)].set(0)
 
         state = State(
             key=key,
