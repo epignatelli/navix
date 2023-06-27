@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -170,19 +170,42 @@ def render_diamond(size: int = TILE_SIZE, colour: Array = GOLD) -> Array:
     return colorise_tile(diamond, colour)
 
 
-def render_door(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
-    frame_size = TILE_SIZE - 6
+def render_door_closed(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+    frame_size = size - 6
     door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
     door = jnp.pad(door, 1, "constant", constant_values=1)
     door = jnp.pad(door, 1, "constant", constant_values=0)
     door = jnp.pad(door, 1, "constant", constant_values=1)
 
-    x_0 = TILE_SIZE - TILE_SIZE // 4
-    y_centre = TILE_SIZE // 2
-    y_size = TILE_SIZE // 5
+    x_0 = size - size // 4
+    y_centre = size // 2
+    y_size = size // 5
     door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
         1
     )
+    return colorise_tile(door, colour)
+
+
+def render_door_locked(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+    frame_size = size - 4
+    door = jnp.zeros((frame_size, frame_size), dtype=jnp.int32)
+    door = jnp.pad(door, 2, "constant", constant_values=1)
+
+    x_0 = size - size // 4
+    y_centre = size // 2
+    y_size = size // 5
+    door = door.at[y_centre - y_size // 2 : y_centre + y_size // 2, x_0 : x_0 + 1].set(
+        1
+    )
+    return colorise_tile(door, colour, background=colour / 2)
+
+
+def render_door_open(size: int = TILE_SIZE, colour: Array = BROWN) -> Array:
+    door = jnp.zeros((size, size), dtype=jnp.int32)
+    door = door.at[0].set(1)
+    door = door.at[3].set(1)
+    door = door.at[:3, 0].set(1)
+    door = door.at[:3, -1].set(1)
     return colorise_tile(door, colour)
 
 
@@ -238,18 +261,65 @@ def tile_grid(grid: Array, tile: Array) -> Array:
     return jnp.asarray(tiled, dtype=jnp.uint8)
 
 
-TILES_REGISTRY: Dict[str, Array] = {
-    "wall": render_wall(),
-    "floor": render_floor(),
-    "player": render_triangle_east(),
-    "goal": render_diamond(),
-    "key": render_key(),
-    "door": render_door(),
-}
+def build_sprites_registry() -> Array:
+    wall = render_wall()
+    floor = render_floor()
+    player = render_triangle_east()
+    goal = render_diamond()
+    key = render_key()
+    door_closed = render_door_closed()
+    door_locked = render_door_locked()
+    door_open = render_door_open()
+
+    # index by [entity_type, direction, open/closed, y, x, channel]
+    sprites = jnp.zeros((6, 4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
+
+    # 0: set wall sprites
+    sprites = sprites.at[0].set(jnp.tile(wall, (4, 2, 1, 1, 1)))
+
+    # 1: set floor sprites
+    sprites = sprites.at[1].set(jnp.tile(floor, (4, 2, 1, 1, 1)))
+
+    # 2: set player sprites
+    player_sprites = jnp.stack([
+        player,
+        jnp.rot90(player, k=3),
+        jnp.rot90(player, k=2),
+        jnp.rot90(player, k=1),
+    ])
+    player_sprites = jnp.stack([player_sprites] * 2, axis=1)
+    sprites = sprites.at[2].set(player_sprites)
+
+    # 3: set goal sprites
+    sprites = sprites.at[3].set(jnp.tile(goal, (4, 2, 1, 1, 1)))
+
+    # 4: set key sprites
+    sprites = sprites.at[4].set(jnp.tile(key, (4, 2, 1, 1, 1)))
+
+    # 5: set door sprites
+    door_closed =jnp.stack([
+        jnp.rot90(door_closed, k=1),
+        door_closed,
+        jnp.rot90(door_closed, k=3),
+        jnp.rot90(door_closed, k=2),
+    ])
+    sprites = sprites.at[5, :, 0].set(door_closed)
+    door_open = jnp.stack([
+        door_open,
+        jnp.rot90(door_open, k=1),
+        jnp.rot90(door_open, k=2),
+        jnp.rot90(door_open, k=3),
+    ])
+    sprites = sprites.at[5, :, 1].set(door_open)
+
+    return sprites
+
+
+SPRITES_REGISTRY: Array = build_sprites_registry()
 
 
 def render_background(
-    grid: Array, tiles_registry: Dict[str, Array] = TILES_REGISTRY
+    grid: Array, sprites_registry: Array = SPRITES_REGISTRY
 ) -> Array:
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
@@ -261,8 +331,9 @@ def render_background(
     )
 
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
-    floor_tile = tile_grid(grid, tiles_registry["floor"])
-    wall_tile = tile_grid(grid, tiles_registry["wall"])
+    # index by [entity_type, direction, open/closed, y, x, channel]
+    wall_tile = tile_grid(grid, sprites_registry[0, 0, 0])
+    floor_tile = tile_grid(grid, sprites_registry[1, 0, 0])
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 

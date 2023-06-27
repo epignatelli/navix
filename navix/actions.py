@@ -24,17 +24,18 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .components import Door, Key, State, DISCARD_PILE_COORDS
-from .grid import translate, rotate
+from .entities import Door, Key, State
+from .components import DISCARD_PILE_COORDS
+from .grid import translate, rotate, positions_equal
 
 
 DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
-    direction = rotate(state.player.direction, spin)
-    player = state.player.replace(direction=direction)
-    return state.replace(player=player)
+    direction = rotate(state.players.direction, spin)
+    player = state.players.replace(direction=direction)
+    return state.replace(players=player)
 
 
 def _walkable(state: State, position: Array) -> Array:
@@ -42,23 +43,22 @@ def _walkable(state: State, position: Array) -> Array:
     walkable = jnp.equal(state.grid[tuple(position)], 0)
 
     # and not occupied by another non-walkable entity
-    occupied_keys = jax.vmap(lambda x: jnp.array_equal(x, position))(
-        state.keys.position
-    )
-    occupied_doors = jax.vmap(lambda x: jnp.array_equal(x, position))(
-        state.doors.position
-    )
-    occupied = jnp.any(jnp.concatenate([occupied_keys, occupied_doors]))
+    occupied_keys = positions_equal(position, state.keys.position)
+    # occupied by a door, and door is not open
+    occupied_doors = positions_equal(position, state.doors.position)
+    occupied_doors = occupied_doors & ~state.doors.open
+
+    occupied = jnp.any(jnp.logical_or(occupied_keys, occupied_doors))
     # return: if walkable and not occupied
     return jnp.logical_and(walkable, jnp.logical_not(occupied))
 
 
 def _move(state: State, direction: Array) -> State:
-    new_position = translate(state.player.position, direction)
+    new_position = translate(state.players.position, direction)
     can_move = _walkable(state, new_position)
-    new_position = jnp.where(can_move, new_position, state.player.position)
-    player = state.player.replace(position=new_position)
-    return state.replace(player=player)
+    new_position = jnp.where(can_move, new_position, state.players.position)
+    player = state.players.replace(position=new_position)
+    return state.replace(players=player)
 
 
 def undefined(state: State) -> State:
@@ -85,32 +85,25 @@ def rotate_ccw(state: State) -> State:
 
 
 def forward(state: State) -> State:
-    return _move(state, state.player.direction)
+    return _move(state, state.players.direction)
 
 
 def right(state: State) -> State:
-    return _move(state, state.player.direction + 1)
+    return _move(state, state.players.direction + 1)
 
 
 def backward(state: State) -> State:
-    return _move(state, state.player.direction + 2)
+    return _move(state, state.players.direction + 2)
 
 
 def left(state: State) -> State:
-    return _move(state, state.player.direction + 3)
-
-
-def _one_many_position_equal(a: Array, b: Array) -> Array:
-    assert a.ndim == 1 and b.ndim == 2
-    is_equal = jnp.sum(a[None] - b, axis=-1) == 0
-    assert is_equal.shape == (b.shape[0],)
-    return is_equal
+    return _move(state, state.players.direction + 3)
 
 
 def pickup(state: State) -> State:
-    position_in_front = translate(state.player.position, state.player.direction)
+    position_in_front = translate(state.players.position, state.players.direction)
 
-    key_found = _one_many_position_equal(position_in_front, state.keys.position)
+    key_found = positions_equal(position_in_front, state.keys.position)
 
     # update keys
     positions = jnp.where(key_found, DISCARD_PILE_COORDS, state.keys.position)
@@ -118,34 +111,34 @@ def pickup(state: State) -> State:
 
     # update player's pocket, if the pocket has something else, we overwrite it
     key = jnp.sum(state.keys.id * key_found, dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(key_found), lambda: state.player.replace(pocket=key), lambda: state.player)
+    player = jax.lax.cond(jnp.any(key_found), lambda: state.players.replace(pocket=key), lambda: state.players)
 
-    return state.replace(player=player, keys=keys)
+    return state.replace(players=player, keys=keys)
 
 
 def open(state: State) -> State:
+    """Unlocks and opens an openable object (like a door) if possible"""
     # get the tile in front of the player
-    position_in_front = translate(state.player.position, state.player.direction)
+    position_in_front = translate(state.players.position, state.players.direction)
 
     # check if there is a door in front of the player
-    door_found = position_in_front[None] == state.doors.position
+    door_found = positions_equal(position_in_front, state.doors.position)
+
     # and that, if so, either it does not require a key or the player has the key
     requires_key = state.doors.requires != -1
-    key_match = state.player.pocket == state.doors.requires
+    key_match = state.players.pocket == state.doors.requires
     can_open = door_found & (key_match | ~requires_key )
 
-    # update doors
-    # TODO(epignatelli): in the future we want to mark the door as open, instead
-    # and have a different rendering for it
-    # if the door can be opened, move it to the discard pile
-    new_positions = jnp.where(can_open, DISCARD_PILE_COORDS, state.doors.position)
-    doors = state.doors.replace(position=new_positions)
+    # update doors if closed and can_open
+    do_open = (~state.doors.open & can_open)
+    open = jnp.where(do_open, True, state.doors.open)
+    doors = state.doors.replace(open=open)
 
     # remove key from player's pocket
-    pocket = jnp.asarray(state.player.pocket * jnp.any(can_open), dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(can_open), lambda: state.player.replace(pocket=pocket), lambda: state.player)
+    pocket = jnp.asarray(state.players.pocket * jnp.any(can_open), dtype=jnp.int32)
+    player = jax.lax.cond(jnp.any(can_open), lambda: state.players.replace(pocket=pocket), lambda: state.players)
 
-    return state.replace(player=player, doors=doors)
+    return state.replace(players=player, doors=doors)
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous

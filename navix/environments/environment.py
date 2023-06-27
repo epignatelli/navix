@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import abc
 from enum import IntEnum
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
@@ -30,9 +30,8 @@ from jax import Array
 from flax import struct
 
 
-from .. import tasks, graphics, terminations, observations
-from ..graphics import RenderingCache
-from ..components import State
+from .. import tasks, terminations, observations
+from ..entities import State
 from ..actions import ACTIONS
 
 

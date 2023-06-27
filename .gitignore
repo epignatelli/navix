@@ -1,6 +1,9 @@
 # setuptools_scm
 helx/version.py
 
+# developing
+playground.ipynb
+
 # vscode
 .vscode/
 wandb/

@@ -21,6 +21,7 @@
 from . import (
     actions,
     components,
+    entities,
     graphics,
     grid,
     observations,

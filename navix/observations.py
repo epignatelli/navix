@@ -19,14 +19,13 @@
 
 
 from __future__ import annotations
-from typing import Dict, Tuple
 
-import jax
 import jax.numpy as jnp
 from jax import Array
 
 from . import graphics
-from .components import DISCARD_PILE_IDX, State
+from .components import DISCARD_PILE_IDX
+from .entities import State
 from .grid import idx_from_coordinates
 
 
@@ -59,16 +58,14 @@ from .grid import idx_from_coordinates
 
 def none(
     state: State,
-    # cache: graphics.RenderingCache,
-    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     return jnp.asarray(())
 
 
 def categorical(
     state: State,
-    # cache: graphics.RenderingCache,
-    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
@@ -83,8 +80,7 @@ def categorical(
 
 def rgb(
     state: State,
-    # cache: graphics.RenderingCache,
-    tiles_registry: Dict[str, Array] = graphics.TILES_REGISTRY,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # for 1-d vs 2-d indexing benchamarks
     # see https://github.com/epignatelli/navix/tree/observation/2dindexing
@@ -92,7 +88,7 @@ def rgb(
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
     # get tiles corresponding to the entities
-    tiles = state.get_tiles(tiles_registry, axis=0)
+    tiles = state.get_sprites(sprites_registry, axis=0)
     # set tiles on the flat set of patches
     patches = state.cache.patches.at[indices].set(tiles)
     # remove discard pile

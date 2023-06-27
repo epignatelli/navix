@@ -22,8 +22,8 @@ echo "Repo dir is: $REPO_DIR"
 cd $REPO_DIR
 
 # create tag
-git tag -a $(cat $VERSION) -m "Release $(cat $VERSION)"
-git push origin $(cat $VERSION)
+git tag -a $VERSION -m "Release $VERSION"
+git push origin $VER
 
 # create release
 gh release create $VERSION

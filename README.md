@@ -8,7 +8,6 @@
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
 ## What is NAVIX?
----
 NAVIX is [minigrid](https://github.com/Farama-Foundation/Minigrid) in JAX, **>1000x** faster with Autograd and XLA support.
 You can see a superficial performance comparison [here](docs/profiling.ipynb).
 
@@ -17,7 +16,6 @@ If you want join the development and contribute, please [open a discussion](http
 
 
 ## Installation
----
 We currently support the OSs supported by JAX.
 You can find a description [here](https://github.com/google/jax#installation).
 
@@ -40,7 +38,6 @@ pip install git+https://github.com/epignatelli/navix
 ```
 
 ## Examples
----
 
 ### XLA compilation
 One straightforward use case is to accelerate the computation of the environment with XLA compilation.
@@ -76,7 +73,6 @@ TODO(epignatelli): add example.
 
 
 ## Cite
----
 If you use `helx` please consider citing it as:
 
 ```bibtex

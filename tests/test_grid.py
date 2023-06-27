@@ -59,7 +59,41 @@ def test_random_positions():
         assert jnp.array_equal(grid[tuple(position)], 0), positions
 
 
+def test_position_equal():
+    # one to one
+    a = jnp.array([1, 1])
+    b = jnp.array([1, 1])
+    assert nx.grid.positions_equal(a, b)
+    assert nx.grid.positions_equal(b, a)
+    assert not nx.grid.positions_equal(a, b + 1)
+    assert not nx.grid.positions_equal(a + 1, b)
+    assert not nx.grid.positions_equal(b, a + 1)
+    assert not nx.grid.positions_equal(b + 1, a)
+
+    # one to many
+    a = jnp.array([1, 1])
+    b = jnp.array([[1, 1], [1, 2]])
+    assert jnp.array_equal(nx.grid.positions_equal(a, b), jnp.array([True, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(b, a), jnp.array([True, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(a, b + 1), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(a + 1, b), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(b, a + 1), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(b + 1, a), jnp.array([False, False]))
+
+    # many to many
+    a = jnp.array([[1, 1], [1, 2]])
+    b = jnp.array([[1, 1], [1, 2]])
+    assert jnp.array_equal(nx.grid.positions_equal(a, b), jnp.array([True, True]))
+    assert jnp.array_equal(nx.grid.positions_equal(b, a), jnp.array([True, True]))
+    assert jnp.array_equal(nx.grid.positions_equal(a, b + 1), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(a + 1, b), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(b, a + 1), jnp.array([False, False]))
+    assert jnp.array_equal(nx.grid.positions_equal(b + 1, a), jnp.array([False, False]))
+
+
 if __name__ == "__main__":
-    test_grid_from_ascii()
-    test_idx_from_coordinates()
-    test_random_positions()
+    # test_grid_from_ascii()
+    # test_idx_from_coordinates()
+    # test_random_positions()
+    test_position_equal()
+    # jax.jit(test_position_equal)()

@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.entities import Player, Goal, Key, Door
 
 
 def test_rgb():
@@ -10,24 +11,21 @@ def test_rgb():
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
-    state = nx.components.State(
+    state = nx.entities.State(
         key=jax.random.PRNGKey(0),
         grid=grid,
-        player=nx.components.Player(position=jnp.asarray((1, 1))),
-        goals=nx.components.Goal(position=jnp.asarray((4, 4))[None]),
-        keys=nx.components.Key(position=jnp.asarray((2, 2))[None]),
-        doors=nx.components.Door(position=jnp.asarray((1, 5))[None]),
+        players=Player.create(position=jnp.asarray((1, 1)), direction=jnp.asarray(0)),
+        goals=Goal.create(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0)),
+        keys=Key.create(position=jnp.asarray((2, 2)), id=jnp.asarray(0)),
+        doors=Door.create(position=jnp.asarray([(1, 5), (1, 6)]), direction=jnp.asarray((0, 2)), requires=jnp.asarray((0, 0))),
         cache=nx.graphics.RenderingCache.init(grid),
     )
-    void = jnp.zeros((nx.graphics.TILE_SIZE, nx.graphics.TILE_SIZE, 3), dtype=jnp.uint8)
-    tiles_registry={
-        "player": void,
-        "goal": void,
-        "key": void,
-        "door": void,
-    }
+    sprites_registry = nx.graphics.SPRITES_REGISTRY
 
-    obs = nx.observations.rgb(state, tiles_registry=tiles_registry)
+    doors = state.doors.replace(open=jnp.asarray((False, True)))
+    state = state.replace(doors=doors)
+
+    obs = nx.observations.rgb(state, sprites_registry=sprites_registry)
     expected_obs_shape = (height * nx.graphics.TILE_SIZE, width * nx.graphics.TILE_SIZE, 3)
     assert obs.shape == expected_obs_shape, (
         f"Expected observation {expected_obs_shape}, got {obs.shape} instead"
@@ -38,17 +36,20 @@ def test_rgb():
         y = position[1] * nx.graphics.TILE_SIZE
         return obs[x:x + nx.graphics.TILE_SIZE, y:y + nx.graphics.TILE_SIZE, :]
 
-    player_tile = get_tile(state.player.position)
-    assert jnp.array_equal(player_tile, tiles_registry["player"]), player_tile
+    player_tile = get_tile(state.players.position)
+    assert jnp.array_equal(player_tile, sprites_registry[2][0][0]), player_tile
 
     goal_tile = get_tile(state.goals.position[0])
-    assert jnp.array_equal(goal_tile, tiles_registry["goal"]), goal_tile
+    assert jnp.array_equal(goal_tile, sprites_registry[3][0][0]), goal_tile
 
     key_tile = get_tile(state.keys.position[0])
-    assert jnp.array_equal(key_tile, tiles_registry["key"]), key_tile
+    assert jnp.array_equal(key_tile, sprites_registry[4][0][0]), key_tile
 
     door_tile = get_tile(state.doors.position[0])
-    assert jnp.array_equal(door_tile, tiles_registry["door"]), door_tile
+    assert jnp.array_equal(door_tile, sprites_registry[5][0][0]), door_tile
+
+    door_tile = get_tile(state.doors.position[1])
+    assert jnp.array_equal(door_tile, sprites_registry[5][2][1]), door_tile
 
     return
 

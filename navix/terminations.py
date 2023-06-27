@@ -23,15 +23,15 @@ from __future__ import annotations
 from jax import Array
 import jax
 import jax.numpy as jnp
-from .components import State
+from .entities import State
+from .grid import positions_equal
 
 
 def check_truncation(terminated: Array, truncated: Array) -> Array:
-    return jnp.asarray(truncated + 2 * terminated, dtype=jnp.int32)
+    result = jnp.asarray(truncated + 2 * terminated, dtype=jnp.int32)
+    return jnp.clip(result, 0, 2)
 
 
 def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
-    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
-        state.player.position, state.goals.position
-    )
+    reached = positions_equal(state.players.position, state.goals.position)
     return jnp.any(reached)
