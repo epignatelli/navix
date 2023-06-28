@@ -19,6 +19,7 @@
 
 
 from __future__ import annotations
+import jax
 
 import jax.numpy as jnp
 from jax import Array
@@ -26,34 +27,7 @@ from jax import Array
 from . import graphics
 from .components import DISCARD_PILE_IDX
 from .entities import State
-from .grid import idx_from_coordinates
-
-
-# def _view_extremes(state: State, radius: Array) -> Tuple[Array, Array]:
-#     pos_left = translate_left(state.player.position, state.player.direction, radius)
-#     pos_forward_left = translate_forward(pos_left, state.player.direction, radius)
-#     pos_right = translate_right(state.player.position, state.player.direction, radius)
-#     pos_forward_right = translate_forward(pos_right, state.player.direction, radius)
-
-#     all_pos = jnp.stack([pos_left, pos_forward_left, pos_right, pos_forward_right], axis=0)
-
-#     north_west = jnp.min(all_pos, axis=0)
-#     south_east = jnp.max(all_pos, axis=0)
-
-#     return north_west, south_east
-
-
-# def _view_mask(state: State, radius: Array) -> Array:
-#     north_west, south_east = _view_extremes(state, radius)
-#     mask = state.grid.at[north_west[0]:south_east[0] + 1, north_west[1]:south_east[1] + 1].set(1)
-#     return mask
-
-
-# def _first_person_crop(state: State, radius: Array) -> Array:
-#     north_west, south_east = _view_extremes(state, radius)
-#     view = state.grid[north_west[0]:south_east[0] + 1, north_west[1]:south_east[1] + 1]
-#     view = jnp.rot90(view, k=state.player.direction + 1)
-#     return view
+from .grid import idx_from_coordinates, crop, view_cone
 
 
 def none(
@@ -78,6 +52,30 @@ def categorical(
     return grid.reshape(shape)
 
 
+def categorical_first_person(
+    state: State,
+    sprites_registry: Array = graphics.SPRITES_REGISTRY,
+    radius: int = 3,
+) -> Array:
+    # get transparency map
+    transparency_map = jnp.where(state.grid == 0, 1, 0)
+    positions = state.get_positions(axis=0)
+    transparent = state.get_transparents(axis=0)
+    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+
+    # apply view mask
+    view = view_cone(transparency_map, state.players.position, radius)
+
+    # get categorical representation
+    tags = state.get_tags(axis=0)
+    obs = state.grid.at[tuple(positions.T)].set(tags) * view
+
+    # crop grid to agent's view
+    obs = crop(obs, state.players.position, state.players.direction, radius)
+
+    return obs
+
+
 def rgb(
     state: State,
     sprites_registry: Array = graphics.SPRITES_REGISTRY,
@@ -94,6 +92,9 @@ def rgb(
     # remove discard pile
     patches = patches[:DISCARD_PILE_IDX]
     # unflatten patches to reconstruct the image
-    image_size = (state.grid.shape[0] * graphics.TILE_SIZE, state.grid.shape[1] * graphics.TILE_SIZE)
+    image_size = (
+        state.grid.shape[0] * graphics.TILE_SIZE,
+        state.grid.shape[1] * graphics.TILE_SIZE,
+    )
     image = graphics.unflatten_patches(patches, image_size)
     return image

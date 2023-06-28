@@ -19,13 +19,15 @@
 
 
 from __future__ import annotations
+from functools import partial
 
 
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Sequence
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax import Array
+from jax._src.util import canonicalize_axis
 
 
 Coordinates = Tuple[Array, Array]
@@ -140,9 +142,68 @@ def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def merge_maps(grid_1: Array, grid_2: Array) -> Array:
-    """Merge two overlaying maps of floors (0) and walls (-1) into a single grid"""
-    return jnp.asarray(grid_1 + grid_2, dtype=jnp.int32)
+def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
+    input_shape = grid.shape
+
+    max_dim = max(input_shape)
+
+    # make square
+    pad_h = max_dim - input_shape[0]
+    pad_w = max_dim - input_shape[1]
+
+    # and add radius to make sure there is enough space to crop out of bounds
+    pad_h = divmod(pad_h, 2)
+    pad_h = (pad_h[0] + radius, pad_h[1] + radius)
+    pad_w = divmod(pad_w, 2)
+    pad_w = (pad_w[0] + radius, pad_w[1] + radius)
+
+    padded = jnp.pad(grid, (pad_h, pad_w), constant_values=-1)
+
+    # rotate
+    height, width = grid.shape
+    extremes = jnp.asarray((height, width))
+    rotated, centre = jax.lax.switch(
+        direction,
+        (
+            lambda x: (jnp.rot90(x, 1), (width - 1 - origin[1], origin[0])),  # transpose flip
+            lambda x: (jnp.rot90(x, 2), (height - 1 - origin[0], width - 1 - origin[1])),  # flip
+            lambda x: (jnp.rot90(x, 3), (origin[1], height - 1 - origin[0])),  # flip transpose
+            lambda x: (x, tuple(origin))
+        ),
+        padded
+    )
+
+    # translate
+    centre = jnp.asarray(centre)
+    translated = jnp.roll(rotated, -centre, axis=(0, 1))
+
+    # crop
+    cropped = translated[:radius + 1, :2 * radius + 1]
+
+    return jnp.asarray(cropped, dtype=grid.dtype)
+
+
+def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
+    # transparency_map is a boolean map of transparent (1) and opaque (0) tiles
+
+    def fin_diff(array, _):
+        array = jnp.roll(array, -1, axis=0) + array + jnp.roll(array, +1, axis=0)
+        array = jnp.roll(array, -1, axis=1) + array + jnp.roll(array, +1, axis=1)
+        return array * transparency_map, ()
+
+    mask = jnp.zeros_like(transparency_map).at[tuple(origin)].set(1)
+
+    view = jax.lax.scan(fin_diff, mask, None, radius)[0]
+
+    # we now set a hard threshold > 0, but we can also think in the future
+    # to use a cutoof at a different value to mimic the effect of a torch
+    # (or eyesight for what matters)
+    view = jnp.where(view > 0, 1, 0)
+
+    # we add back the opaque tiles
+    view = jnp.where(transparency_map == 0, 1, view)
+
+    return view
 
 
 def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:
