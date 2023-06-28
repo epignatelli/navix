@@ -18,9 +18,6 @@ def ensure_batched(x: Array, unbached_dims: int) -> Array:
 class Entity(Component, Positionable, HasTag):
     """Entities are components that can be placed in the environment"""
 
-    def get_sprite(self, registry: Array):
-        raise NotImplementedError()
-
 
 class Player(Entity, Directional, Holder):
     """Players are entities that can act around the environment"""
@@ -34,6 +31,14 @@ class Player(Entity, Directional, Holder):
             pocket=EMPTY_POCKET_ID,
             tag=tag,
         )
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
 
     def get_sprite(self, registry: Array) -> Array:
         return registry[self.entity_type, self.direction, 0]
@@ -59,6 +64,14 @@ class Goal(Entity, Stochastic):
             probability=ensure_batched(probability, 0),
         )
 
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
+
     def get_sprite(self, registry: Array) -> Array:
         return registry[self.entity_type, 0, 0]
 
@@ -82,6 +95,14 @@ class Key(Entity, Pickable):
             tag=-id,
             id=id,
         )
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.id.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.id.shape)
 
     def get_sprite(self, registry: Array) -> Array:
         return registry[self.entity_type, 0, 0]
@@ -118,6 +139,15 @@ class Door(Entity, Directional, Openable):
             tag=requires,
             open=jnp.broadcast_to(jnp.asarray(False), direction.shape),
         )
+
+
+    @property
+    def walkable(self) -> Array:
+        return self.open
+
+    @property
+    def transparent(self) -> Array:
+        return self.open
 
     def get_sprite(self, registry: Array) -> Array:
         open = jnp.asarray(self.open, dtype=jnp.int32)
@@ -176,6 +206,17 @@ class State(struct.PyTreeNode):
                 *door_sprites,
                 *goal_sprites,
                 player_sprite,
+            ],
+            axis=axis,
+        )
+
+    def get_transparents(self, axis: int = -1) -> Array:
+        return jnp.stack(
+            [
+                *self.keys.transparent,
+                *self.doors.transparent,
+                *self.goals.transparent,
+                self.players.transparent,
             ],
             axis=axis,
         )
