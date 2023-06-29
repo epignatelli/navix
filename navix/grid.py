@@ -142,19 +142,21 @@ def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
+def crop(grid: Array, origin: Array, direction: Array, radius: int, out_of_bounds: Array = jnp.asarray(-1)) -> Array:
     input_shape = grid.shape
     max_dim = max(input_shape)
 
     # pad to square and ensure non out of bounds
     padding = []
-    for d in input_shape:
+    for d in input_shape[:2]:
         pad = max_dim - d
         pad, rem = divmod(pad, 2)
         pad = (pad + rem + radius, pad + radius)
         padding.append(pad)
+    for _ in range(len(input_shape) - 2):
+        padding.append((0, 0))
 
-    padded = jnp.pad(grid, padding, constant_values=-1)
+    padded = jnp.pad(grid, padding, constant_values=0)
     origin = origin + jnp.asarray((padding[0][0] - radius, padding[1][0] - radius))
     height, width = (padded.shape[0] - radius * 2, padded.shape[1] - radius * 2)
 
@@ -171,12 +173,10 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     )
 
     # translate
-    centre = jnp.asarray(centre)
-    translated = jnp.roll(rotated, -centre, axis=(0, 1))
+    translated = jnp.roll(rotated, -jnp.asarray(centre), axis=(0, 1))
 
     # crop
     cropped = translated[:radius + 1, :2 * radius + 1]
-
 
     return jnp.asarray(cropped, dtype=grid.dtype)
 

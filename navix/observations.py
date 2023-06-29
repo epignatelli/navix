@@ -98,3 +98,36 @@ def rgb(
     )
     image = graphics.unflatten_patches(patches, image_size)
     return image
+
+
+def rgb_first_person(
+        state: State,
+        sprites_registry: Array = graphics.SPRITES_REGISTRY,
+        radius: int = 3,
+) -> Array:
+    transparency_map = jnp.where(state.grid == 0, 1, 0)
+    positions = state.get_positions(axis=0)
+    transparent = state.get_transparents(axis=0)
+    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+
+    # get rgb representation
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
+    tiles = state.get_sprites(sprites_registry, axis=0)
+    patches = state.cache.patches.at[indices].set(tiles)
+    patches = patches[:DISCARD_PILE_IDX]
+    image_size = (
+        state.grid.shape[0] * graphics.TILE_SIZE,
+        state.grid.shape[1] * graphics.TILE_SIZE,
+    )
+    image = graphics.unflatten_patches(patches, image_size)
+
+    # apply view mask
+    view = view_cone(transparency_map, state.players.position, radius)
+    view = jax.image.resize(view, image_size, method="nearest")
+    view = jnp.tile(view[..., None], (1, 1, 3))
+
+    obs = image * view
+
+    # crop grid to agent's view
+    obs = crop(obs, state.players.position, state.players.direction, radius, graphics.GRAY_80)
+    return obs
