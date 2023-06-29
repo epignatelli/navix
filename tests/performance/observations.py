@@ -15,7 +15,7 @@ N_SEEDS = 10
 def test_observation(observation_fn):
     def test(seed):
         env = nx.environments.KeyDoor(
-            height=10, width=5, max_steps=100, gamma=1.0, observation_fn=observation_fn
+            height=5, width=10, max_steps=100, gamma=1.0, observation_fn=observation_fn
         )
         key = jax.random.PRNGKey(seed)
         timestep = env.reset(key)
@@ -52,3 +52,4 @@ if __name__ == "__main__":
     test_observation(nx.observations.none)
     test_observation(nx.observations.categorical)
     test_observation(nx.observations.rgb)
+    test_observation(nx.observations.categorical_first_person)

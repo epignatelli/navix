@@ -144,31 +144,28 @@ def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
 
 def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     input_shape = grid.shape
-
     max_dim = max(input_shape)
 
-    # make square
-    pad_h = max_dim - input_shape[0]
-    pad_w = max_dim - input_shape[1]
+    # pad to square and ensure non out of bounds
+    padding = []
+    for d in input_shape:
+        pad = max_dim - d
+        pad, rem = divmod(pad, 2)
+        pad = (pad + rem + radius, pad + radius)
+        padding.append(pad)
 
-    # and add radius to make sure there is enough space to crop out of bounds
-    pad_h = divmod(pad_h, 2)
-    pad_h = (pad_h[0] + radius, pad_h[1] + radius)
-    pad_w = divmod(pad_w, 2)
-    pad_w = (pad_w[0] + radius, pad_w[1] + radius)
-
-    padded = jnp.pad(grid, (pad_h, pad_w), constant_values=-1)
+    padded = jnp.pad(grid, padding, constant_values=-1)
+    origin = origin + jnp.asarray((padding[0][0] - radius, padding[1][0] - radius))
+    height, width = (padded.shape[0] - radius * 2, padded.shape[1] - radius * 2)
 
     # rotate
-    height, width = grid.shape
-    extremes = jnp.asarray((height, width))
     rotated, centre = jax.lax.switch(
         direction,
         (
-            lambda x: (jnp.rot90(x, 1), (width - 1 - origin[1], origin[0])),  # transpose flip
-            lambda x: (jnp.rot90(x, 2), (height - 1 - origin[0], width - 1 - origin[1])),  # flip
-            lambda x: (jnp.rot90(x, 3), (origin[1], height - 1 - origin[0])),  # flip transpose
-            lambda x: (x, tuple(origin))
+            lambda x: (jnp.rot90(x, 1), (width - 1 - origin[1], origin[0])),  # 0 = transpose, 1 = flip
+            lambda x: (jnp.rot90(x, 2), (height - 1 - origin[0], width - 1 - origin[1])),  # 0 = flip, 1 = flip
+            lambda x: (jnp.rot90(x, 3), (origin[1], height - 1 - origin[0])),  # 0 = flip, 1 = transpose
+            lambda x: (x, (origin[0], origin[1]))
         ),
         padded
     )
@@ -179,6 +176,7 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
 
     # crop
     cropped = translated[:radius + 1, :2 * radius + 1]
+
 
     return jnp.asarray(cropped, dtype=grid.dtype)
 
