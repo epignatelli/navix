@@ -20,7 +20,7 @@ jobs:
       - name: Get version from file
         run: |
           VERSION_FILE="$/navix/_version.py"
-          NAVIX_VERSION="(cat navix/_version.py | grep "__version__ = " |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,',,g" | sed 's, ,,g')"
+          NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
           echo "Current version is:"
           echo "$NAVIX_VERSION"
 
