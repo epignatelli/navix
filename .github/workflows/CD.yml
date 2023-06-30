@@ -6,16 +6,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Create changelog
-        id: changelog
-        uses: TriPSs/conventional-changelog-action@v3
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          output-file: "false"
 
       - name: Get version from file
         run: |
@@ -26,9 +19,19 @@ jobs:
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
       - name: Create and push tag
-        uses: actions-ecosystem/action-push-tag@v1
+        run: |
+          git tag -a ${{ env.NAVIX_VERSION }} -m "NAVIX release v${{ env.NAVIX_VERSION }}"
+          git push --tags
+        # uses: actions-ecosystem/action-push-tag@v1
+        # with:
+        #   tag: ${{ env.NAVIX_VERSION }}
+
+      - name: Create changelog
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v3
         with:
-          tag: ${{ env.NAVIX_VERSION }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          output-file: "false"
 
       - name: Create Release
         uses: ncipollo/release-action@v1
