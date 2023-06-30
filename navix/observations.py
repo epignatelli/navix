@@ -27,7 +27,7 @@ from jax import Array
 from . import graphics
 from .components import DISCARD_PILE_IDX
 from .entities import State
-from .grid import idx_from_coordinates, crop, view_cone
+from .grid import align, idx_from_coordinates, crop, view_cone
 
 
 def none(
@@ -110,24 +110,34 @@ def rgb_first_person(
     transparent = state.get_transparents(axis=0)
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
 
-    # get rgb representation
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
-    tiles = state.get_sprites(sprites_registry, axis=0)
-    patches = state.cache.patches.at[indices].set(tiles)
-    patches = patches[:DISCARD_PILE_IDX]
     image_size = (
         state.grid.shape[0] * graphics.TILE_SIZE,
         state.grid.shape[1] * graphics.TILE_SIZE,
     )
-    image = graphics.unflatten_patches(patches, image_size)
-
     # apply view mask
     view = view_cone(transparency_map, state.players.position, radius)
     view = jax.image.resize(view, image_size, method="nearest")
     view = jnp.tile(view[..., None], (1, 1, 3))
 
-    obs = image * view
+    # get rgb representation
+    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
+    tiles = state.get_sprites(sprites_registry, axis=0)
+    patches = state.cache.patches.at[indices].set(tiles)
+
+    # remove discard pile
+    patches = patches[:DISCARD_PILE_IDX]
+
+    # align sprites to player's direction
+    patches = jax.vmap(lambda x: align(x, jnp.asarray(0), state.players.direction))(patches)
+
+    # rearrange the sprites in a grid
+    patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
     # crop grid to agent's view
-    obs = crop(obs, state.players.position, state.players.direction, radius, graphics.GRAY_80)
+    patchwork = crop(patchwork, state.players.position, state.players.direction, radius)
+
+    # reconstruct image
+    obs = jnp.swapaxes(patchwork, 1, 2)
+    shape = obs.shape
+    obs = obs.reshape(shape[0] * shape[1], shape[2] * shape[3], *shape[4:])
     return obs

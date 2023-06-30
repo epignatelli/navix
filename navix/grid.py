@@ -98,6 +98,19 @@ def rotate(direction: Array, spin: int) -> Array:
     return (direction + spin) % 4
 
 
+def align(patch: Array, current_direction: Array, desired_direction: Array) -> Array:
+    return jax.lax.switch(
+        desired_direction - current_direction,
+        (
+            lambda x: jnp.rot90(x, 1),  # 0 = transpose, 1 = flip
+            lambda x: jnp.rot90(x, 2),  # 0 = flip, 1 = flip
+            lambda x: jnp.rot90(x, 3),  # 0 = flip, 1 = transpose
+            lambda x: x,
+        ),
+        patch,
+    )
+
+
 def random_positions(
     key: KeyArray, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
 ) -> Array:
@@ -142,7 +155,7 @@ def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def crop(grid: Array, origin: Array, direction: Array, radius: int, out_of_bounds: Array = jnp.asarray(-1)) -> Array:
+def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     input_shape = grid.shape
     max_dim = max(input_shape)
 

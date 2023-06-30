@@ -8,7 +8,7 @@ N_TIMESTEPS = 1000
 
 def f():
     seed = 0
-    env = nx.environments.Room(16, 16, 8, observation_fn=nx.observations.rgb)
+    env = nx.environments.Room(16, 16, 8, observation_fn=nx.observations.rgb_first_person)
     key = jax.random.PRNGKey(seed)
     timestep = env.reset(key)
     timestep = env.step(timestep, jnp.asarray(3))
@@ -45,7 +45,10 @@ def f_scan():
 f_jit = jax.jit(f)
 f_scan_jit = jax.jit(f_scan)
 
+# warm up
+f_jit()
+f_scan_jit()
 
 with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
-    timestep = f_scan_jit()
+    timestep = f_scan()
     timestep.observation.block_until_ready()
