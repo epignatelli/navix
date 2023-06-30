@@ -20,7 +20,7 @@ jobs:
 
       - name: Create and push tag
         run: |
-          git tag -a ${{ env.NAVIX_VERSION }} -m "NAVIX release v${{ env.NAVIX_VERSION }}"
+          git tag ${{ env.NAVIX_VERSION }}
           git push --tags
         # uses: actions-ecosystem/action-push-tag@v1
         # with:
