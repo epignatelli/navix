@@ -23,6 +23,7 @@ jobs:
           NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
           echo "Current version is:"
           echo "$NAVIX_VERSION"
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
       - name: Create and push tag
         uses: actions-ecosystem/action-push-tag@v1
@@ -30,7 +31,7 @@ jobs:
           tag: ${{ env.NAVIX_VERSION }}
 
       - name: Create Release
-        uses: ncipollo/release-action@v1.3.1
+        uses: ncipollo/release-action@v1
         with:
           tag: ${{ env.NAVIX_VERSION }}
           name: "NAVIX release v${{ env.NAVIX_VERSION }}"
