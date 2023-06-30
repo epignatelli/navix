@@ -23,10 +23,10 @@ cd $REPO_DIR
 
 # create tag
 git tag -a $VERSION -m "Release $VERSION"
-git push origin $VER
+git push --tags
 
 # create release
 gh release create $VERSION
 
 # trigger CD
-gh workflow run cd.yml
+gh workflow run CD -r main

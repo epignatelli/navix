@@ -9,13 +9,13 @@ import navix as nx
 N_TIMEIT_LOOPS = 10
 N_REPEAT = 30
 N_TIMESTEPS = 1000
-N_SEEDS = 10
+N_SEEDS = 1000
 
 
 def test_observation(observation_fn):
     def test(seed):
         env = nx.environments.KeyDoor(
-            height=10, width=5, max_steps=100, gamma=1.0, observation_fn=observation_fn
+            height=5, width=10, max_steps=100, gamma=1.0, observation_fn=observation_fn
         )
         key = jax.random.PRNGKey(seed)
         timestep = env.reset(key)
@@ -38,7 +38,7 @@ def test_observation(observation_fn):
     test_jit = jax.jit(jax.vmap(test)).lower(seeds).compile()
     print("\tCompiled in {:.2f}s".format(time.time() - start))
 
-    print("\tRunning ...")
+    print(f"\tRunning {observation_fn}...")
     res = repeat(
         lambda: test_jit(seeds).observation.block_until_ready(),
         number=N_TIMEIT_LOOPS,
@@ -49,6 +49,8 @@ def test_observation(observation_fn):
 
 
 if __name__ == "__main__":
-    test_observation(nx.observations.none)
-    test_observation(nx.observations.categorical)
-    test_observation(nx.observations.rgb)
+    # test_observation(nx.observations.none)
+    # test_observation(nx.observations.categorical)
+    # test_observation(nx.observations.rgb)
+    # test_observation(nx.observations.categorical_first_person)
+    test_observation(nx.observations.rgb_first_person)

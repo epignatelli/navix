@@ -54,5 +54,26 @@ def test_rgb():
     return
 
 
+def test_categorical_first_person():
+    height = 10
+    width = 10
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
+
+    state = nx.entities.State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        players=Player.create(position=jnp.asarray((1, 1)), direction=jnp.asarray(0)),
+        goals=Goal.create(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0)),
+        keys=Key.create(position=jnp.asarray((2, 2)), id=jnp.asarray(0)),
+        doors=Door.create(position=jnp.asarray([(1, 5), (1, 6)]), direction=jnp.asarray((0, 2)), requires=jnp.asarray((0, 0))),
+        cache=nx.graphics.RenderingCache.init(grid),
+    )
+
+    obs = nx.observations.categorical_first_person(state)
+    print(obs)
+
 if __name__ == "__main__":
-    test_rgb()
+    # test_rgb()
+    test_categorical_first_person()
+    jax.jit(test_categorical_first_person)()
