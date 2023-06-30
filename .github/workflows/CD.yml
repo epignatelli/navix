@@ -28,7 +28,7 @@ jobs:
         uses: actions-ecosystem/action-push-tag@v1
         with:
           tag: ${{ env.NAVIX_VERSION }}
-          message: '${{ NAVIX release v${{ env.NAVIX_VERSION }} }}'
+          message: 'NAVIX release v${{ env.NAVIX_VERSION }}'
 
       - name: Create Release
         uses: ncipollo/release-action@v1
