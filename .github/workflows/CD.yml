@@ -1,63 +1,58 @@
 name: CD
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - "main"
 
 jobs:
-  # release:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         fetch-depth: 0
-  #     - name: Bump version and push tag
-  #       id: tag_version
-  #       uses: mathieudutour/github-tag-action@v6.1
-  #       with:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         default_bump: "minor"
-  #         dry_run: true
-  #         create_annotated_tag: true
-  #         tag_prefix: ""
-  #     - name: Fix tag name
-  #       run: |
-  #         echo 'CHANGELOG<<EOF' >> $GITHUB_ENV
-  #         echo "$CHANGELOG" >> $GITHUB_ENV
-  #         echo 'EOF' >> $GITHUB_ENV
-
-  #         TAG_NAME="${{ steps.tag_version.outputs.new_tag }}"
-  #         echo 'TAG_NAME<<EOF' >> $GITHUB_ENV
-  #         echo "$TAG_NAME" >> $GITHUB_ENV
-  #         echo 'EOF' >> $GITHUB_ENV
-  #     - name: Create GitHub release
-  #       uses: ncipollo/release-action@v1
-  #       with:
-  #         tag: ${{ env.TAG_NAME }}
-  #         name: ${{ env.TAG_NAME }}
-  #         body: ${{ env.CHANGELOG }}
-
-# see:
-# https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/
-# https://packaging.python.org/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
-# for
-  publish:
-    # needs: release
+  release:
     runs-on: ubuntu-latest
-    continue-on-error: true
-    strategy:
-      max-parallel: 3
-      matrix:
-        python_version: ["3.9"]
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      - name: Create changelog
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          output-file: "false"
+
+      - name: Get version from file
+        run: |
+          VERSION_FILE="$/navix/_version.py"
+          NAVIX_VERSION="(cat navix/_version.py | grep "__version__ = " |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,',,g" | sed 's, ,,g')"
+          echo "Current version is:"
+          echo "$NAVIX_VERSION"
+
+      - name: Create and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ env.NAVIX_VERSION }}
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ env.NAVIX_VERSION }}
+          name: "NAVIX release v${{ env.NAVIX_VERSION }}"
+          body: ${{ steps.changelog.outputs.clean_changelog }}
+
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python_version }}
+
       - name: Install pypa/build
-        run: python -m pip install build
+        run: |
+          python -m pip install build
+
       - name: Build wheel and sdist
-        run: python -m build --sdist --wheel --outdir dist/ .
+        run: |
+          python -m build --sdist --wheel --outdir dist/ .
+
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
