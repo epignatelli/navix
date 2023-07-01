@@ -30,7 +30,9 @@ from jax import Array
 from flax import struct
 
 
+
 from .. import tasks, terminations, observations
+from ..graphics import RenderingCache
 from ..entities import State
 from ..actions import ACTIONS
 
@@ -77,7 +79,7 @@ class Environment(struct.PyTreeNode):
     )
 
     @abc.abstractmethod
-    def reset(self, key: KeyArray) -> Timestep:
+    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:
         raise NotImplementedError()
 
     def _step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
@@ -99,7 +101,7 @@ class Environment(struct.PyTreeNode):
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
-            lambda timestep: self.reset(timestep.state.key),
+            lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
             lambda timestep: self._step(timestep, action, actions_set),
             timestep,
         )

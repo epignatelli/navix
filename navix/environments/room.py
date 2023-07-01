@@ -33,7 +33,7 @@ from .environment import Environment, Timestep
 
 
 class Room(Environment):
-    def reset(self, key: KeyArray) -> Timestep:
+    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
@@ -55,7 +55,7 @@ class Room(Environment):
         state = State(
             key=key,
             grid=grid,
-            cache=RenderingCache.init(grid),
+            cache=cache or RenderingCache.init(grid),
             players=player,
             goals=goal,
         )
