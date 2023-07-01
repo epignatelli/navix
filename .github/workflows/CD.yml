@@ -17,7 +17,7 @@ jobs:
           echo "Current version is:"
           echo "$NAVIX_VERSION"
 
-          echo "NAVIX_VERSION=${{ env.NAVIX_VERSION }}" >> $GITHUB_ENV
+          echo "NAVIX_VERSION=$NAVIX_VERSION" >> $GITHUB_ENV
 
       - name: Create and push tag
         run: |
