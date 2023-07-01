@@ -33,10 +33,13 @@ DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
 
 
 def _rotate(state: State, spin: int) -> State:
+    if "player" not in state.entities:
+        return state
+
     player = state.get_player()
     direction = rotate(player.direction, spin)
     player = player.replace(direction=direction)
-    state.entities["player"] = player
+    state.entities["player"] = player[None]
     return state
 
 
@@ -48,12 +51,15 @@ def _walkable(state: State, position: Array) -> Array:
 
 
 def _move(state: State, direction: Array) -> State:
+    if "player" not in state.entities:
+        return state
+
     player = state.get_player()
     new_position = translate(player.position, direction)
     can_move = _walkable(state, new_position)
     new_position = jnp.where(can_move, new_position, player.position)
     player = player.replace(position=new_position)
-    state.entities["player"] = player
+    state.entities["player"] = player[None]
     return state
 
 
@@ -101,6 +107,10 @@ def left(state: State) -> State:
 
 
 def pickup(state: State) -> State:
+
+    if "key" not in state.entities:
+        return state
+
     player = state.get_player()
     keys = state.get_keys()
 
@@ -116,13 +126,17 @@ def pickup(state: State) -> State:
     key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
     player = jax.lax.cond(jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player)
 
-    state.entities["player"] = player
+    state.entities["player"] = player[None]
     state.entities["key"] = keys
     return state
 
 
 def open(state: State) -> State:
     """Unlocks and opens an openable object (like a door) if possible"""
+
+    if "door" not in state.entities:
+        return state
+
     # get the tile in front of the player
     player = state.get_player()
     doors = state.get_doors()
