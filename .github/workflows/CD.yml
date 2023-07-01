@@ -20,6 +20,7 @@ jobs:
 
       - name: Create and push tag
         run: |
+          echo "Creating tag ${{ env.NAVIX_VERSION }}"
           git tag ${{ env.NAVIX_VERSION }}
           git push --tags
 
