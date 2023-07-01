@@ -193,6 +193,8 @@ class State(struct.PyTreeNode):
     """The key entity, batched over the number of keys"""
     doors: Door = Door.create()
     """The door entity, batched over the number of doors"""
+    walls: Wall = Wall.create()
+    """The set of walls that repositioned after an environment reset, batched over the number of walls"""
 
     def get_positions(self, axis: int = -1) -> Array:
         return jnp.stack(
