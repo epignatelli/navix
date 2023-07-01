@@ -139,7 +139,7 @@ def positions_equal(a: Array, b: Array) -> Array:
 
 def room(height: int, width: int):
     """A grid of ids of size `width` x `height`"""
-    grid = jnp.zeros((height, width), dtype=jnp.int32)
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
