@@ -16,7 +16,8 @@ jobs:
           NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
           echo "Current version is:"
           echo "$NAVIX_VERSION"
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+          echo "NAVIX_VERSION=${{ env.NAVIX_VERSION }}" >> $GITHUB_ENV
 
       - name: Create and push tag
         run: |
