@@ -18,6 +18,20 @@ def ensure_batched(x: Array, unbached_dims: int) -> Array:
 class Entity(Component, Positionable, HasTag):
     """Entities are components that can be placed in the environment"""
 
+    def __getitem__(self, idx) -> Entity:
+        return self.__class__(jax.tree_util.tree_map(lambda attr: attr[idx], self))
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+
+    def get_sprite(self, registry: Array) -> Array:
+        return registry[self.entity_type, 0, 0]
+
 
 class Wall(Entity):
     """Walls are entities that cannot be walked through"""

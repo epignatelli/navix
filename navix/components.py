@@ -46,16 +46,6 @@ class Component(struct.PyTreeNode):
     entity_type: Array = jnp.asarray(0, dtype=jnp.int32)
     """The type of the entity, 0 = player, 1 = goal, 2 = key, 3 = door"""
 
-    def get_sprite(self, registry: Array) -> Array:
-        raise NotImplementedError()
-
-    @property
-    def walkable(self) -> Array:
-        raise NotImplementedError()
-
-    def is_transparent(self) -> Array:
-        raise NotImplementedError()
-
 
 class Positionable(struct.PyTreeNode):
     position: Array = DISCARD_PILE_COORDS
