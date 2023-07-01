@@ -4,7 +4,7 @@ from jax.random import KeyArray
 
 from ..graphics import RenderingCache
 from ..environments import Environment
-from ..entities import State, Player, Key, Door, Goal
+from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
 from ..grid import (
     two_rooms,
@@ -15,7 +15,7 @@ from ..grid import (
 
 
 class KeyDoor(Environment):
-    def reset(self, key: KeyArray) -> Timestep:
+    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
         grid, wall_at = two_rooms(height=self.height, width=self.width, key=k4)
@@ -41,6 +41,12 @@ class KeyDoor(Environment):
         goal_pos = random_positions(k2, second_room)
         goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
+        # wall entities
+        rows = jnp.arange(1, self.height - 2)
+        cols = jnp.ones(5, dtype=jnp.int32)
+        wall_pos = jnp.stack((rows, cols), axis=1)
+        walls = Wall(wall_pos)
+
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
 
@@ -51,7 +57,7 @@ class KeyDoor(Environment):
             goals=goals,
             keys=keys,
             doors=doors,
-            cache=RenderingCache.init(grid),
+            cache=cache or RenderingCache.init(grid),
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

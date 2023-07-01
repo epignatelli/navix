@@ -19,6 +19,28 @@ class Entity(Component, Positionable, HasTag):
     """Entities are components that can be placed in the environment"""
 
 
+class Wall(Entity):
+    """Walls are entities that cannot be walked through"""
+
+    @classmethod
+    def create(cls, position: Array = DISCARD_PILE_COORDS[None]) -> Wall:
+        return cls(
+            entity_type=jnp.asarray(-1, dtype=jnp.int32),
+            position=position,
+        )
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+
+    def get_sprite(self, registry: Array) -> Array:
+        return registry[self.entity_type, 0, 0]
+
+
 class Player(Entity, Directional, Holder):
     """Players are entities that can act around the environment"""
 
