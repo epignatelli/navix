@@ -9,7 +9,7 @@
 
 ## What is NAVIX?
 NAVIX is [minigrid](https://github.com/Farama-Foundation/Minigrid) in JAX, **>1000x** faster with Autograd and XLA support.
-You can see a superficial performance comparison [here](docs/profiling.ipynb).
+You can see a superficial performance comparison [here](docs/performance.ipynb).
 
 The library is in active development, and we are working on adding more environments and features.
 If you want join the development and contribute, please [open a discussion](https://github.com/epignatelli/navix/discussions/new?category=general) and let's have a chat!
