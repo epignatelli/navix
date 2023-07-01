@@ -21,7 +21,6 @@
 from __future__ import annotations
 
 from jax import Array
-import jax
 import jax.numpy as jnp
 from .entities import State
 from .grid import positions_equal
@@ -33,5 +32,8 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
 
 
 def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
-    reached = positions_equal(state.players.position, state.goals.position)
+    player = state.get_player()
+    goals = state.get_goals()
+
+    reached = positions_equal(player.position, goals.position)
     return jnp.any(reached)

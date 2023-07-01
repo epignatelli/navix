@@ -1,5 +1,7 @@
 from __future__ import annotations
+from typing import Dict, Tuple
 
+import jax
 from jax import Array
 import jax.numpy as jnp
 from flax import struct
@@ -59,12 +61,12 @@ class Player(Entity, Directional, Holder):
     """Players are entities that can act around the environment"""
 
     @classmethod
-    def create(cls, position: Array = DISCARD_PILE_COORDS, direction: Array = jnp.asarray(0), tag: Array = jnp.asarray(1)) -> Player:
+    def create(cls, position: Array = DISCARD_PILE_COORDS[None], direction: Array = jnp.asarray(0)[None], tag: Array = jnp.asarray(1)[None]) -> Player:
         return cls(
-            entity_type=jnp.asarray(2),
+            entity_type=jnp.broadcast_to(jnp.asarray(2), direction.shape),
             position=position,
             direction=direction,
-            pocket=EMPTY_POCKET_ID,
+            pocket=jnp.broadcast_to(EMPTY_POCKET_ID, direction.shape),
             tag=tag,
         )
 
@@ -199,62 +201,31 @@ class State(struct.PyTreeNode):
     """The base map of the environment that remains constant throughout the training"""
     cache: RenderingCache
     """The rendering cache to speed up rendering"""
-    players: Player = Player.create()
-    """The player entity"""
-    goals: Goal = Goal.create()
-    """The goal entity, batched over the number of goals"""
-    keys: Key = Key.create()
-    """The key entity, batched over the number of keys"""
-    doors: Door = Door.create()
-    """The door entity, batched over the number of doors"""
-    walls: Wall = Wall.create()
-    """The set of walls that repositioned after an environment reset, batched over the number of walls"""
+    entities: Dict[str, Entity] = struct.field(default_factory=dict)
+    """The entities in the environment, indexed via entity type string representation.
+    Batched over the number of entities for each type"""
 
-    def get_positions(self, axis: int = -1) -> Array:
-        return jnp.stack(
-            [
-                *self.keys.position,
-                *self.doors.position,
-                *self.goals.position,
-                self.players.position,
-            ],
-            axis=axis,
-        )
+    def get_player(self, idx: int = 0) -> Player:
+        return self.entities["player"]  # type: ignore
+        # return jax.tree_util.tree_map(lambda attr: attr[idx], self.entities["player"])
 
-    def get_tags(self, axis: int = -1) -> Array:
-        return jnp.stack(
-            [
-                *self.keys.tag,
-                *self.doors.tag,
-                *self.goals.tag,
-                self.players.tag,
-            ],
-            axis=axis,
-        )
+    def get_goals(self) -> Goal:
+        return self.entities.get("goal", Goal.create())  # type: ignore
 
-    def get_sprites(self, sprites_registry: Array, axis: int = 0) -> Array:
-        player_sprite = self.players.get_sprite(sprites_registry)
-        key_sprites = self.keys.get_sprite(sprites_registry)
-        goal_sprites = self.goals.get_sprite(sprites_registry)
-        door_sprites = self.doors.get_sprite(sprites_registry)
+    def get_keys(self) -> Key:
+        return self.entities.get("key", Key.create())  # type: ignore
 
-        return jnp.stack(
-            [
-                *key_sprites,
-                *door_sprites,
-                *goal_sprites,
-                player_sprite,
-            ],
-            axis=axis,
-        )
+    def get_doors(self) -> Door:
+        return self.entities.get("door", Door.create())  # type: ignore
 
-    def get_transparents(self, axis: int = -1) -> Array:
-        return jnp.stack(
-            [
-                *self.keys.transparent,
-                *self.doors.transparent,
-                *self.goals.transparent,
-                self.players.transparent,
-            ],
-            axis=axis,
-        )
+    def get_positions(self) -> Array:
+        return jnp.concatenate([self.entities[k].position for k in self.entities])
+
+    def get_tags(self) -> Array:
+        return jnp.concatenate([self.entities[k].tag for k in self.entities])
+
+    def get_sprites(self, sprites_registry: Array) -> Array:
+        return jnp.concatenate([self.entities[k].get_sprite(sprites_registry) for k in self.entities])
+
+    def get_transparency(self) -> Array:
+        return jnp.concatenate([self.entities[k].transparent for k in self.entities])

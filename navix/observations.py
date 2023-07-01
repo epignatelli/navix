@@ -42,9 +42,9 @@ def categorical(
     sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
+    indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
-    tags = state.get_tags(axis=0)
+    tags = state.get_tags()
     # set tags on the flat set of patches
     shape = state.grid.shape
     grid = state.grid.reshape(-1).at[indices].set(tags)
@@ -59,19 +59,20 @@ def categorical_first_person(
 ) -> Array:
     # get transparency map
     transparency_map = jnp.where(state.grid == 0, 1, 0)
-    positions = state.get_positions(axis=0)
-    transparent = state.get_transparents(axis=0)
+    positions = state.get_positions()
+    transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
 
     # apply view mask
-    view = view_cone(transparency_map, state.players.position, radius)
+    player = state.get_player()
+    view = view_cone(transparency_map, player.position, radius)
 
     # get categorical representation
-    tags = state.get_tags(axis=0)
+    tags = state.get_tags()
     obs = state.grid.at[tuple(positions.T)].set(tags) * view
 
     # crop grid to agent's view
-    obs = crop(obs, state.players.position, state.players.direction, radius)
+    obs = crop(obs, player.position, player.direction, radius)
 
     return obs
 
@@ -84,9 +85,9 @@ def rgb(
     # see https://github.com/epignatelli/navix/tree/observation/2dindexing
 
     # get idx of entity on the flat set of patches
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
+    indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tiles corresponding to the entities
-    tiles = state.get_sprites(sprites_registry, axis=0)
+    tiles = state.get_sprites(sprites_registry)
     # set tiles on the flat set of patches
     patches = state.cache.patches.at[indices].set(tiles)
     # remove discard pile
@@ -106,8 +107,8 @@ def rgb_first_person(
         radius: int = 3,
 ) -> Array:
     transparency_map = jnp.where(state.grid == 0, 1, 0)
-    positions = state.get_positions(axis=0)
-    transparent = state.get_transparents(axis=0)
+    positions = state.get_positions()
+    transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
 
     image_size = (
@@ -115,26 +116,27 @@ def rgb_first_person(
         state.grid.shape[1] * graphics.TILE_SIZE,
     )
     # apply view mask
-    view = view_cone(transparency_map, state.players.position, radius)
+    player = state.get_player()
+    view = view_cone(transparency_map, player.position, radius)
     view = jax.image.resize(view, image_size, method="nearest")
     view = jnp.tile(view[..., None], (1, 1, 3))
 
     # get rgb representation
-    indices = idx_from_coordinates(state.grid, state.get_positions(axis=0))
-    tiles = state.get_sprites(sprites_registry, axis=0)
+    indices = idx_from_coordinates(state.grid, state.get_positions())
+    tiles = state.get_sprites(sprites_registry)
     patches = state.cache.patches.at[indices].set(tiles)
 
     # remove discard pile
     patches = patches[:DISCARD_PILE_IDX]
 
     # align sprites to player's direction
-    patches = jax.vmap(lambda x: align(x, jnp.asarray(0), state.players.direction))(patches)
+    patches = jax.vmap(lambda x: align(x, jnp.asarray(0), player.direction))(patches)
 
     # rearrange the sprites in a grid
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
     # crop grid to agent's view
-    patchwork = crop(patchwork, state.players.position, state.players.direction, radius)
+    patchwork = crop(patchwork, player.position, player.direction, radius)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)

@@ -44,13 +44,16 @@ def free(state: State) -> Array:
 
 
 def navigation(prev_state: State, action: Array, state: State) -> Array:
+    player = state.get_player()
+    goals = state.get_goals()
+
     reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
-        state.players.position, state.goals.position
+        player.position, goals.position
     )
     any_reached = jnp.sum(reached)
 
     draw = jax.random.uniform(state.key, ())
-    reward = any_reached * jnp.greater_equal(draw, state.goals.probability)
+    reward = any_reached * jnp.greater_equal(draw, goals.probability)
     reward = jnp.asarray(reward, jnp.float32).squeeze()
 
     # make sure that reward is a scalar
@@ -75,8 +78,11 @@ def time_cost(
 def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
+    prev_player = prev_state.get_player()
+    player = state.get_player()
+
     # if state is unchanged, maybe the wall was hit
-    didnt_move = jnp.array_equal(prev_state.players.position, state.players.position)
+    didnt_move = jnp.array_equal(prev_player.position, player.position)
     but_wanted_to = jnp.less_equal(3, action) * jnp.less_equal(action, 6)
     hit = jnp.logical_and(didnt_move, but_wanted_to)
     return -jnp.asarray(cost) * hit
