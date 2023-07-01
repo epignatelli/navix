@@ -21,7 +21,7 @@ class Entity(Component, Positionable, HasTag):
     """Entities are components that can be placed in the environment"""
 
     def __getitem__(self, idx) -> Entity:
-        return self.__class__(jax.tree_util.tree_map(lambda attr: attr[idx], self))
+        return jax.tree_util.tree_map(lambda attr: attr[idx], self)
 
     @property
     def walkable(self) -> Array:
@@ -206,8 +206,7 @@ class State(struct.PyTreeNode):
     Batched over the number of entities for each type"""
 
     def get_player(self, idx: int = 0) -> Player:
-        return self.entities["player"]  # type: ignore
-        # return jax.tree_util.tree_map(lambda attr: attr[idx], self.entities["player"])
+        return jax.tree_util.tree_map(lambda player: player[idx], self.entities["player"])
 
     def get_goals(self) -> Goal:
         return self.entities.get("goal", Goal.create())  # type: ignore
