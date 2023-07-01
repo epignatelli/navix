@@ -22,9 +22,6 @@ jobs:
         run: |
           git tag ${{ env.NAVIX_VERSION }}
           git push --tags
-        # uses: actions-ecosystem/action-push-tag@v1
-        # with:
-        #   tag: ${{ env.NAVIX_VERSION }}
 
       - name: Create changelog
         id: changelog
