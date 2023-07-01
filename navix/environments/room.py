@@ -19,7 +19,7 @@
 
 
 from __future__ import annotations
-from typing import Callable
+from typing import Callable, Union
 
 import jax
 import jax.numpy as jnp
@@ -33,7 +33,7 @@ from .environment import Environment, Timestep
 
 
 class Room(Environment):
-    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:
+    def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
@@ -47,17 +47,21 @@ class Room(Environment):
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2)
         direction = random_directions(k2, n=1)
-        player = Player.create(position=player_pos, direction=direction)
+        player = Player.create(position=player_pos[None], direction=direction[None])
         # goal
         goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
+
+        entities = {
+            "player": player,
+            "goals": goal,
+        }
 
         # systems
         state = State(
             key=key,
             grid=grid,
             cache=cache or RenderingCache.init(grid),
-            players=player,
-            goals=goal,
+            entities=entities,
         )
 
         return Timestep(
