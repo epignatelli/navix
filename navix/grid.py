@@ -19,15 +19,13 @@
 
 
 from __future__ import annotations
-from functools import partial
 
 
-from typing import Callable, Dict, Tuple, Sequence
+from typing import Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax import Array
-from jax._src.util import canonicalize_axis
 
 
 Coordinates = Tuple[Array, Array]
