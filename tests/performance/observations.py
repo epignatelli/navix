@@ -9,7 +9,7 @@ import navix as nx
 N_TIMEIT_LOOPS = 10
 N_REPEAT = 30
 N_TIMESTEPS = 10
-N_SEEDS = 1000
+N_SEEDS = 100
 
 
 def test_observation(observation_fn):
@@ -21,17 +21,13 @@ def test_observation(observation_fn):
         timestep = env.reset(key)
 
         # option 1
-        # actions = jax.random.randint(key, (100,), 0, 6)
-        # timestep = jax.lax.scan(lambda c, x: (env.step(c, x), ()), timestep, actions)[0]
+        actions = jax.random.randint(key, (100,), 0, 6)
+        timestep = jax.lax.scan(lambda c, x: (env.step(c, x), ()), timestep, actions)[0]
 
         # option 2
-        actions = jax.random.randint(key, (100,), 0, 6)
-        timestep = jax.lax.fori_loop(0, N_TIMESTEPS, lambda i, val: env.step(val, jnp.asarray(actions[i])), timestep)
-
-        # option 3
-        # for i in range(N_TIMESTEPS):
-        #     action = jax.random.randint(key, (), 0, 6)
-        #     timestep = env.step(timestep, jnp.asarray(action))
+        for i in range(N_TIMESTEPS):
+            action = jax.random.randint(key, (), 0, 6)
+            timestep = env.step(timestep, jnp.asarray(action))
 
         return timestep
 
@@ -60,8 +56,8 @@ def test_observation(observation_fn):
 
 
 if __name__ == "__main__":
-    # test_observation(nx.observations.none)
-    # test_observation(nx.observations.categorical)
-    # test_observation(nx.observations.categorical_first_person)
+    test_observation(nx.observations.none)
+    test_observation(nx.observations.categorical)
+    test_observation(nx.observations.categorical_first_person)
     test_observation(nx.observations.rgb)
-    # test_observation(nx.observations.rgb_first_person)
+    test_observation(nx.observations.rgb_first_person)

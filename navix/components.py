@@ -82,3 +82,8 @@ class Pickable(struct.PyTreeNode):
 class Holder(struct.PyTreeNode):
     pocket: Array = EMPTY_POCKET_ID
     """The id of the item in the pocket (0 if empty)"""
+
+
+class HasSprite(struct.PyTreeNode):
+    sprite: Array = jnp.asarray(0, dtype=jnp.int32)
+    """The id of the sprite of the entity."""

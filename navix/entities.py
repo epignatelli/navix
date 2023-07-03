@@ -7,21 +7,24 @@ import jax.numpy as jnp
 from flax import struct
 from jax.random import KeyArray
 
-from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
+from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, HasSprite, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 from .graphics import RenderingCache, SPRITES_REGISTRY
 
 
-def ensure_batched(x: Array, unbached_dims: int) -> Array:
-    if x.ndim <= unbached_dims:
+def ensure_batched(x: Array, ndim_as_unbatched: int) -> Array:
+    if x.ndim <= ndim_as_unbatched:
         return x[None]
     return x
 
 
-class Entity(Component, Positionable, HasTag):
+class Entity(Component, Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
     def __getitem__(self, idx) -> Entity:
         return jax.tree_util.tree_map(lambda attr: attr[idx], self)
+
+    def batch_size(self) -> int:
+        return self.position.shape[0]
 
     @property
     def walkable(self) -> Array:
@@ -40,9 +43,16 @@ class Wall(Entity):
 
     @classmethod
     def create(cls, position: Array = DISCARD_PILE_COORDS[None]) -> Wall:
+        assert position.ndim == 2
+        batch_size = position.shape[0]
+
+        entity_type = jnp.broadcast_to(jnp.asarray(-1), (batch_size,))
+        sprite = SPRITES_REGISTRY["wall"]
+        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
         return cls(
-            entity_type=jnp.asarray(-1, dtype=jnp.int32),
+            entity_type=entity_type,
             position=position,
+            sprite=sprite
         )
 
     @property
@@ -54,7 +64,8 @@ class Wall(Entity):
         return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
 
     def get_sprite(self) -> Array:
-        return SPRITES_REGISTRY[self.entity_type, 0, 0]
+        sprite = SPRITES_REGISTRY["wall"]
+        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
 
 
 class Player(Entity, Directional, Holder):
@@ -62,12 +73,25 @@ class Player(Entity, Directional, Holder):
 
     @classmethod
     def create(cls, position: Array = DISCARD_PILE_COORDS[None], direction: Array = jnp.asarray(0)[None], tag: Array = jnp.asarray(1)[None]) -> Player:
+        # chech that all inputs are batched
+        position = ensure_batched(position, 1)
+        direction = ensure_batched(direction, 0)
+        tag = ensure_batched(tag, 0)
+
+        # ensure that the inputs are batched and have the same batch size
+        assert len(position) == len(direction) == len(tag)
+
+        batch_size = position.shape[0]
+        entity_type = jnp.broadcast_to(jnp.asarray(2), (batch_size,))
+        pocket = jnp.broadcast_to(EMPTY_POCKET_ID, (batch_size,))
+        sprite = SPRITES_REGISTRY["player"][direction]
         return cls(
-            entity_type=jnp.broadcast_to(jnp.asarray(2), direction.shape),
+            entity_type=entity_type,
             position=position,
             direction=direction,
-            pocket=jnp.broadcast_to(EMPTY_POCKET_ID, direction.shape),
+            pocket=pocket,
             tag=tag,
+            sprite=sprite,
         )
 
     @property
@@ -79,7 +103,7 @@ class Player(Entity, Directional, Holder):
         return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
 
     def get_sprite(self) -> Array:
-        return SPRITES_REGISTRY[self.entity_type, self.direction, 0]
+        return SPRITES_REGISTRY["player"][self.direction]
 
 
 class Goal(Entity, Stochastic):
@@ -95,11 +119,18 @@ class Goal(Entity, Stochastic):
         # check that the batch sizes are the same
         assert len(position) == len(probability) == len(tag)
 
+        batch_size = position.shape[0]
+        entity_type = jnp.broadcast_to(jnp.asarray(3), (batch_size,))
+
+        sprite = SPRITES_REGISTRY["goal"]
+        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
+
         return cls(
-            entity_type=jnp.broadcast_to(jnp.asarray(3), probability.shape),
+            entity_type=entity_type,
             position=ensure_batched(position, 1),
             tag=ensure_batched(tag, 0),
             probability=ensure_batched(probability, 0),
+            sprite=sprite
         )
 
     @property
@@ -111,7 +142,8 @@ class Goal(Entity, Stochastic):
         return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
 
     def get_sprite(self) -> Array:
-        return SPRITES_REGISTRY[self.entity_type, 0, 0]
+        sprite = SPRITES_REGISTRY["goal"]
+        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
 
 
 class Key(Entity, Pickable):
@@ -127,11 +159,18 @@ class Key(Entity, Pickable):
         # check that the batch sizes are the same
         assert len(position) == len(id)
 
+        batch_size = position.shape[0]
+
+        entity_type = jnp.broadcast_to(jnp.asarray(4), (batch_size,))
+        batched_idx = jnp.broadcast_to(0, (batch_size,))
+        sprite = SPRITES_REGISTRY["key"]
+        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
         return cls(
-            entity_type=jnp.broadcast_to(jnp.asarray(4), id.shape),
+            entity_type=entity_type,
             position=position,
             tag=-id,
             id=id,
+            sprite=sprite
         )
 
     @property
@@ -143,7 +182,8 @@ class Key(Entity, Pickable):
         return jnp.broadcast_to(jnp.asarray(True), self.id.shape)
 
     def get_sprite(self) -> Array:
-        return SPRITES_REGISTRY[self.entity_type, 0, 0]
+        sprite = SPRITES_REGISTRY["key"]
+        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
 
 
 class Door(Entity, Directional, Openable):
@@ -169,13 +209,23 @@ class Door(Entity, Directional, Openable):
 
         # check that the batch sizes are the same
         assert len(position) == len(direction) == len(requires)
+
+        # init
+        batch_size = position.shape[0]
+        entity_type = jnp.broadcast_to(jnp.asarray(5), (batch_size,))
+        is_open = jnp.broadcast_to(jnp.asarray(False), (batch_size,))
+
+        is_open_as_idx = jnp.asarray(is_open, dtype=jnp.int32)
+        sprite = SPRITES_REGISTRY["door"][direction, is_open_as_idx]
+
         return cls(
-            entity_type=jnp.broadcast_to(jnp.asarray(5), direction.shape),
+            entity_type=entity_type,
             position=position,
             direction=direction,
             requires=requires,
             tag=requires,
-            open=jnp.broadcast_to(jnp.asarray(False), direction.shape),
+            open=is_open,
+            sprite=sprite
         )
 
 
@@ -188,8 +238,8 @@ class Door(Entity, Directional, Openable):
         return self.open
 
     def get_sprite(self) -> Array:
-        open = jnp.asarray(self.open, dtype=jnp.int32)
-        return SPRITES_REGISTRY[self.entity_type, self.direction, open]
+        is_open_as_idx = jnp.asarray(self.open, dtype=jnp.int32)
+        return SPRITES_REGISTRY["door"][self.direction, is_open_as_idx]
 
 
 class State(struct.PyTreeNode):
@@ -224,7 +274,7 @@ class State(struct.PyTreeNode):
         return jnp.concatenate([self.entities[k].tag for k in self.entities])
 
     def get_sprites(self) -> Array:
-        return jnp.concatenate([self.entities[k].get_sprite() for k in self.entities])
+        return jnp.concatenate([self.entities[k].sprite for k in self.entities])
 
     def get_transparency(self) -> Array:
         return jnp.concatenate([self.entities[k].transparent for k in self.entities])

@@ -261,7 +261,9 @@ def tile_grid(grid: Array, tile: Array) -> Array:
     return jnp.asarray(tiled, dtype=jnp.uint8)
 
 
-def build_sprites_registry() -> Array:
+def build_sprites_registry() -> Dict[str, Any]:
+    registry = {}
+
     wall = render_wall()
     floor = render_floor()
     player = render_triangle_east()
@@ -275,51 +277,51 @@ def build_sprites_registry() -> Array:
     sprites = jnp.zeros((6, 4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
     # 0: set wall sprites
-    sprites = sprites.at[0].set(jnp.tile(wall, (4, 2, 1, 1, 1)))
+    registry["wall"] = wall
 
     # 1: set floor sprites
-    sprites = sprites.at[1].set(jnp.tile(floor, (4, 2, 1, 1, 1)))
+    registry["floor"] = floor
 
     # 2: set player sprites
-    player_sprites = jnp.stack([
+    registry["player"] = jnp.stack([
         player,
         jnp.rot90(player, k=3),
         jnp.rot90(player, k=2),
         jnp.rot90(player, k=1),
     ])
-    player_sprites = jnp.stack([player_sprites] * 2, axis=1)
-    sprites = sprites.at[2].set(player_sprites)
 
     # 3: set goal sprites
-    sprites = sprites.at[3].set(jnp.tile(goal, (4, 2, 1, 1, 1)))
+    registry["goal"] = goal
 
     # 4: set key sprites
-    sprites = sprites.at[4].set(jnp.tile(key, (4, 2, 1, 1, 1)))
+    registry["key"] = key
 
     # 5: set door sprites
+    registry["door"] = jnp.zeros((4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
+
     door_closed =jnp.stack([
         jnp.rot90(door_closed, k=1),
         door_closed,
         jnp.rot90(door_closed, k=3),
         jnp.rot90(door_closed, k=2),
     ])
-    sprites = sprites.at[5, :, 0].set(door_closed)
+    registry["door"].at[:, 0].set(door_closed)
     door_open = jnp.stack([
         door_open,
         jnp.rot90(door_open, k=1),
         jnp.rot90(door_open, k=2),
         jnp.rot90(door_open, k=3),
     ])
-    sprites = sprites.at[5, :, 1].set(door_open)
+    registry["door"].at[:, 1].set(door_open)
 
-    return sprites
+    return registry
 
 
-SPRITES_REGISTRY: Array = build_sprites_registry()
+SPRITES_REGISTRY: Dict[str, Any] = build_sprites_registry()
 
 
 def render_background(
-    grid: Array, sprites_registry: Array = SPRITES_REGISTRY
+    grid: Array, sprites_registry: Dict[str, Any] = SPRITES_REGISTRY
 ) -> Array:
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
@@ -332,8 +334,8 @@ def render_background(
 
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
     # index by [entity_type, direction, open/closed, y, x, channel]
-    wall_tile = tile_grid(grid, sprites_registry[0, 0, 0])
-    floor_tile = tile_grid(grid, sprites_registry[1, 0, 0])
+    wall_tile = tile_grid(grid, sprites_registry["wall"])
+    floor_tile = tile_grid(grid, sprites_registry["floor"])
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 
