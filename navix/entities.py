@@ -8,7 +8,7 @@ from flax import struct
 from jax.random import KeyArray
 
 from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
-from .graphics import RenderingCache
+from .graphics import RenderingCache, SPRITES_REGISTRY
 
 
 def ensure_batched(x: Array, unbached_dims: int) -> Array:
@@ -25,14 +25,14 @@ class Entity(Component, Positionable, HasTag):
 
     @property
     def walkable(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+        raise NotImplementedError()
 
     @property
     def transparent(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+        raise NotImplementedError()
 
-    def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0, 0]
+    def get_sprite(self) -> Array:
+        raise NotImplementedError()
 
 
 class Wall(Entity):
@@ -53,8 +53,8 @@ class Wall(Entity):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
 
-    def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0, 0]
+    def get_sprite(self) -> Array:
+        return SPRITES_REGISTRY[self.entity_type, 0, 0]
 
 
 class Player(Entity, Directional, Holder):
@@ -78,8 +78,8 @@ class Player(Entity, Directional, Holder):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
 
-    def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, self.direction, 0]
+    def get_sprite(self) -> Array:
+        return SPRITES_REGISTRY[self.entity_type, self.direction, 0]
 
 
 class Goal(Entity, Stochastic):
@@ -110,8 +110,8 @@ class Goal(Entity, Stochastic):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
 
-    def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0, 0]
+    def get_sprite(self) -> Array:
+        return SPRITES_REGISTRY[self.entity_type, 0, 0]
 
 
 class Key(Entity, Pickable):
@@ -142,8 +142,8 @@ class Key(Entity, Pickable):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.id.shape)
 
-    def get_sprite(self, registry: Array) -> Array:
-        return registry[self.entity_type, 0, 0]
+    def get_sprite(self) -> Array:
+        return SPRITES_REGISTRY[self.entity_type, 0, 0]
 
 
 class Door(Entity, Directional, Openable):
@@ -187,9 +187,9 @@ class Door(Entity, Directional, Openable):
     def transparent(self) -> Array:
         return self.open
 
-    def get_sprite(self, registry: Array) -> Array:
+    def get_sprite(self) -> Array:
         open = jnp.asarray(self.open, dtype=jnp.int32)
-        return registry[self.entity_type, self.direction, open]
+        return SPRITES_REGISTRY[self.entity_type, self.direction, open]
 
 
 class State(struct.PyTreeNode):
@@ -223,8 +223,8 @@ class State(struct.PyTreeNode):
     def get_tags(self) -> Array:
         return jnp.concatenate([self.entities[k].tag for k in self.entities])
 
-    def get_sprites(self, sprites_registry: Array) -> Array:
-        return jnp.concatenate([self.entities[k].get_sprite(sprites_registry) for k in self.entities])
+    def get_sprites(self) -> Array:
+        return jnp.concatenate([self.entities[k].get_sprite() for k in self.entities])
 
     def get_transparency(self) -> Array:
         return jnp.concatenate([self.entities[k].transparent for k in self.entities])

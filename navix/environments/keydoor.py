@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
+from typing import Union
 
 from ..graphics import RenderingCache
 from ..environments import Environment
@@ -15,7 +16,7 @@ from ..grid import (
 
 
 class KeyDoor(Environment):
-    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:  # type: ignore
+    def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
         grid = room(height=self.height, width=self.width)
@@ -58,15 +59,19 @@ class KeyDoor(Environment):
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
 
+        entities = {
+            "player": player,
+            "key": keys,
+            "door": doors,
+            "goal": goals,
+            "wall": walls,
+        }
+
         state = State(
             key=key,
             grid=grid,
-            players=player,
-            goals=goals,
-            keys=keys,
-            doors=doors,
-            walls=walls,
             cache=cache or RenderingCache.init(grid),
+            entities=entities
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

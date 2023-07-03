@@ -79,7 +79,6 @@ def categorical_first_person(
 
 def rgb(
     state: State,
-    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # for 1-d vs 2-d indexing benchamarks
     # see https://github.com/epignatelli/navix/tree/observation/2dindexing
@@ -87,7 +86,7 @@ def rgb(
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tiles corresponding to the entities
-    tiles = state.get_sprites(sprites_registry)
+    tiles = state.get_sprites()
     # set tiles on the flat set of patches
     patches = state.cache.patches.at[indices].set(tiles)
     # remove discard pile
@@ -123,7 +122,7 @@ def rgb_first_person(
 
     # get rgb representation
     indices = idx_from_coordinates(state.grid, state.get_positions())
-    tiles = state.get_sprites(sprites_registry)
+    tiles = state.get_sprites()
     patches = state.cache.patches.at[indices].set(tiles)
 
     # remove discard pile
