@@ -38,8 +38,11 @@ def _rotate(state: State, spin: int) -> State:
 
     player = state.get_player()
     direction = rotate(player.direction, spin)
-    player = player.replace(direction=direction)
+    sprite = player.get_sprite()
+    player = player.replace(direction=direction, sprite=sprite)
+
     state.entities["player"] = player[None]
+
     return state
 
 
@@ -154,7 +157,8 @@ def open(state: State) -> State:
     # update doors if closed and can_open
     do_open = (~doors.open & can_open)
     open = jnp.where(do_open, True, doors.open)
-    doors = doors.replace(open=open)
+    sprite = doors.get_sprite()
+    doors = doors.replace(open=open, sprite=sprite)
 
     # remove key from player's pocket
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
