@@ -9,7 +9,7 @@ import navix as nx
 N_TIMEIT_LOOPS = 10
 N_REPEAT = 30
 N_TIMESTEPS = 10
-N_SEEDS = 100
+N_SEEDS = 10000
 
 
 def test_observation(observation_fn):
@@ -21,13 +21,21 @@ def test_observation(observation_fn):
         timestep = env.reset(key)
 
         # option 1
-        actions = jax.random.randint(key, (100,), 0, 6)
-        timestep = jax.lax.scan(lambda c, x: (env.step(c, x), ()), timestep, actions)[0]
+        # actions = jax.random.randint(key, (100,), 0, 6)
+        # timestep = jax.lax.scan(lambda c, x: (env.step(c, x), ()), timestep, actions)[0]
 
         # option 2
-        for i in range(N_TIMESTEPS):
-            action = jax.random.randint(key, (), 0, 6)
-            timestep = env.step(timestep, jnp.asarray(action))
+        # for i in range(N_TIMESTEPS):
+        #     action = jax.random.randint(key, (), 0, 6)
+        #     timestep = env.step(timestep, jnp.asarray(action))
+
+        # option 3
+        actions = jax.random.randint(key, (100,), 0, 6)
+        jax.lax.while_loop(
+            lambda x: x[1] < N_TIMESTEPS,
+            lambda x: (env.step(x[0], actions[x[1]]), x[1] + 1),
+            (timestep, 0)
+        )
 
         return timestep
 

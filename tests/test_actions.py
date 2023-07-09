@@ -7,6 +7,7 @@ from navix.entities import State
 
 
 def test_rotation():
+    # TODO(epignatelli): fix all tests
     direction = jnp.asarray(0)
 
     key = jax.random.PRNGKey(0)
@@ -61,15 +62,17 @@ def test_move():
     #  K  .  G #
     #  #  #  #  #
     """
-
+    entities = {
+        "player": player,
+        "goal": goals,
+        "key": keys,
+        "door": doors,
+    }
     state = nx.entities.State(
-        grid=grid,
-        players=player,
-        goals=goals,
-        keys=keys,
-        doors=doors,
-        cache=cache,
         key=key,
+        grid=grid,
+        entities=entities,
+        cache=cache,
     )
 
     # check forward

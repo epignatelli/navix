@@ -38,11 +38,6 @@ class Room(Environment):
 
         # map
         grid = room(height=self.height, width=self.width)
-        # TODO(epignatelli): if rendering gets slower, we can always
-        # split `reset`` into `init` and `reset`, start the cache in `init`
-        # and change it only when necessary in `reset`
-        # e.g., Room doesn't need to change the cache
-        # at every reset (and so many others) but KeyDoor does
 
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2)

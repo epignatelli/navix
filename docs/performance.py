@@ -12,7 +12,7 @@ from timeit import timeit
 
 N_TIMEIT_LOOPS = 5
 N_TIMESTEPS = 10
-N_SEEDS = 1000
+N_SEEDS = 10000
 
 
 def profile_navix(seed):

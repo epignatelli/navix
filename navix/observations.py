@@ -32,14 +32,12 @@ from .grid import align, idx_from_coordinates, crop, view_cone
 
 def none(
     state: State,
-    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     return jnp.asarray(())
 
 
 def categorical(
     state: State,
-    sprites_registry: Array = graphics.SPRITES_REGISTRY,
 ) -> Array:
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
@@ -54,7 +52,6 @@ def categorical(
 
 def categorical_first_person(
     state: State,
-    sprites_registry: Array = graphics.SPRITES_REGISTRY,
     radius: int = 3,
 ) -> Array:
     # get transparency map
@@ -100,37 +97,37 @@ def rgb(
     return image
 
 
-def rgb_first_person(
-        state: State,
-        sprites_registry: Array = graphics.SPRITES_REGISTRY,
-        radius: int = 3,
-) -> Array:
-    transparency_map = jnp.where(state.grid == 0, 1, 0)
-    positions = state.get_positions()
-    transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
 
+def rgb_first_person(
+    state: State,
+    radius: int = 3,
+) -> Array:
+    # calculate final image size
     image_size = (
         state.grid.shape[0] * graphics.TILE_SIZE,
         state.grid.shape[1] * graphics.TILE_SIZE,
     )
-    # apply view mask
+
+    # get agent's view
+    transparency_map = jnp.where(state.grid == 0, 1, 0)
+    positions = state.get_positions()
+    transparent = state.get_transparency()
+    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
     player = state.get_player()
     view = view_cone(transparency_map, player.position, radius)
     view = jax.image.resize(view, image_size, method="nearest")
     view = jnp.tile(view[..., None], (1, 1, 3))
 
-    # get rgb representation
+    # get sprites aligned to player's direction
+    sprites = state.get_sprites()
+    sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), player.direction))(sprites)
+
+    # align sprites to player's direction
     indices = idx_from_coordinates(state.grid, state.get_positions())
-    tiles = state.get_sprites()
-    patches = state.cache.patches.at[indices].set(tiles)
+    patches = state.cache.patches.at[indices].set(sprites)
 
     # remove discard pile
     patches = patches[:DISCARD_PILE_IDX]
-
-    # align sprites to player's direction
-    patches = jax.vmap(lambda x: align(x, jnp.asarray(0), player.direction))(patches)
-
     # rearrange the sprites in a grid
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
