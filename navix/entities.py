@@ -1,14 +1,24 @@
 from __future__ import annotations
-from typing import Dict, Tuple
+from typing import Dict
 
 import jax
 from jax import Array
 import jax.numpy as jnp
 from flax import struct
 from jax.random import KeyArray
+from enum import Enum
 
 from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, HasSprite, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 from .graphics import RenderingCache, SPRITES_REGISTRY
+
+
+class Entities(Enum):
+    WALL = "wall"
+    FLOOR = "floor"
+    PLAYER = "player"
+    GOAL = "goal"
+    KEY = "key"
+    DOOR = "door"
 
 
 def ensure_batched(x: Array, ndim_as_unbatched: int) -> Array:
@@ -104,6 +114,12 @@ class Player(Entity, Directional, Holder):
 
     def get_sprite(self) -> Array:
         return SPRITES_REGISTRY["player"][self.direction]
+
+    # this is a patch to type annotation issues
+    # If we do not override this, the type checker will complain that
+    # the return type is not a `Player``, but an `Entity`
+    def __getitem__(self, idx) -> Player:
+        return jax.tree_util.tree_map(lambda attr: attr[idx], self)
 
 
 class Goal(Entity, Stochastic):
@@ -255,17 +271,47 @@ class State(struct.PyTreeNode):
     """The entities in the environment, indexed via entity type string representation.
     Batched over the number of entities for each type"""
 
+    def get_entity(self, entity_enum: Entities) -> Entity:
+        return self.entities[entity_enum.value]
+
+    def set_entity(self, entity_enum: Entities, entity: Entity) -> State:
+        self.entities[entity_enum.value] = entity
+        return self
+
+    def get_walls(self) -> Wall:
+        return self.entities.get(Entities.WALL.value, Wall.create())  # type: ignore
+
+    def set_walls(self, walls: Wall) -> State:
+        self.entities[Entities.WALL.value] = walls
+        return self
+
     def get_player(self, idx: int = 0) -> Player:
-        return jax.tree_util.tree_map(lambda player: player[idx], self.entities["player"])
+        return self.entities[Entities.PLAYER.value][idx]  # type: ignore
+
+    def set_player(self, player: Player, idx: int = 0) -> State:
+        player = self.entities[Entities.PLAYER.value] = player[None]
+        return self
 
     def get_goals(self) -> Goal:
-        return self.entities.get("goal", Goal.create())  # type: ignore
+        return self.entities.get(Entities.GOAL.value, Goal.create())  # type: ignore
+
+    def set_goals(self, goals: Goal) -> State:
+        self.entities[Entities.GOAL.value] = goals
+        return self
 
     def get_keys(self) -> Key:
-        return self.entities.get("key", Key.create())  # type: ignore
+        return self.entities.get(Entities.KEY.value, Key.create())  # type: ignore
+
+    def set_keys(self, keys: Key) -> State:
+        self.entities[Entities.KEY.value] = keys
+        return self
 
     def get_doors(self) -> Door:
-        return self.entities.get("door", Door.create())  # type: ignore
+        return self.entities.get(Entities.DOOR.value, Door.create())  # type: ignore
+
+    def set_doors(self, doors: Door) -> State:
+        self.entities[Entities.DOOR.value] = doors
+        return self
 
     def get_positions(self) -> Array:
         return jnp.concatenate([self.entities[k].position for k in self.entities])

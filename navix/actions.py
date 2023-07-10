@@ -41,7 +41,7 @@ def _rotate(state: State, spin: int) -> State:
     sprite = player.get_sprite()
     player = player.replace(direction=direction, sprite=sprite)
 
-    state.entities["player"] = player[None]
+    state = state.set_player(player)
 
     return state
 
@@ -68,7 +68,7 @@ def _move(state: State, direction: Array) -> State:
     can_move = _walkable(state, new_position)
     new_position = jnp.where(can_move, new_position, player.position)
     player = player.replace(position=new_position)
-    state = state.set_player(player[None])
+    state = state.set_player(player)
     return state
 
 
@@ -135,7 +135,7 @@ def pickup(state: State) -> State:
     key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
     player = jax.lax.cond(jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player)
 
-    state = state.set_player(player[None])
+    state = state.set_player(player)
     state = state.set_keys(keys)
     return state
 
@@ -170,7 +170,7 @@ def open(state: State) -> State:
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
     player = jax.lax.cond(jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player)
 
-    state = state.set_player(player[None])
+    state = state.set_player(player)
     state = state.set_doors(doors)
 
     return state
