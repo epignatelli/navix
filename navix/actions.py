@@ -24,7 +24,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .entities import Door, Key, State
+from .entities import Entities, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
 
@@ -48,9 +48,15 @@ def _rotate(state: State, spin: int) -> State:
 
 def _walkable(state: State, position: Array) -> Array:
     # according to the grid
-    walkable_cause_grid = jnp.equal(state.grid[tuple(position)], 0)
-    walkable_cause_entity = jnp.all(jnp.asarray([state.entities[k].walkable for k in state.entities]))
-    return jnp.logical_and(walkable_cause_entity, walkable_cause_grid)
+    walkable = jnp.equal(state.grid[tuple(position)], 0)
+
+    for k in state.entities:
+        obstructs = jnp.logical_and(
+            jnp.logical_not(state.entities[k].walkable),
+            jnp.any(positions_equal(state.entities[k].position, position))
+        )
+        walkable = jnp.logical_and(walkable, jnp.logical_not(obstructs))
+    return jnp.asarray(walkable, dtype=jnp.bool_)
 
 
 def _move(state: State, direction: Array) -> State:
@@ -62,7 +68,7 @@ def _move(state: State, direction: Array) -> State:
     can_move = _walkable(state, new_position)
     new_position = jnp.where(can_move, new_position, player.position)
     player = player.replace(position=new_position)
-    state.entities["player"] = player[None]
+    state = state.set_player(player[None])
     return state
 
 
@@ -111,7 +117,7 @@ def left(state: State) -> State:
 
 def pickup(state: State) -> State:
 
-    if "key" not in state.entities:
+    if Entities.KEY.value not in state.entities:
         return state
 
     player = state.get_player()
@@ -129,8 +135,8 @@ def pickup(state: State) -> State:
     key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
     player = jax.lax.cond(jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player)
 
-    state.entities["player"] = player[None]
-    state.entities["key"] = keys
+    state = state.set_player(player[None])
+    state = state.set_keys(keys)
     return state
 
 
@@ -164,8 +170,8 @@ def open(state: State) -> State:
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
     player = jax.lax.cond(jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player)
 
-    state.entities["player"] = player[None]
-    state.entities["door"] = doors
+    state = state.set_player(player[None])
+    state = state.set_doors(doors)
 
     return state
 
