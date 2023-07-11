@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, TypeVar
 
+import dataclasses
 import jax
 from jax import Array
 import jax.numpy as jnp
@@ -12,6 +13,9 @@ from .components import Positionable, Directional, HasTag, Stochastic, Openable,
 from .graphics import RenderingCache, SPRITES_REGISTRY
 
 
+T = TypeVar('T', bound='Entity')
+
+
 class Entities(Enum):
     WALL = "wall"
     FLOOR = "floor"
@@ -21,20 +25,29 @@ class Entities(Enum):
     DOOR = "door"
 
 
-def ensure_batched(x: Array, ndim_as_unbatched: int) -> Array:
-    if x.ndim <= ndim_as_unbatched:
-        return x[None]
-    return x
-
-
 class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
-    def __getitem__(self, idx) -> Entity:
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self._disable_batching:
+            return
+        # make sure that all components have the same batch size
+        attrs = jax.tree_util.tree_leaves(self)
+        batch_size = max([field.shape[0] for field in attrs])
+        for field in dataclasses.fields(self):
+            if field.metadata.get("pytree_node", True):
+                value = getattr(self, field.name)
+                new_value = jnp.broadcast_to(value, (batch_size, *value.shape[1:]))
+                object.__setattr__(self, field.name, new_value)
+
+    def __getitem__(self: T, idx) -> T:
         # this will always return the object with properties of with at least rank = 1
-        self = self.replace(_disable_batching=True)
-        unbatched = jax.tree_util.tree_map(lambda attr: attr[idx], self)
-        return unbatched
+        # entity = self.replace(_disable_batching=True)
+        object.__setattr__(self, "_disable_batching", True)
+        entity = jax.tree_util.tree_map(lambda attr: attr[idx], self)
+        object.__setattr__(entity, "_disable_batching", False)
+        return entity
 
     @property
     def walkable(self) -> Array:
@@ -43,7 +56,6 @@ class Entity(Positionable, HasTag, HasSprite):
     @property
     def transparent(self) -> Array:
         raise NotImplementedError()
-
 
 
 class Wall(Entity):
@@ -77,7 +89,11 @@ class Player(Entity, Directional, Holder):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.PLAYER.value][self.direction]
-        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # broadcast to batch_size
+        return jnp.broadcast_to(sprite, (self.position.shape[0], *sprite.shape[1:]))
 
 
 class Goal(Entity, Stochastic):
@@ -94,7 +110,13 @@ class Goal(Entity, Stochastic):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.GOAL.value]
-        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (self.position.shape[0], *sprite.shape[1:]))
+        return sprite
 
 
 class Key(Entity, Pickable):
@@ -112,7 +134,13 @@ class Key(Entity, Pickable):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.KEY.value]
-        return jnp.broadcast_to(self.sprite[None], (self.position.shape[0], *sprite.shape))
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (self.position.shape[0], *sprite.shape[1:]))
+        return sprite
 
 
 class Door(Entity, Directional, Openable):
@@ -135,7 +163,13 @@ class Door(Entity, Directional, Openable):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.DOOR.value][self.direction, self.open]
-        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (self.position.shape[0], *sprite.shape[1:]))
+        return sprite
 
 
 class State(struct.PyTreeNode):
@@ -169,7 +203,7 @@ class State(struct.PyTreeNode):
         return self.entities[Entities.PLAYER.value][idx]  # type: ignore
 
     def set_player(self, player: Player, idx: int = 0) -> State:
-        self.entities[Entities.PLAYER.value] = player[None]
+        self.entities[Entities.PLAYER.value] = player
         return self
 
     def get_goals(self) -> Goal:

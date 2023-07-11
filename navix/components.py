@@ -20,12 +20,10 @@
 
 from __future__ import annotations
 
-import jax
 from jax import Array
 from flax import struct
+import jax
 import jax.numpy as jnp
-
-from dataclasses import InitVar, field
 
 
 DISCARD_PILE_COORDS = jnp.asarray((0, -1), dtype=jnp.int32)
@@ -36,7 +34,7 @@ UNSET_CONSUMED = jnp.asarray(-1, dtype=jnp.int32)
 
 
 class Component(struct.PyTreeNode):
-    _disable_batching: bool = struct.field(pytree_node=False, default=False)
+    _disable_batching: bool = struct.field(pytree_node=False, default=False, repr=False)
 
     def __post_init__(self) -> None:
         # this stops the super().__post_init__() stream from reaching parent classes
@@ -51,7 +49,7 @@ class Positionable(Component):
 
     def __post_init__(self) -> None:
         if self.position.ndim < 2 and not self._disable_batching:
-            object.__setattr__(self, "position", jnp.expand_dims(self.position, axis=0))
+            object.__setattr__(self, "position", self.position[None])
         return super().__post_init__()
 
 
@@ -61,7 +59,7 @@ class Directional(Component):
 
     def __post_init__(self) -> None:
         if self.direction.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "direction", jnp.expand_dims(self.direction, axis=0))
+            object.__setattr__(self, "direction", self.direction[None])
         return super().__post_init__()
 
 
@@ -71,7 +69,7 @@ class HasTag(Component):
 
     def __post_init__(self) -> None:
         if self.tag.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "tag", jnp.expand_dims(self.tag, axis=0))
+            object.__setattr__(self, "tag", self.tag[None])
         return super().__post_init__()
 
 
@@ -81,7 +79,7 @@ class Stochastic(Component):
 
     def __post_init__(self) -> None:
         if self.probability.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "probability", jnp.expand_dims(self.probability, axis=0))
+            object.__setattr__(self, "probability", self.probability[None])
         return super().__post_init__()
 
 
@@ -93,9 +91,9 @@ class Openable(Component):
 
     def __post_init__(self) -> None:
         if self.requires.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "requires", jnp.expand_dims(self.requires, axis=0))
+            object.__setattr__(self, "requires", self.requires[None])
         if self.open.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "open", jnp.expand_dims(self.open, axis=0))
+            object.__setattr__(self, "open", self.open[None])
         return super().__post_init__()
 
 
@@ -105,7 +103,7 @@ class Pickable(Component):
 
     def __post_init__(self) -> None:
         if self.id.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "id", jnp.expand_dims(self.id, axis=0))
+            object.__setattr__(self, "id", self.id[None])
         return super().__post_init__()
 
 
@@ -115,7 +113,7 @@ class Holder(Component):
 
     def __post_init__(self) -> None:
         if self.pocket.ndim < 1 and not self._disable_batching:
-            object.__setattr__(self, "pocket", jnp.expand_dims(self.pocket, axis=0))
+            object.__setattr__(self, "pocket", self.pocket[None])
         return super().__post_init__()
 
 
