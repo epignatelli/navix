@@ -8,7 +8,7 @@ from flax import struct
 from jax.random import KeyArray
 from enum import Enum
 
-from .components import Component, Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, HasSprite, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
+from .components import Positionable, Directional, HasTag, Stochastic, Openable, Pickable, Holder, HasSprite, EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 from .graphics import RenderingCache, SPRITES_REGISTRY
 
 
@@ -27,14 +27,14 @@ def ensure_batched(x: Array, ndim_as_unbatched: int) -> Array:
     return x
 
 
-class Entity(Component, Positionable, HasTag, HasSprite):
+class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
     def __getitem__(self, idx) -> Entity:
-        return jax.tree_util.tree_map(lambda attr: attr[idx], self)
-
-    def batch_size(self) -> int:
-        return self.position.shape[0]
+        # this will always return the object with properties of with at least rank = 1
+        self = self.replace(_disable_batching=True)
+        unbatched = jax.tree_util.tree_map(lambda attr: attr[idx], self)
+        return unbatched
 
     @property
     def walkable(self) -> Array:
@@ -44,27 +44,11 @@ class Entity(Component, Positionable, HasTag, HasSprite):
     def transparent(self) -> Array:
         raise NotImplementedError()
 
-    def get_sprite(self) -> Array:
-        raise NotImplementedError()
 
 
 class Wall(Entity):
     """Walls are entities that cannot be walked through"""
 
-    @classmethod
-    def create(cls, position: Array = DISCARD_PILE_COORDS[None]) -> Wall:
-        assert position.ndim == 2
-        batch_size = position.shape[0]
-
-        entity_type = jnp.broadcast_to(jnp.asarray(-1), (batch_size,))
-        sprite = SPRITES_REGISTRY["wall"]
-        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
-        return cls(
-            entity_type=entity_type,
-            position=position,
-            sprite=sprite
-        )
-
     @property
     def walkable(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
@@ -73,37 +57,15 @@ class Wall(Entity):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
 
-    def get_sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY["wall"]
-        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.WALL.value]
+        return jnp.broadcast_to(self.sprite[None], (self.position.shape[0], *sprite.shape))
 
 
 class Player(Entity, Directional, Holder):
     """Players are entities that can act around the environment"""
 
-    @classmethod
-    def create(cls, position: Array = DISCARD_PILE_COORDS[None], direction: Array = jnp.asarray(0)[None], tag: Array = jnp.asarray(1)[None]) -> Player:
-        # chech that all inputs are batched
-        position = ensure_batched(position, 1)
-        direction = ensure_batched(direction, 0)
-        tag = ensure_batched(tag, 0)
-
-        # ensure that the inputs are batched and have the same batch size
-        assert len(position) == len(direction) == len(tag)
-
-        batch_size = position.shape[0]
-        entity_type = jnp.broadcast_to(jnp.asarray(2), (batch_size,))
-        pocket = jnp.broadcast_to(EMPTY_POCKET_ID, (batch_size,))
-        sprite = SPRITES_REGISTRY["player"][direction]
-        return cls(
-            entity_type=entity_type,
-            position=position,
-            direction=direction,
-            pocket=pocket,
-            tag=tag,
-            sprite=sprite,
-        )
-
     @property
     def walkable(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
@@ -112,43 +74,15 @@ class Player(Entity, Directional, Holder):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
 
-    def get_sprite(self) -> Array:
-        return SPRITES_REGISTRY["player"][self.direction]
-
-    # this is a patch to type annotation issues
-    # If we do not override this, the type checker will complain that
-    # the return type is not a `Player``, but an `Entity`
-    def __getitem__(self, idx) -> Player:
-        return jax.tree_util.tree_map(lambda attr: attr[idx], self)
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.PLAYER.value][self.direction]
+        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
 
 
 class Goal(Entity, Stochastic):
     """Goals are entities that can be reached by the player"""
 
-    @classmethod
-    def create(cls, position: Array = DISCARD_PILE_COORDS[None], probability: Array = jnp.asarray((1.0,)), tag: Array = jnp.asarray((2,))) -> Goal:
-        # ensure that the inputs are batched
-        position = ensure_batched(position, 1)
-        probability = ensure_batched(probability, 0)
-        tag = ensure_batched(tag, 0)
-
-        # check that the batch sizes are the same
-        assert len(position) == len(probability) == len(tag)
-
-        batch_size = position.shape[0]
-        entity_type = jnp.broadcast_to(jnp.asarray(3), (batch_size,))
-
-        sprite = SPRITES_REGISTRY["goal"]
-        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
-
-        return cls(
-            entity_type=entity_type,
-            position=ensure_batched(position, 1),
-            tag=ensure_batched(tag, 0),
-            probability=ensure_batched(probability, 0),
-            sprite=sprite
-        )
-
     @property
     def walkable(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
@@ -157,37 +91,15 @@ class Goal(Entity, Stochastic):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
 
-    def get_sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY["goal"]
-        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.GOAL.value]
+        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
 
 
 class Key(Entity, Pickable):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
-
-    @classmethod
-    def create(cls, position: Array =  DISCARD_PILE_COORDS[None], id: Array = jnp.asarray((3,))) -> Key:
-        # ensure that the inputs are batched
-        position = ensure_batched(position, 1)
-        id = ensure_batched(id, 0)
-
-        # check that the batch sizes are the same
-        assert len(position) == len(id)
-
-        batch_size = position.shape[0]
-
-        entity_type = jnp.broadcast_to(jnp.asarray(4), (batch_size,))
-        batched_idx = jnp.broadcast_to(0, (batch_size,))
-        sprite = SPRITES_REGISTRY["key"]
-        sprite = jnp.broadcast_to(sprite, (batch_size, *sprite.shape))
-        return cls(
-            entity_type=entity_type,
-            position=position,
-            tag=-id,
-            id=id,
-            sprite=sprite
-        )
 
     @property
     def walkable(self) -> Array:
@@ -197,9 +109,10 @@ class Key(Entity, Pickable):
     def transparent(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(True), self.id.shape)
 
-    def get_sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY["key"]
-        return jnp.broadcast_to(sprite, (self.batch_size, *sprite.shape))
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.KEY.value]
+        return jnp.broadcast_to(self.sprite[None], (self.position.shape[0], *sprite.shape))
 
 
 class Door(Entity, Directional, Openable):
@@ -211,40 +124,6 @@ class Door(Entity, Directional, Openable):
     Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
     """
 
-    @classmethod
-    def create(
-        cls,
-        position: Array =  DISCARD_PILE_COORDS[None],
-        direction: Array = jnp.asarray((0,)),
-        requires: Array = jnp.asarray((3,)),
-    ) -> Door:
-        # ensure that the inputs are batched
-        position = ensure_batched(position, 1)
-        direction = ensure_batched(direction, 0)
-        requires = ensure_batched(requires, 0)
-
-        # check that the batch sizes are the same
-        assert len(position) == len(direction) == len(requires)
-
-        # init
-        batch_size = position.shape[0]
-        entity_type = jnp.broadcast_to(jnp.asarray(5), (batch_size,))
-        is_open = jnp.broadcast_to(jnp.asarray(False), (batch_size,))
-
-        is_open_as_idx = jnp.asarray(is_open, dtype=jnp.int32)
-        sprite = SPRITES_REGISTRY["door"][direction, is_open_as_idx]
-
-        return cls(
-            entity_type=entity_type,
-            position=position,
-            direction=direction,
-            requires=requires,
-            tag=requires,
-            open=is_open,
-            sprite=sprite
-        )
-
-
     @property
     def walkable(self) -> Array:
         return self.open
@@ -253,9 +132,10 @@ class Door(Entity, Directional, Openable):
     def transparent(self) -> Array:
         return self.open
 
-    def get_sprite(self) -> Array:
-        is_open_as_idx = jnp.asarray(self.open, dtype=jnp.int32)
-        return SPRITES_REGISTRY["door"][self.direction, is_open_as_idx]
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.DOOR.value][self.direction, self.open]
+        return jnp.broadcast_to(sprite[None], (self.position.shape[0], *sprite.shape))
 
 
 class State(struct.PyTreeNode):
@@ -279,7 +159,7 @@ class State(struct.PyTreeNode):
         return self
 
     def get_walls(self) -> Wall:
-        return self.entities.get(Entities.WALL.value, Wall.create())  # type: ignore
+        return self.entities.get(Entities.WALL.value, Wall())  # type: ignore
 
     def set_walls(self, walls: Wall) -> State:
         self.entities[Entities.WALL.value] = walls
@@ -289,25 +169,25 @@ class State(struct.PyTreeNode):
         return self.entities[Entities.PLAYER.value][idx]  # type: ignore
 
     def set_player(self, player: Player, idx: int = 0) -> State:
-        player = self.entities[Entities.PLAYER.value] = player[None]
+        self.entities[Entities.PLAYER.value] = player[None]
         return self
 
     def get_goals(self) -> Goal:
-        return self.entities.get(Entities.GOAL.value, Goal.create())  # type: ignore
+        return self.entities.get(Entities.GOAL.value, Goal())  # type: ignore
 
     def set_goals(self, goals: Goal) -> State:
         self.entities[Entities.GOAL.value] = goals
         return self
 
     def get_keys(self) -> Key:
-        return self.entities.get(Entities.KEY.value, Key.create())  # type: ignore
+        return self.entities.get(Entities.KEY.value, Key())  # type: ignore
 
     def set_keys(self, keys: Key) -> State:
         self.entities[Entities.KEY.value] = keys
         return self
 
     def get_doors(self) -> Door:
-        return self.entities.get(Entities.DOOR.value, Door.create())  # type: ignore
+        return self.entities.get(Entities.DOOR.value, Door())  # type: ignore
 
     def set_doors(self, doors: Door) -> State:
         self.entities[Entities.DOOR.value] = doors

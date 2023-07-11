@@ -19,11 +19,13 @@
 
 
 from __future__ import annotations
-from enum import IntEnum
 
+import jax
 from jax import Array
 from flax import struct
 import jax.numpy as jnp
+
+from dataclasses import InitVar, field
 
 
 DISCARD_PILE_COORDS = jnp.asarray((0, -1), dtype=jnp.int32)
@@ -33,57 +35,91 @@ UNSET_DIRECTION = jnp.asarray(-1, dtype=jnp.int32)
 UNSET_CONSUMED = jnp.asarray(-1, dtype=jnp.int32)
 
 
-class EntityType(IntEnum):
-    WALL = 0
-    FLOOR = 1
-    PLAYER = 2
-    GOAL = 3
-    KEY = 4
-    DOOR = 5
-
-
 class Component(struct.PyTreeNode):
-    entity_type: Array = jnp.asarray(0, dtype=jnp.int32)
-    """The type of the entity, 0 = player, 1 = goal, 2 = key, 3 = door"""
+    _disable_batching: bool = struct.field(pytree_node=False, default=False)
+
+    def __post_init__(self) -> None:
+        # this stops the super().__post_init__() stream from reaching parent classes
+        # and it's the canonical pattern for __post_init__ in composable dataclasses
+        # see https://bugs.python.org/issue46757
+        return
 
 
-class Positionable(struct.PyTreeNode):
+class Positionable(Component):
     position: Array = DISCARD_PILE_COORDS
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
+    def __post_init__(self) -> None:
+        if self.position.ndim < 2 and not self._disable_batching:
+            object.__setattr__(self, "position", jnp.expand_dims(self.position, axis=0))
+        return super().__post_init__()
 
-class Directional(struct.PyTreeNode):
+
+class Directional(Component):
     direction: Array = jnp.asarray(0, dtype=jnp.int32)
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
 
+    def __post_init__(self) -> None:
+        if self.direction.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "direction", jnp.expand_dims(self.direction, axis=0))
+        return super().__post_init__()
 
-class HasTag(struct.PyTreeNode):
+
+class HasTag(Component):
     tag: Array = jnp.asarray(0, dtype=jnp.int32)
     """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
 
+    def __post_init__(self) -> None:
+        if self.tag.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "tag", jnp.expand_dims(self.tag, axis=0))
+        return super().__post_init__()
 
-class Stochastic(struct.PyTreeNode):
+
+class Stochastic(Component):
     probability: Array = jnp.asarray(1.0, dtype=jnp.float32)
     """The probability of receiving the reward, if reached."""
 
+    def __post_init__(self) -> None:
+        if self.probability.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "probability", jnp.expand_dims(self.probability, axis=0))
+        return super().__post_init__()
 
-class Openable(struct.PyTreeNode):
+
+class Openable(Component):
     requires: Array = EMPTY_POCKET_ID
     """The id of the item required to consume this item. If set, it must be >= 1."""
     open: Array = jnp.asarray(False, dtype=jnp.bool_)
     """Whether the item is open or not."""
 
+    def __post_init__(self) -> None:
+        if self.requires.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "requires", jnp.expand_dims(self.requires, axis=0))
+        if self.open.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "open", jnp.expand_dims(self.open, axis=0))
+        return super().__post_init__()
 
-class Pickable(struct.PyTreeNode):
+
+class Pickable(Component):
     id: Array = jnp.asarray(1, dtype=jnp.int32)
     """The id of the item. If set, it must be >= 1."""
 
+    def __post_init__(self) -> None:
+        if self.id.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "id", jnp.expand_dims(self.id, axis=0))
+        return super().__post_init__()
 
-class Holder(struct.PyTreeNode):
+
+class Holder(Component):
     pocket: Array = EMPTY_POCKET_ID
     """The id of the item in the pocket (0 if empty)"""
 
+    def __post_init__(self) -> None:
+        if self.pocket.ndim < 1 and not self._disable_batching:
+            object.__setattr__(self, "pocket", jnp.expand_dims(self.pocket, axis=0))
+        return super().__post_init__()
 
-class HasSprite(struct.PyTreeNode):
-    sprite: Array = jnp.asarray(0, dtype=jnp.int32)
-    """The id of the sprite of the entity."""
+
+class HasSprite(Component):
+    @property
+    def sprite(self) -> Array:
+        raise NotImplementedError()
