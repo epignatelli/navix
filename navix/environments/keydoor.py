@@ -8,14 +8,14 @@ from ..graphics import RenderingCache
 from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
-from ..grid import room, random_positions, random_directions
+from ..grid import mask_by_coordinates, room, random_positions, random_directions
 
 
 class KeyDoor(Environment):
     def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
         # check minimum height and width
         assert self.height > 3, f"Room height must be greater than 3, got {self.height} instead"
-        assert self.width > 5, f"Room width must be greater than 5, got {self.width} instead"
+        assert self.width > 4, f"Room width must be greater than 5, got {self.width} instead"
 
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
