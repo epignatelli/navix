@@ -18,12 +18,18 @@ from ..grid import (
 
 class KeyDoor(Environment):
     def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
+        # check minimum height and width
+        assert self.height > 3, f"Room height must be greater than 3, got {self.height} instead"
+        assert self.width > 5, f"Room width must be greater than 5, got {self.width} instead"
+
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
         grid = room(height=self.height, width=self.width)
 
-        # door position
+        # door positions
+        # col can be between 1 and height - 2
         door_col = jax.random.randint(k4, (), 2, self.width - 2)  # col
+        # row can be between 1 and height - 2
         door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
         door_pos = jnp.asarray((door_row, door_col))
         doors = Door(
@@ -34,11 +40,11 @@ class KeyDoor(Environment):
         )
 
         # wall potisions
-        wall_rows = jnp.arange(1, self.height - 2)
-        wall_cols = jnp.asarray([door_col] * (self.height - 3))
+        wall_rows = jnp.arange(1, self.height - 1)
+        wall_cols = jnp.asarray([door_col] * (self.height - 2))
         wall_pos = jnp.stack((wall_rows, wall_cols), axis=1)
         # remove wall where the door is
-        wall_pos = jnp.delete(wall_pos, door_row, axis=0, assume_unique_indices=True)
+        wall_pos = jnp.delete(wall_pos, door_row - 1, axis=0, assume_unique_indices=True)
         walls = Wall(position=wall_pos)
 
         # mask first room
