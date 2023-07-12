@@ -14,4 +14,4 @@ jax
 chex
 flax
 etils
-jax_enums
+git+https://github.com/epignatelli/jax_enums
