@@ -61,9 +61,7 @@ def test_move():
     player = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
-    )
+    goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(-1))
     doors = nx.entities.Door(
         position=jnp.asarray((2, 2)),
@@ -161,9 +159,7 @@ def test_walkable():
     player = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
-    )
+    goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(1))
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
@@ -248,12 +244,8 @@ def test_pickup():
     player = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(1), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
-    )
-    keys = nx.entities.Key(
-        position=jnp.asarray((2, 1)), id=jnp.asarray(1)
-    )
+    goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
+    keys = nx.entities.Key(position=jnp.asarray((2, 1)), id=jnp.asarray(1))
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
         direction=jnp.asarray(0),
@@ -318,12 +310,8 @@ def test_open():
     player = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
-    )
-    keys = nx.entities.Key(
-        position=jnp.asarray((3, 1)), id=jnp.asarray(1)
-    )
+    goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
+    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(1))
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
         direction=jnp.asarray(0),

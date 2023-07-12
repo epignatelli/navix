@@ -28,5 +28,5 @@ from . import (
     tasks,
     environments,
     terminations,
-    config
+    config,
 )

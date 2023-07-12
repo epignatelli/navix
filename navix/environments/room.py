@@ -34,7 +34,9 @@ from .environment import Environment, Timestep
 
 
 class Room(Environment):
-    def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def reset(
+        self, key: KeyArray, cache: Union[RenderingCache, None] = None
+    ) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
@@ -49,10 +51,7 @@ class Room(Environment):
             pocket=EMPTY_POCKET_ID,
         )
         # goal
-        goal = Goal(
-            position=goal_pos,
-            probability=jnp.asarray(1.0)
-        )
+        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         entities = {
             Entities.PLAYER.value: player[None],

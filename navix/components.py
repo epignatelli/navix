@@ -36,7 +36,7 @@ UNSET_CONSUMED = jnp.asarray(-1, dtype=jnp.int32)
 
 
 def field(shape: Tuple[int, ...], **kwargs):
-  return dataclasses.field(metadata={'shape': shape}, **kwargs)
+    return dataclasses.field(metadata={"shape": shape}, **kwargs)
 
 
 class Component(struct.PyTreeNode):

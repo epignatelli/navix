@@ -5,15 +5,18 @@ import navix as nx
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 
+
 def test_rgb():
     height = 10
     width = 10
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
-    players = Player(position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID)
-    goals = (Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0)))
-    keys = (Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0)))
+    players = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0))
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
         direction=jnp.asarray((0, 2)),
@@ -93,7 +96,9 @@ def test_categorical_first_person():
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
-    players = Player(position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID)
+    players = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
     goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
     keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0))
     doors = Door(

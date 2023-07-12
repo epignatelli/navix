@@ -24,7 +24,7 @@ def profile_navix(seed):
     timestep, _ = jax.lax.while_loop(
         lambda x: x[1] < N_TIMESTEPS,
         lambda x: (env.step(x[0], actions[x[1]]), x[1] + 1),
-        (timestep, jnp.asarray(0))
+        (timestep, jnp.asarray(0)),
     )
 
     return timestep

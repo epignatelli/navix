@@ -119,7 +119,10 @@ class RenderingCache(struct.PyTreeNode):
 
 
 def colorise_tile(tile: Array, colour: Array, background: Array = WHITE) -> Array:
-    assert tile.shape == (TILE_SIZE, TILE_SIZE), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
+    assert tile.shape == (
+        TILE_SIZE,
+        TILE_SIZE,
+    ), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
     tile = jnp.where(tile, colour, background)
     return tile
@@ -283,12 +286,14 @@ def build_sprites_registry() -> Dict[str, Any]:
     registry["floor"] = floor
 
     # 2: set player sprites
-    registry["player"] = jnp.stack([
-        player,
-        jnp.rot90(player, k=3),
-        jnp.rot90(player, k=2),
-        jnp.rot90(player, k=1),
-    ])
+    registry["player"] = jnp.stack(
+        [
+            player,
+            jnp.rot90(player, k=3),
+            jnp.rot90(player, k=2),
+            jnp.rot90(player, k=1),
+        ]
+    )
 
     # 3: set goal sprites
     registry["goal"] = goal
@@ -299,19 +304,23 @@ def build_sprites_registry() -> Dict[str, Any]:
     # 5: set door sprites
     registry["door"] = jnp.zeros((4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
-    door_closed =jnp.stack([
-        jnp.rot90(door_closed, k=1),
-        door_closed,
-        jnp.rot90(door_closed, k=3),
-        jnp.rot90(door_closed, k=2),
-    ])
+    door_closed = jnp.stack(
+        [
+            jnp.rot90(door_closed, k=1),
+            door_closed,
+            jnp.rot90(door_closed, k=3),
+            jnp.rot90(door_closed, k=2),
+        ]
+    )
     registry["door"].at[:, 0].set(door_closed)
-    door_open = jnp.stack([
-        door_open,
-        jnp.rot90(door_open, k=1),
-        jnp.rot90(door_open, k=2),
-        jnp.rot90(door_open, k=3),
-    ])
+    door_open = jnp.stack(
+        [
+            door_open,
+            jnp.rot90(door_open, k=1),
+            jnp.rot90(door_open, k=2),
+            jnp.rot90(door_open, k=3),
+        ]
+    )
     registry["door"].at[:, 1].set(door_open)
 
     return registry
@@ -340,7 +349,9 @@ def render_background(
     return background
 
 
-def flatten_patches(image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)) -> Array:
+def flatten_patches(
+    image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)
+) -> Array:
     height = image.shape[0] // patch_size[0]
     width = image.shape[1] // patch_size[1]
     n_channels = image.shape[2]
@@ -364,7 +375,13 @@ def unflatten_patches(patches: Array, image_size: Tuple[int, int]) -> Array:
     n_channels = patches.shape[3]
 
     # Reshape the list of tiles into a 2D grid
-    grid = patches.reshape(image_height // patch_height, image_width // patch_width, patch_height, patch_width, n_channels)
+    grid = patches.reshape(
+        image_height // patch_height,
+        image_width // patch_width,
+        patch_height,
+        patch_width,
+        n_channels,
+    )
 
     # Swap the first and second axes of the grid to change the order of stacking
     grid = jnp.swapaxes(grid, 1, 2)

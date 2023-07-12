@@ -30,7 +30,6 @@ from jax import Array
 from flax import struct
 
 
-
 from .. import tasks, terminations, observations
 from ..graphics import RenderingCache
 from ..entities import State

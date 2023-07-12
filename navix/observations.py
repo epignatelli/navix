@@ -97,7 +97,6 @@ def rgb(
     return image
 
 
-
 def rgb_first_person(
     state: State,
     radius: int = 3,

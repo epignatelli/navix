@@ -60,7 +60,7 @@ def _walkable(state: State, position: Array) -> Array:
     for k in state.entities:
         obstructs = jnp.logical_and(
             jnp.logical_not(state.entities[k].walkable),
-            positions_equal(state.entities[k].position, position)
+            positions_equal(state.entities[k].position, position),
         )
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_)
@@ -139,7 +139,9 @@ def pickup(state: State) -> State:
 
     # update player's pocket, if the pocket has something else, we overwrite it
     key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player)
+    player = jax.lax.cond(
+        jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player
+    )
 
     state = state.set_player(player)
     state = state.set_keys(keys)
@@ -164,16 +166,18 @@ def open(state: State) -> State:
     # and that, if so, either it does not require a key or the player has the key
     requires_key = doors.requires != -1
     key_match = player.pocket == doors.requires
-    can_open = door_found & (key_match | ~requires_key )
+    can_open = door_found & (key_match | ~requires_key)
 
     # update doors if closed and can_open
-    do_open = (~doors.open & can_open)
+    do_open = ~doors.open & can_open
     open = jnp.where(do_open, True, doors.open)
     doors = doors.replace(open=open)
 
     # remove key from player's pocket
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player)
+    player = jax.lax.cond(
+        jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player
+    )
 
     state = state.set_player(player)
     state = state.set_doors(doors)

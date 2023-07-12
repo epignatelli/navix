@@ -175,19 +175,28 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     rotated, centre = jax.lax.switch(
         direction,
         (
-            lambda x: (jnp.rot90(x, 1), (width - 1 - origin[1], origin[0])),  # 0 = transpose, 1 = flip
-            lambda x: (jnp.rot90(x, 2), (height - 1 - origin[0], width - 1 - origin[1])),  # 0 = flip, 1 = flip
-            lambda x: (jnp.rot90(x, 3), (origin[1], height - 1 - origin[0])),  # 0 = flip, 1 = transpose
-            lambda x: (x, (origin[0], origin[1]))
+            lambda x: (
+                jnp.rot90(x, 1),
+                (width - 1 - origin[1], origin[0]),
+            ),  # 0 = transpose, 1 = flip
+            lambda x: (
+                jnp.rot90(x, 2),
+                (height - 1 - origin[0], width - 1 - origin[1]),
+            ),  # 0 = flip, 1 = flip
+            lambda x: (
+                jnp.rot90(x, 3),
+                (origin[1], height - 1 - origin[0]),
+            ),  # 0 = flip, 1 = transpose
+            lambda x: (x, (origin[0], origin[1])),
         ),
-        padded
+        padded,
     )
 
     # translate
     translated = jnp.roll(rotated, -jnp.asarray(centre), axis=(0, 1))
 
     # crop
-    cropped = translated[:radius + 1, :2 * radius + 1]
+    cropped = translated[: radius + 1, : 2 * radius + 1]
 
     return jnp.asarray(cropped, dtype=grid.dtype)
 

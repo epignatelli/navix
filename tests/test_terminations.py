@@ -8,8 +8,10 @@ from navix.components import EMPTY_POCKET_ID
 def test_on_navigation_completion():
     grid = jnp.zeros((5, 5), dtype=jnp.int32)
 
-    players=nx.entities.Player(position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID)
-    goals=nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1))
+    players = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1))
     entities = {
         nx.entities.Entities.PLAYER.value: players[None],
         nx.entities.Entities.GOAL.value: goals[None],

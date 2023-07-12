@@ -26,7 +26,12 @@ class KeyDoor(Environment):
         door_col = jax.random.randint(k4, (), 2, self.width - 2)  # col
         door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
         door_pos = jnp.asarray((door_row, door_col))
-        doors = Door(position=door_pos, requires=jnp.asarray(3), direction=jnp.asarray(0), open=jnp.asarray(False))
+        doors = Door(
+            position=door_pos,
+            requires=jnp.asarray(3),
+            direction=jnp.asarray(0),
+            open=jnp.asarray(False),
+        )
 
         # wall potisions
         wall_rows = jnp.arange(1, self.height - 2)
@@ -44,7 +49,9 @@ class KeyDoor(Environment):
         # spawn player
         player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
-        player = Player(position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID)
+        player = Player(
+            position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
+        )
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
@@ -72,7 +79,7 @@ class KeyDoor(Environment):
             key=key,
             grid=grid,
             cache=cache or RenderingCache.init(grid),
-            entities=entities
+            entities=entities,
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

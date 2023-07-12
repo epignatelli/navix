@@ -1,7 +1,7 @@
 from typing import Any
 
 
-class Config():
+class Config:
     def __init__(self):
         self.ARRAY_CHECKS_ENABLED = False
 
