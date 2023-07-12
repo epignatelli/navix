@@ -11,8 +11,8 @@ from timeit import timeit
 
 
 N_TIMEIT_LOOPS = 5
-N_TIMESTEPS = 10
-N_SEEDS = 10000
+N_TIMESTEPS = 1_000
+N_SEEDS = 10_000
 
 
 def profile_navix(seed):
@@ -24,7 +24,7 @@ def profile_navix(seed):
     timestep, _ = jax.lax.while_loop(
         lambda x: x[1] < N_TIMESTEPS,
         lambda x: (env.step(x[0], actions[x[1]]), x[1] + 1),
-        (timestep, 0)
+        (timestep, jnp.asarray(0))
     )
 
     return timestep
@@ -52,7 +52,11 @@ if __name__ == "__main__":
 
     print("\tCompiling...")
     start = time.time()
-    f = jax.jit(jax.vmap(profile_navix)).lower(seeds).compile()
+    n_devices = jax.local_device_count()
+    seeds = seeds.reshape(n_devices, N_SEEDS // n_devices)
+    f = jax.vmap(profile_navix, axis_name="batch")
+    f = jax.pmap(f, axis_name="device")
+    f = f.lower(seeds).compile()
     print("\tCompiled in {:.2f}s".format(time.time() - start))
 
     print("\tRunning ...")
