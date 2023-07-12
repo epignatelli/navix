@@ -91,11 +91,11 @@ class Wall(Entity):
 
     @property
     def walkable(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+        return jnp.broadcast_to(jnp.asarray(False), self.shape)
 
     @property
     def transparent(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(False), self.position.shape)
+        return jnp.broadcast_to(jnp.asarray(False), self.shape)
 
     @property
     def sprite(self) -> Array:
@@ -121,11 +121,11 @@ class Player(Entity, Directional, Holder):
 
     @property
     def walkable(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
 
     @property
     def transparent(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(True), self.direction.shape)
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
 
     @property
     def sprite(self) -> Array:
@@ -154,11 +154,11 @@ class Goal(Entity, Stochastic):
 
     @property
     def walkable(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
 
     @property
     def transparent(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(True), self.probability.shape)
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
 
     @property
     def sprite(self) -> Array:
@@ -190,11 +190,11 @@ class Key(Entity, Pickable):
 
     @property
     def walkable(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(False), self.id.shape)
+        return jnp.broadcast_to(jnp.asarray(False), self.shape)
 
     @property
     def transparent(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(True), self.id.shape)
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
 
     @property
     def sprite(self) -> Array:
