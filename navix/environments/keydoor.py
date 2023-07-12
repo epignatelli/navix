@@ -34,7 +34,7 @@ class KeyDoor(Environment):
             open=jnp.asarray(False),
         )
 
-        # wall potisions
+        # wall positions
         wall_rows = jnp.arange(1, self.height - 1)
         wall_cols = jnp.asarray([door_col] * (self.height - 2))
         wall_pos = jnp.stack((wall_rows, wall_cols), axis=1)
@@ -43,8 +43,10 @@ class KeyDoor(Environment):
         walls = Wall(position=wall_pos)
 
         # get rooms
-        first_room = grid.at[:, door_col:].set(-1)
-        second_room = grid.at[:, :door_col + 1].set(-1)
+        first_room_mask = mask_by_coordinates(grid, (jnp.asarray(self.height), door_col), jnp.less)
+        first_room = jnp.where(first_room_mask, grid, -1)  # put walls where not mask
+        second_room_mask = mask_by_coordinates(grid, (jnp.asarray(0), door_col), jnp.greater)
+        second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
 
         # spawn player
         player_pos = random_positions(k1, first_room)
