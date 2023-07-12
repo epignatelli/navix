@@ -273,11 +273,7 @@ def build_sprites_registry() -> Dict[str, Any]:
     goal = render_diamond()
     key = render_key()
     door_closed = render_door_closed()
-    door_locked = render_door_locked()
     door_open = render_door_open()
-
-    # index by [entity_type, direction, open/closed, y, x, channel]
-    sprites = jnp.zeros((6, 4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
     # 0: set wall sprites
     registry["wall"] = wall
@@ -302,9 +298,9 @@ def build_sprites_registry() -> Dict[str, Any]:
     registry["key"] = key
 
     # 5: set door sprites
-    registry["door"] = jnp.zeros((4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
+    door = jnp.zeros((4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
-    door_closed = jnp.stack(
+    door_closed_by_direction = jnp.stack(
         [
             jnp.rot90(door_closed, k=1),
             door_closed,
@@ -312,8 +308,9 @@ def build_sprites_registry() -> Dict[str, Any]:
             jnp.rot90(door_closed, k=2),
         ]
     )
-    registry["door"].at[:, 0].set(door_closed)
-    door_open = jnp.stack(
+    door = door.at[:, 0].set(door_closed_by_direction)
+
+    door_open_by_direction = jnp.stack(
         [
             door_open,
             jnp.rot90(door_open, k=1),
@@ -321,7 +318,9 @@ def build_sprites_registry() -> Dict[str, Any]:
             jnp.rot90(door_open, k=3),
         ]
     )
-    registry["door"].at[:, 1].set(door_open)
+    door = door.at[:, 1].set(door_open_by_direction)
+
+    registry["door"] = door
 
     return registry
 

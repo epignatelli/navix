@@ -241,7 +241,7 @@ class Door(Entity, Directional, Openable):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.DOOR.value][self.direction, self.open]
+        sprite = SPRITES_REGISTRY[Entities.DOOR.value][self.direction, jnp.asarray(self.open, dtype=jnp.int32)]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]

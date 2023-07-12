@@ -8,12 +8,7 @@ from ..graphics import RenderingCache
 from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
-from ..grid import (
-    room,
-    random_positions,
-    random_directions,
-    mask_by_coordinates,
-)
+from ..grid import room, random_positions, random_directions
 
 
 class KeyDoor(Environment):
