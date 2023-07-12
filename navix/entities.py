@@ -100,7 +100,7 @@ class Wall(Entity):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.WALL.value]
-        return jnp.broadcast_to(self.sprite[None], (*self.shape, *sprite.shape))
+        return jnp.broadcast_to(sprite[None], (*self.shape, *sprite.shape))
 
     @property
     def tag(self) -> Array:
