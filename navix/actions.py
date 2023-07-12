@@ -18,47 +18,65 @@
 # under the License.
 
 from __future__ import annotations
-from typing import Tuple
 
 import jax
 import jax.numpy as jnp
 from jax import Array
 
-from .entities import Door, Key, State
+from .entities import Entities, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
+from jax_enums import Enumerable as Enum
 
 
-DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
+class Directions(Enum):
+    EAST = 0
+    SOUTH = 1
+    WEST = 2
+    NORTH = 3
 
 
 def _rotate(state: State, spin: int) -> State:
-    direction = rotate(state.players.direction, spin)
-    player = state.players.replace(direction=direction)
-    return state.replace(players=player)
+    if "player" not in state.entities:
+        return state
+
+    player = state.get_player(idx=0)
+
+    # update player's direction
+    direction = rotate(player.direction, spin)
+
+    # update sprite representation
+    player = player.replace(direction=direction)
+
+    state = state.set_player(player)
+
+    return state
 
 
 def _walkable(state: State, position: Array) -> Array:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
 
-    # and not occupied by another non-walkable entity
-    occupied_keys = positions_equal(position, state.keys.position)
-    # occupied by a door, and door is not open
-    occupied_doors = positions_equal(position, state.doors.position)
-    occupied_doors = occupied_doors & ~state.doors.open
-
-    occupied = jnp.any(jnp.logical_or(occupied_keys, occupied_doors))
-    # return: if walkable and not occupied
-    return jnp.logical_and(walkable, jnp.logical_not(occupied))
+    for k in state.entities:
+        obstructs = jnp.logical_and(
+            jnp.logical_not(state.entities[k].walkable),
+            positions_equal(state.entities[k].position, position),
+        )
+        walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
+    return jnp.asarray(walkable, dtype=jnp.bool_)
 
 
 def _move(state: State, direction: Array) -> State:
-    new_position = translate(state.players.position, direction)
+    if "player" not in state.entities:
+        return state
+
+    player = state.get_player(idx=0)
+    new_position = translate(player.position, direction)
     can_move = _walkable(state, new_position)
-    new_position = jnp.where(can_move, new_position, state.players.position)
-    player = state.players.replace(position=new_position)
-    return state.replace(players=player)
+    new_position = jnp.where(can_move, new_position, player.position)
+    player = player.replace(position=new_position)
+    state = state.set_player(player)
+    return state
 
 
 def undefined(state: State) -> State:
@@ -85,60 +103,86 @@ def rotate_ccw(state: State) -> State:
 
 
 def forward(state: State) -> State:
-    return _move(state, state.players.direction)
+    player = state.get_player(idx=0)
+    return _move(state, player.direction)
 
 
 def right(state: State) -> State:
-    return _move(state, state.players.direction + 1)
+    player = state.get_player(idx=0)
+    return _move(state, player.direction + 1)
 
 
 def backward(state: State) -> State:
-    return _move(state, state.players.direction + 2)
+    player = state.get_player(idx=0)
+    return _move(state, player.direction + 2)
 
 
 def left(state: State) -> State:
-    return _move(state, state.players.direction + 3)
+    player = state.get_player(idx=0)
+    return _move(state, player.direction + 3)
 
 
 def pickup(state: State) -> State:
-    position_in_front = translate(state.players.position, state.players.direction)
+    if Entities.KEY.value not in state.entities:
+        return state
 
-    key_found = positions_equal(position_in_front, state.keys.position)
+    player = state.get_player(idx=0)
+    keys = state.get_keys()
+
+    position_in_front = translate(player.position, player.direction)
+
+    key_found = positions_equal(position_in_front, keys.position)
 
     # update keys
-    positions = jnp.where(key_found, DISCARD_PILE_COORDS, state.keys.position)
-    keys = state.keys.replace(position=positions)
+    positions = jnp.where(key_found, DISCARD_PILE_COORDS, keys.position)
+    keys = keys.replace(position=positions)
 
     # update player's pocket, if the pocket has something else, we overwrite it
-    key = jnp.sum(state.keys.id * key_found, dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(key_found), lambda: state.players.replace(pocket=key), lambda: state.players)
+    key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
+    player = jax.lax.cond(
+        jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player
+    )
 
-    return state.replace(players=player, keys=keys)
+    state = state.set_player(player)
+    state = state.set_keys(keys)
+    return state
 
 
 def open(state: State) -> State:
     """Unlocks and opens an openable object (like a door) if possible"""
+
+    if "door" not in state.entities:
+        return state
+
     # get the tile in front of the player
-    position_in_front = translate(state.players.position, state.players.direction)
+    player = state.get_player(idx=0)
+    doors = state.get_doors()
+
+    position_in_front = translate(player.position, player.direction)
 
     # check if there is a door in front of the player
-    door_found = positions_equal(position_in_front, state.doors.position)
+    door_found = positions_equal(position_in_front, doors.position)
 
     # and that, if so, either it does not require a key or the player has the key
-    requires_key = state.doors.requires != -1
-    key_match = state.players.pocket == state.doors.requires
-    can_open = door_found & (key_match | ~requires_key )
+    requires_key = doors.requires != -1
+    key_match = player.pocket == doors.requires
+    can_open = door_found & (key_match | ~requires_key)
 
     # update doors if closed and can_open
-    do_open = (~state.doors.open & can_open)
-    open = jnp.where(do_open, True, state.doors.open)
-    doors = state.doors.replace(open=open)
+    do_open = ~doors.open & can_open
+    open = jnp.where(do_open, True, doors.open)
+    doors = doors.replace(open=open)
 
     # remove key from player's pocket
-    pocket = jnp.asarray(state.players.pocket * jnp.any(can_open), dtype=jnp.int32)
-    player = jax.lax.cond(jnp.any(can_open), lambda: state.players.replace(pocket=pocket), lambda: state.players)
+    pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
+    player = jax.lax.cond(
+        jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player
+    )
 
-    return state.replace(players=player, doors=doors)
+    state = state.set_player(player)
+    state = state.set_doors(doors)
+
+    return state
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous

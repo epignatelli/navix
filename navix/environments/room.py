@@ -19,45 +19,51 @@
 
 
 from __future__ import annotations
-from typing import Callable
+from typing import Callable, Union
 
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 
 
-from ..entities import Goal, Player, State
+from ..components import EMPTY_POCKET_ID
+from ..entities import Entities, Goal, Player, State
 from ..grid import random_positions, random_directions, room
 from ..graphics import RenderingCache
 from .environment import Environment, Timestep
 
 
 class Room(Environment):
-    def reset(self, key: KeyArray) -> Timestep:
+    def reset(
+        self, key: KeyArray, cache: Union[RenderingCache, None] = None
+    ) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
         grid = room(height=self.height, width=self.width)
-        # TODO(epignatelli): if rendering gets slower, we can always
-        # split `reset`` into `init` and `reset`, start the cache in `init`
-        # and change it only when necessary in `reset`
-        # e.g., Room doesn't need to change the cache
-        # at every reset (and so many others) but KeyDoor does
 
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2)
         direction = random_directions(k2, n=1)
-        player = Player.create(position=player_pos, direction=direction)
+        player = Player(
+            position=player_pos,
+            direction=direction,
+            pocket=EMPTY_POCKET_ID,
+        )
         # goal
-        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+
+        entities = {
+            Entities.PLAYER.value: player[None],
+            Entities.GOAL.value: goal[None],
+        }
 
         # systems
         state = State(
             key=key,
             grid=grid,
-            cache=RenderingCache.init(grid),
-            players=player,
-            goals=goal,
+            cache=cache or RenderingCache.init(grid),
+            entities=entities,
         )
 
         return Timestep(

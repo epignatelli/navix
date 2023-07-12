@@ -19,15 +19,13 @@
 
 
 from __future__ import annotations
-from functools import partial
 
 
-from typing import Callable, Dict, Tuple, Sequence
+from typing import Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 from jax import Array
-from jax._src.util import canonicalize_axis
 
 
 Coordinates = Tuple[Array, Array]
@@ -139,7 +137,7 @@ def positions_equal(a: Array, b: Array) -> Array:
 
 def room(height: int, width: int):
     """A grid of ids of size `width` x `height`"""
-    grid = jnp.zeros((height, width), dtype=jnp.int32)
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
@@ -177,19 +175,28 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     rotated, centre = jax.lax.switch(
         direction,
         (
-            lambda x: (jnp.rot90(x, 1), (width - 1 - origin[1], origin[0])),  # 0 = transpose, 1 = flip
-            lambda x: (jnp.rot90(x, 2), (height - 1 - origin[0], width - 1 - origin[1])),  # 0 = flip, 1 = flip
-            lambda x: (jnp.rot90(x, 3), (origin[1], height - 1 - origin[0])),  # 0 = flip, 1 = transpose
-            lambda x: (x, (origin[0], origin[1]))
+            lambda x: (
+                jnp.rot90(x, 1),
+                (width - 1 - origin[1], origin[0]),
+            ),  # 0 = transpose, 1 = flip
+            lambda x: (
+                jnp.rot90(x, 2),
+                (height - 1 - origin[0], width - 1 - origin[1]),
+            ),  # 0 = flip, 1 = flip
+            lambda x: (
+                jnp.rot90(x, 3),
+                (origin[1], height - 1 - origin[0]),
+            ),  # 0 = flip, 1 = transpose
+            lambda x: (x, (origin[0], origin[1])),
         ),
-        padded
+        padded,
     )
 
     # translate
     translated = jnp.roll(rotated, -jnp.asarray(centre), axis=(0, 1))
 
     # crop
-    cropped = translated[:radius + 1, :2 * radius + 1]
+    cropped = translated[: radius + 1, : 2 * radius + 1]
 
     return jnp.asarray(cropped, dtype=grid.dtype)
 

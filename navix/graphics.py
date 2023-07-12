@@ -119,7 +119,10 @@ class RenderingCache(struct.PyTreeNode):
 
 
 def colorise_tile(tile: Array, colour: Array, background: Array = WHITE) -> Array:
-    assert tile.shape == (TILE_SIZE, TILE_SIZE), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
+    assert tile.shape == (
+        TILE_SIZE,
+        TILE_SIZE,
+    ), "Tile must be of size TILE_SIZE, TILE_SIZE, 3, got {}".format(tile.shape)
     tile = jnp.stack([tile] * colour.shape[0], axis=-1)
     tile = jnp.where(tile, colour, background)
     return tile
@@ -261,65 +264,73 @@ def tile_grid(grid: Array, tile: Array) -> Array:
     return jnp.asarray(tiled, dtype=jnp.uint8)
 
 
-def build_sprites_registry() -> Array:
+@jax.jit
+def build_sprites_registry() -> Dict[str, Any]:
+    registry = {}
+
     wall = render_wall()
     floor = render_floor()
     player = render_triangle_east()
     goal = render_diamond()
     key = render_key()
     door_closed = render_door_closed()
-    door_locked = render_door_locked()
     door_open = render_door_open()
 
-    # index by [entity_type, direction, open/closed, y, x, channel]
-    sprites = jnp.zeros((6, 4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
-
     # 0: set wall sprites
-    sprites = sprites.at[0].set(jnp.tile(wall, (4, 2, 1, 1, 1)))
+    registry["wall"] = wall
 
     # 1: set floor sprites
-    sprites = sprites.at[1].set(jnp.tile(floor, (4, 2, 1, 1, 1)))
+    registry["floor"] = floor
 
     # 2: set player sprites
-    player_sprites = jnp.stack([
-        player,
-        jnp.rot90(player, k=3),
-        jnp.rot90(player, k=2),
-        jnp.rot90(player, k=1),
-    ])
-    player_sprites = jnp.stack([player_sprites] * 2, axis=1)
-    sprites = sprites.at[2].set(player_sprites)
+    registry["player"] = jnp.stack(
+        [
+            player,
+            jnp.rot90(player, k=3),
+            jnp.rot90(player, k=2),
+            jnp.rot90(player, k=1),
+        ]
+    )
 
     # 3: set goal sprites
-    sprites = sprites.at[3].set(jnp.tile(goal, (4, 2, 1, 1, 1)))
+    registry["goal"] = goal
 
     # 4: set key sprites
-    sprites = sprites.at[4].set(jnp.tile(key, (4, 2, 1, 1, 1)))
+    registry["key"] = key
 
     # 5: set door sprites
-    door_closed =jnp.stack([
-        jnp.rot90(door_closed, k=1),
-        door_closed,
-        jnp.rot90(door_closed, k=3),
-        jnp.rot90(door_closed, k=2),
-    ])
-    sprites = sprites.at[5, :, 0].set(door_closed)
-    door_open = jnp.stack([
-        door_open,
-        jnp.rot90(door_open, k=1),
-        jnp.rot90(door_open, k=2),
-        jnp.rot90(door_open, k=3),
-    ])
-    sprites = sprites.at[5, :, 1].set(door_open)
+    door = jnp.zeros((4, 2, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
 
-    return sprites
+    door_closed_by_direction = jnp.stack(
+        [
+            jnp.rot90(door_closed, k=1),
+            door_closed,
+            jnp.rot90(door_closed, k=3),
+            jnp.rot90(door_closed, k=2),
+        ]
+    )
+    door = door.at[:, 0].set(door_closed_by_direction)
+
+    door_open_by_direction = jnp.stack(
+        [
+            door_open,
+            jnp.rot90(door_open, k=1),
+            jnp.rot90(door_open, k=2),
+            jnp.rot90(door_open, k=3),
+        ]
+    )
+    door = door.at[:, 1].set(door_open_by_direction)
+
+    registry["door"] = door
+
+    return registry
 
 
-SPRITES_REGISTRY: Array = build_sprites_registry()
+SPRITES_REGISTRY: Dict[str, Any] = build_sprites_registry()
 
 
 def render_background(
-    grid: Array, sprites_registry: Array = SPRITES_REGISTRY
+    grid: Array, sprites_registry: Dict[str, Any] = SPRITES_REGISTRY
 ) -> Array:
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
@@ -332,13 +343,15 @@ def render_background(
 
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
     # index by [entity_type, direction, open/closed, y, x, channel]
-    wall_tile = tile_grid(grid, sprites_registry[0, 0, 0])
-    floor_tile = tile_grid(grid, sprites_registry[1, 0, 0])
+    wall_tile = tile_grid(grid, sprites_registry["wall"])
+    floor_tile = tile_grid(grid, sprites_registry["floor"])
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 
 
-def flatten_patches(image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)) -> Array:
+def flatten_patches(
+    image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)
+) -> Array:
     height = image.shape[0] // patch_size[0]
     width = image.shape[1] // patch_size[1]
     n_channels = image.shape[2]
@@ -362,7 +375,13 @@ def unflatten_patches(patches: Array, image_size: Tuple[int, int]) -> Array:
     n_channels = patches.shape[3]
 
     # Reshape the list of tiles into a 2D grid
-    grid = patches.reshape(image_height // patch_height, image_width // patch_width, patch_height, patch_width, n_channels)
+    grid = patches.reshape(
+        image_height // patch_height,
+        image_width // patch_width,
+        patch_height,
+        patch_width,
+        n_channels,
+    )
 
     # Swap the first and second axes of the grid to change the order of stacking
     grid = jnp.swapaxes(grid, 1, 2)

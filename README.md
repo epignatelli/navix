@@ -1,9 +1,9 @@
-# NAVIX
+# NAVIX: minigrid in JAX
 
 [![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![CI](https://github.com/epignatelli/navix/actions/workflows/CI.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CI.yml)
 [![CD](https://github.com/epignatelli/navix/actions/workflows/CD.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CD.yml)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/epignatelli/navix?color=%23216477&label=Release)
+![PyPI version](https://img.shields.io/pypi/v/navix?label=PyPI&color=%230099ab)
 
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
@@ -73,7 +73,7 @@ TODO(epignatelli): add example.
 
 
 ## Cite
-If you use `helx` please consider citing it as:
+If you use `navix` please consider citing it as:
 
 ```bibtex
 @misc{pignatelli2023navix,

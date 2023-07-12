@@ -19,11 +19,13 @@
 
 
 from __future__ import annotations
-from enum import IntEnum
+from typing import Tuple
+
 
 from jax import Array
 from flax import struct
 import jax.numpy as jnp
+import dataclasses
 
 
 DISCARD_PILE_COORDS = jnp.asarray((0, -1), dtype=jnp.int32)
@@ -33,62 +35,55 @@ UNSET_DIRECTION = jnp.asarray(-1, dtype=jnp.int32)
 UNSET_CONSUMED = jnp.asarray(-1, dtype=jnp.int32)
 
 
-class EntityType(IntEnum):
-    WALL = 0
-    FLOOR = 1
-    PLAYER = 2
-    GOAL = 3
-    KEY = 4
-    DOOR = 5
+def field(shape: Tuple[int, ...], **kwargs):
+    return dataclasses.field(metadata={"shape": shape}, **kwargs)
 
 
 class Component(struct.PyTreeNode):
-    entity_type: Array = jnp.asarray(0, dtype=jnp.int32)
-    """The type of the entity, 0 = player, 1 = goal, 2 = key, 3 = door"""
-
-    def get_sprite(self, registry: Array) -> Array:
-        raise NotImplementedError()
-
-    @property
-    def walkable(self) -> Array:
-        raise NotImplementedError()
-
-    def is_transparent(self) -> Array:
-        raise NotImplementedError()
+    def check_ndim(self, batched: bool = False) -> None:
+        return
 
 
-class Positionable(struct.PyTreeNode):
-    position: Array = DISCARD_PILE_COORDS
+class Positionable(Component):
+    position: Array = field(shape=(2,))
     """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
 
 
-class Directional(struct.PyTreeNode):
-    direction: Array = jnp.asarray(0, dtype=jnp.int32)
+class Directional(Component):
+    direction: Array = field(shape=())
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
 
 
-class HasTag(struct.PyTreeNode):
-    tag: Array = jnp.asarray(0, dtype=jnp.int32)
-    """The tag of the component, used to identify the type of the component in `oobservations.categorical`"""
-
-
-class Stochastic(struct.PyTreeNode):
-    probability: Array = jnp.asarray(1.0, dtype=jnp.float32)
+class Stochastic(Component):
+    probability: Array = field(shape=())
     """The probability of receiving the reward, if reached."""
 
 
-class Openable(struct.PyTreeNode):
-    requires: Array = EMPTY_POCKET_ID
+class Openable(Component):
+    requires: Array = field(shape=())
     """The id of the item required to consume this item. If set, it must be >= 1."""
-    open: Array = jnp.asarray(False, dtype=jnp.bool_)
+    open: Array = field(shape=())
     """Whether the item is open or not."""
 
 
-class Pickable(struct.PyTreeNode):
-    id: Array = jnp.asarray(1, dtype=jnp.int32)
+class Pickable(Component):
+    id: Array = field(shape=())
     """The id of the item. If set, it must be >= 1."""
 
 
-class Holder(struct.PyTreeNode):
-    pocket: Array = EMPTY_POCKET_ID
+class Holder(Component):
+    pocket: Array = field(shape=())
     """The id of the item in the pocket (0 if empty)"""
+
+
+class HasTag(Component):
+    @property
+    def tag(self) -> Array:
+        """The tag of the component, used to identify the type of the component in `observations.categorical`"""
+        raise NotImplementedError()
+
+
+class HasSprite(Component):
+    @property
+    def sprite(self) -> Array:
+        raise NotImplementedError()
