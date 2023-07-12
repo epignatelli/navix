@@ -264,6 +264,7 @@ def tile_grid(grid: Array, tile: Array) -> Array:
     return jnp.asarray(tiled, dtype=jnp.uint8)
 
 
+@jax.jit
 def build_sprites_registry() -> Dict[str, Any]:
     registry = {}
 

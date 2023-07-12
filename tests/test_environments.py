@@ -71,7 +71,16 @@ def test_keydoor():
     jax.jit(f)()
 
 
+def test_keydoor2():
+    env = nx.environments.KeyDoor(5, 7, 100, observation_fn=nx.observations.rgb)
+
+    key = jax.random.PRNGKey(1)
+    timestep = env.reset(key)
+    return
+
+
 if __name__ == "__main__":
     # test_room()
     # jax.jit(test_room)()
-    test_keydoor()
+    # test_keydoor()
+    test_keydoor2()
