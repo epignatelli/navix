@@ -47,10 +47,9 @@ class KeyDoor(Environment):
         wall_pos = jnp.delete(wall_pos, door_row - 1, axis=0, assume_unique_indices=True)
         walls = Wall(position=wall_pos)
 
-        # mask first room
-        out_of_bounds = jnp.asarray(self.height)
-        first_room_mask = mask_by_coordinates(grid, (out_of_bounds, door_row), jnp.less)
-        first_room = jnp.where(first_room_mask, grid, -1)
+        # get rooms
+        first_room = grid.at[:, door_col:].set(-1)
+        second_room = grid.at[:, :door_col + 1].set(-1)
 
         # spawn player
         player_pos = random_positions(k1, first_room)
@@ -64,7 +63,6 @@ class KeyDoor(Environment):
         keys = Key(position=key_pos, id=jnp.asarray(3))
 
         # mask the second room
-        second_room = jnp.where(first_room_mask, -1, grid)
 
         # spawn goal
         goal_pos = random_positions(k2, second_room)
