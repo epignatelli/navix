@@ -34,7 +34,7 @@ def test_observation(observation_fn):
         jax.lax.while_loop(
             lambda x: x[1] < N_TIMESTEPS,
             lambda x: (env.step(x[0], actions[x[1]]), x[1] + 1),
-            (timestep, 0)
+            (timestep, jnp.asarray(0)),
         )
 
         return timestep
@@ -50,7 +50,10 @@ def test_observation(observation_fn):
 
     print(f"\tCompiling {observation_fn}...")
     start = time.time()
-    test_jit = jax.jit(jax.vmap(test)).lower(seeds).compile()
+    test_jit = jax.vmap(test)
+    test_jit = jax.jit(test_jit)
+    test_jit = test_jit.lower(seeds)
+    test_jit = test_jit.compile()
     print("\tCompiled in {:.2f}s".format(time.time() - start))
 
     print(f"\tRunning {observation_fn}...")

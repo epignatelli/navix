@@ -38,6 +38,7 @@ def f_scan(seed):
     )[0]
     return timestep
 
+
 seeds = jnp.arange(N_SEEDS)
 function = jax.vmap(f)
 

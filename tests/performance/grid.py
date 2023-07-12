@@ -25,11 +25,7 @@ def test_observation():
         return timestep
 
     # profile navix scanned
-    print(
-        "Profiling, N_SEEDS = {}, N_TIMESTEPS = {}".format(
-            N_SEEDS, N_TIMESTEPS
-        )
-    )
+    print("Profiling, N_SEEDS = {}, N_TIMESTEPS = {}".format(N_SEEDS, N_TIMESTEPS))
 
     seeds = jnp.arange(N_SEEDS)
 

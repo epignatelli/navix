@@ -8,19 +8,20 @@ from navix.entities import Entities, Entity, State
 
 
 def test_rotation():
-    # TODO(epignatelli): fix all tests
     direction = jnp.asarray(0)
 
     key = jax.random.PRNGKey(0)
     grid = jnp.zeros((3, 3), dtype=jnp.int32)
-    player = nx.entities.Player.create(
-        position=jnp.asarray((1, 1)), direction=direction
-    )
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=direction, pocket=EMPTY_POCKET_ID
+    )[None]
     cache = nx.graphics.RenderingCache.init(grid)
 
     entities: Dict[str, Entity] = {
         Entities.PLAYER.value: player,
     }
+
+    player.check_ndim(batched=True)
 
     state = nx.entities.State(
         grid=grid,
@@ -32,18 +33,22 @@ def test_rotation():
     msg = "Expected direction to be {}, got {}"
     state = nx.actions._rotate(state, -1)
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert player.direction == jnp.asarray(3), msg.format(3, player.direction)
 
     state = nx.actions._rotate(state, 1)
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert player.direction == jnp.asarray(0), msg.format(0, player.direction)
 
     state = nx.actions._rotate(state, 2)
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert player.direction == jnp.asarray(2), msg.format(2, player.direction)
 
     state = nx.actions._rotate(state, 3)
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert player.direction == jnp.asarray(1), msg.format(1, player.direction)
     return
 
@@ -53,15 +58,26 @@ def test_move():
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
     key = jax.random.PRNGKey(0)
-    player = nx.entities.Player.create(
-        position=jnp.asarray((1, 1)), direction=jnp.asarray(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal.create(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)[None]
+    goals = nx.entities.Goal(
+        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
     )
-    keys = nx.entities.Key.create(position=jnp.asarray((3, 1)))
-    doors = nx.entities.Door.create(position=jnp.asarray((2, 2)))
+    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(-1))
+    doors = nx.entities.Door(
+        position=jnp.asarray((2, 2)),
+        direction=jnp.asarray(0),
+        requires=jnp.asarray(-1),
+        open=jnp.asarray(False),
+    )
     cache = nx.graphics.RenderingCache.init(grid)
+
+    player.check_ndim(batched=False)
+    goals.check_ndim(batched=False)
+    keys.check_ndim(batched=False)
+    doors.check_ndim(batched=False)
+
     """
     #  #  #  #  #
     #  P  .  . #
@@ -70,10 +86,10 @@ def test_move():
     #  #  #  #  #
     """
     entities = {
-        Entities.PLAYER.value: player,
-        Entities.GOAL.value: goals,
-        Entities.KEY.value: keys,
-        Entities.DOOR.value: doors,
+        Entities.PLAYER.value: player[None],
+        Entities.GOAL.value: goals[None],
+        Entities.KEY.value: keys[None],
+        Entities.DOOR.value: doors[None],
     }
     state = nx.entities.State(
         key=key,
@@ -86,24 +102,28 @@ def test_move():
     state = nx.actions.forward(state)
     expected_position = jnp.asarray((1, 2))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check backward
     state = nx.actions.backward(state)
     expected_position = jnp.asarray((1, 1))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check right
     state = nx.actions.right(state)
     expected_position = jnp.asarray((2, 1))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check left
     state = nx.actions.left(state)
     expected_position = jnp.asarray((1, 1))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check that we can't walk through a closed door
@@ -112,6 +132,7 @@ def test_move():
     state = nx.actions.forward(state)
     expected_position = jnp.asarray((1, 2))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check that we can walk through an open door
@@ -120,6 +141,7 @@ def test_move():
     state = nx.actions.forward(state)
     expected_position = jnp.asarray((3, 2))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
     # check that we can walk through a door backwards
@@ -127,6 +149,7 @@ def test_move():
     state = nx.actions.backward(state)
     expected_position = jnp.asarray((1, 2))
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(player.position, expected_position)
 
 
@@ -135,15 +158,26 @@ def test_walkable():
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
     key = jax.random.PRNGKey(0)
-    player = nx.entities.Player.create(
-        position=jnp.asarray((1, 1)), direction=jnp.asarray(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal.create(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)[None]
+    goals = nx.entities.Goal(
+        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
     )
-    keys = nx.entities.Key.create(position=jnp.asarray((3, 1)))
-    doors = nx.entities.Door.create(position=jnp.asarray((1, 3)))
+    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(1))
+    doors = nx.entities.Door(
+        position=jnp.asarray((1, 3)),
+        direction=jnp.asarray(0),
+        requires=jnp.asarray(1),
+        open=jnp.asarray(False),
+    )
     cache = nx.graphics.RenderingCache.init(grid)
+
+    player.check_ndim(batched=False)
+    goals.check_ndim(batched=False)
+    keys.check_ndim(batched=False)
+    doors.check_ndim(batched=False)
+
     # Looks like this
     """
     #  #  #  #  #
@@ -156,11 +190,17 @@ def test_walkable():
         key=key,
         grid=grid,
         cache=cache,
-        entities={"player": player, "goals": goals, "keys": keys, "doors": doors},
+        entities={
+            Entities.PLAYER.value: player[None],
+            Entities.GOAL.value: goals[None],
+            Entities.KEY.value: keys[None],
+            Entities.DOOR.value: doors[None],
+        },
     )
 
     def check_forward_position(state: State):
         player = state.get_player()
+        player.check_ndim(batched=False)
         prev_pos = player.position
         pos = nx.grid.translate_forward(prev_pos, player.direction, jnp.asarray(1))
         assert not nx.actions._walkable(
@@ -205,17 +245,20 @@ def test_pickup():
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
     key = jax.random.PRNGKey(0)
-    player = nx.entities.Player.create(
-        position=jnp.asarray((1, 1)), direction=jnp.asarray(1)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(1), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal.create(
-        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)[None]
+    goals = nx.entities.Goal(
+        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
     )
-    keys = nx.entities.Key.create(
-        position=jnp.asarray((2, 1)), id=jnp.asarray(1)[None][None]
+    keys = nx.entities.Key(
+        position=jnp.asarray((2, 1)), id=jnp.asarray(1)
     )
-    doors = nx.entities.Door.create(
-        position=jnp.asarray((1, 3)), requires=jnp.asarray(1)[None]
+    doors = nx.entities.Door(
+        position=jnp.asarray((1, 3)),
+        direction=jnp.asarray(0),
+        requires=jnp.asarray(1),
+        open=jnp.asarray(False),
     )
     cache = nx.graphics.RenderingCache.init(grid)
 
@@ -228,10 +271,10 @@ def test_pickup():
     #  #  #  #  #
     """
     entities = {
-        Entities.PLAYER.value: player,
-        Entities.GOAL.value: goals,
-        Entities.KEY.value: keys,
-        Entities.DOOR.value: doors,
+        Entities.PLAYER.value: player[None],
+        Entities.GOAL.value: goals[None],
+        Entities.KEY.value: keys[None],
+        Entities.DOOR.value: doors[None],
     }
     state = nx.entities.State(
         key=key,
@@ -242,6 +285,7 @@ def test_pickup():
 
     # check that the player has no keys
     player = state.get_player()
+    player.check_ndim(batched=False)
     assert jnp.array_equal(
         player.pocket, EMPTY_POCKET_ID
     ), "Expected player to have pocket {}, got {}".format(
@@ -253,6 +297,7 @@ def test_pickup():
 
     # check that the player has the key
     player = state.get_player()
+    player.check_ndim(batched=False)
     expected_pocket = jnp.asarray(1)
     assert jnp.array_equal(
         player.pocket, expected_pocket
@@ -270,19 +315,27 @@ def test_open():
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
     key = jax.random.PRNGKey(0)
-    player = nx.entities.Player.create(
-        position=jnp.asarray((1, 1)), direction=jnp.asarray(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal.create(
-        position=jnp.asarray((3, 3))[None], probability=jnp.asarray(1.0)[None]
+    goals = nx.entities.Goal(
+        position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0)
     )
-    keys = nx.entities.Key.create(
-        position=jnp.asarray((3, 1))[None], id=jnp.asarray(1)[None]
+    keys = nx.entities.Key(
+        position=jnp.asarray((3, 1)), id=jnp.asarray(1)
     )
-    doors = nx.entities.Door.create(
-        position=jnp.asarray((1, 3))[None], requires=jnp.asarray(1)[None]
+    doors = nx.entities.Door(
+        position=jnp.asarray((1, 3)),
+        direction=jnp.asarray(0),
+        requires=jnp.asarray(1),
+        open=jnp.asarray(False),
     )
     cache = nx.graphics.RenderingCache.init(grid)
+
+    player.check_ndim(batched=False)
+    goals.check_ndim(batched=False)
+    keys.check_ndim(batched=False)
+    doors.check_ndim(batched=False)
 
     # Looks like this
     # W  W  W  W  W
@@ -291,10 +344,10 @@ def test_open():
     # W  K  0  G  W
     # W  W  W  W  W
     entities = {
-        Entities.PLAYER.value: player,
-        Entities.GOAL.value: goals,
-        Entities.KEY.value: keys,
-        Entities.DOOR.value: doors,
+        Entities.PLAYER.value: player[None],
+        Entities.GOAL.value: goals[None],
+        Entities.KEY.value: keys[None],
+        Entities.DOOR.value: doors[None],
     }
 
     state = nx.entities.State(
@@ -306,6 +359,7 @@ def test_open():
 
     # check that the player has no keys
     player = state.get_player()
+    player.check_ndim(batched=False)
     expected_pocket = EMPTY_POCKET_ID
     assert jnp.array_equal(
         player.pocket, expected_pocket
@@ -315,6 +369,7 @@ def test_open():
 
     # check that pocket is empty
     player = state.get_player()
+    player.check_ndim(batched=False)
     expected_pocket = EMPTY_POCKET_ID
     assert jnp.array_equal(
         player.pocket, expected_pocket
@@ -326,6 +381,7 @@ def test_open():
     state = nx.actions.open(state)
     # and that the door is still closed
     doors = state.get_doors()
+    doors.check_ndim(batched=True)
     expected_open = jnp.asarray(False)[None]
     assert jnp.array_equal(
         doors.open, expected_open
@@ -333,7 +389,9 @@ def test_open():
 
     # artificially put the right key in the player's pocket
     player = state.get_player()
+    player.check_ndim(batched=False)
     player = player.replace(pocket=jnp.asarray(1))
+    player.check_ndim(batched=False)
     state = state.set_player(player)
     expected_pocket = jnp.asarray(1)
     assert jnp.array_equal(
@@ -345,6 +403,7 @@ def test_open():
     # check that we can open the door with the right key
     state = nx.actions.open(state)
     doors = state.get_doors()
+    doors.check_ndim(batched=True)
     expected_open = jnp.asarray(True)[None]
     assert jnp.array_equal(
         doors.open, expected_open
@@ -353,6 +412,7 @@ def test_open():
     # check that opening an open door keeps it open
     state = nx.actions.open(state)
     doors = state.get_doors()
+    doors.check_ndim(batched=True)
     expected_open = jnp.asarray(True)[None]
     assert jnp.array_equal(
         doors.open, expected_open
@@ -361,6 +421,7 @@ def test_open():
     # check that we can walk through an open door
     state = nx.actions.forward(state)
     player = state.get_player()
+    player.check_ndim(batched=False)
     expected_position = jnp.asarray((1, 3))
     assert jnp.array_equal(
         player.position, expected_position
@@ -370,8 +431,8 @@ def test_open():
 
 
 if __name__ == "__main__":
-    # test_move()
-    # test_rotation()
-    # test_walkable()
-    # test_pickup()
+    test_rotation()
+    test_move()
+    test_walkable()
+    test_pickup()
     test_open()

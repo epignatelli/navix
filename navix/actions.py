@@ -18,7 +18,6 @@
 # under the License.
 
 from __future__ import annotations
-from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -27,19 +26,27 @@ from jax import Array
 from .entities import Entities, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
+from jax_enums import Enumerable as Enum
 
 
-DIRECTIONS = {0: "east", 1: "south", 2: "west", 3: "north"}
+class Directions(Enum):
+    EAST = 0
+    SOUTH = 1
+    WEST = 2
+    NORTH = 3
 
 
 def _rotate(state: State, spin: int) -> State:
     if "player" not in state.entities:
         return state
 
-    player = state.get_player()
+    player = state.get_player(idx=0)
+
+    # update player's direction
     direction = rotate(player.direction, spin)
-    sprite = player.get_sprite()
-    player = player.replace(direction=direction, sprite=sprite)
+
+    # update sprite representation
+    player = player.replace(direction=direction)
 
     state = state.set_player(player)
 
@@ -53,9 +60,9 @@ def _walkable(state: State, position: Array) -> Array:
     for k in state.entities:
         obstructs = jnp.logical_and(
             jnp.logical_not(state.entities[k].walkable),
-            jnp.any(positions_equal(state.entities[k].position, position))
+            positions_equal(state.entities[k].position, position)
         )
-        walkable = jnp.logical_and(walkable, jnp.logical_not(obstructs))
+        walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_)
 
 
@@ -63,7 +70,7 @@ def _move(state: State, direction: Array) -> State:
     if "player" not in state.entities:
         return state
 
-    player = state.get_player()
+    player = state.get_player(idx=0)
     new_position = translate(player.position, direction)
     can_move = _walkable(state, new_position)
     new_position = jnp.where(can_move, new_position, player.position)
@@ -96,31 +103,30 @@ def rotate_ccw(state: State) -> State:
 
 
 def forward(state: State) -> State:
-    player = state.get_player()
+    player = state.get_player(idx=0)
     return _move(state, player.direction)
 
 
 def right(state: State) -> State:
-    player = state.get_player()
+    player = state.get_player(idx=0)
     return _move(state, player.direction + 1)
 
 
 def backward(state: State) -> State:
-    player = state.get_player()
+    player = state.get_player(idx=0)
     return _move(state, player.direction + 2)
 
 
 def left(state: State) -> State:
-    player = state.get_player()
+    player = state.get_player(idx=0)
     return _move(state, player.direction + 3)
 
 
 def pickup(state: State) -> State:
-
     if Entities.KEY.value not in state.entities:
         return state
 
-    player = state.get_player()
+    player = state.get_player(idx=0)
     keys = state.get_keys()
 
     position_in_front = translate(player.position, player.direction)
@@ -147,7 +153,7 @@ def open(state: State) -> State:
         return state
 
     # get the tile in front of the player
-    player = state.get_player()
+    player = state.get_player(idx=0)
     doors = state.get_doors()
 
     position_in_front = translate(player.position, player.direction)
@@ -163,8 +169,7 @@ def open(state: State) -> State:
     # update doors if closed and can_open
     do_open = (~doors.open & can_open)
     open = jnp.where(do_open, True, doors.open)
-    sprite = doors.get_sprite()
-    doors = doors.replace(open=open, sprite=sprite)
+    doors = doors.replace(open=open)
 
     # remove key from player's pocket
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)

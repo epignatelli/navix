@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from jax.random import KeyArray
 from typing import Union
 
+from ..components import EMPTY_POCKET_ID
 from ..graphics import RenderingCache
 from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
@@ -25,15 +26,15 @@ class KeyDoor(Environment):
         door_col = jax.random.randint(k4, (), 2, self.width - 2)  # col
         door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
         door_pos = jnp.asarray((door_row, door_col))
-        doors = Door.create(position=door_pos, requires=jnp.asarray(3))
+        doors = Door(position=door_pos, requires=jnp.asarray(3), direction=jnp.asarray(0), open=jnp.asarray(False))
 
         # wall potisions
-        wall_rows_pre = jnp.arange(1, door_row)
-        wall_rows_post = jnp.arange(door_row + 1, self.height - 1)
+        wall_rows = jnp.arange(1, self.height - 2)
         wall_cols = jnp.asarray([door_col] * (self.height - 3))
-        wall_rows = jnp.concatenate((wall_rows_pre, wall_rows_post))
         wall_pos = jnp.stack((wall_rows, wall_cols), axis=1)
-        walls = Wall(wall_pos)
+        # remove wall where the door is
+        wall_pos = jnp.delete(wall_pos, door_row, axis=0, assume_unique_indices=True)
+        walls = Wall(position=wall_pos)
 
         # mask first room
         out_of_bounds = jnp.asarray(self.height)
@@ -43,27 +44,27 @@ class KeyDoor(Environment):
         # spawn player
         player_pos = random_positions(k1, first_room)
         player_dir = random_directions(k2)
-        player = Player.create(position=player_pos, direction=player_dir)
+        player = Player(position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID)
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key.create(position=key_pos, id=jnp.asarray(3))
+        keys = Key(position=key_pos, id=jnp.asarray(3))
 
         # mask the second room
         second_room = jnp.where(first_room_mask, -1, grid)
 
         # spawn goal
         goal_pos = random_positions(k2, second_room)
-        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
+        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
 
         entities = {
-            "player": player,
-            "key": keys,
-            "door": doors,
-            "goal": goals,
+            "player": player[None],
+            "key": keys[None],
+            "door": doors[None],
+            "goal": goals[None],
             "wall": walls,
         }
 

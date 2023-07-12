@@ -26,7 +26,8 @@ import jax.numpy as jnp
 from jax.random import KeyArray
 
 
-from ..entities import Goal, Player, State
+from ..components import EMPTY_POCKET_ID
+from ..entities import Entities, Goal, Player, State
 from ..grid import random_positions, random_directions, room
 from ..graphics import RenderingCache
 from .environment import Environment, Timestep
@@ -42,13 +43,20 @@ class Room(Environment):
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2)
         direction = random_directions(k2, n=1)
-        player = Player.create(position=player_pos[None], direction=direction[None])
+        player = Player(
+            position=player_pos,
+            direction=direction,
+            pocket=EMPTY_POCKET_ID,
+        )
         # goal
-        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal(
+            position=goal_pos,
+            probability=jnp.asarray(1.0)
+        )
 
         entities = {
-            "player": player,
-            "goals": goal,
+            Entities.PLAYER.value: player[None],
+            Entities.GOAL.value: goal[None],
         }
 
         # systems
