@@ -182,6 +182,7 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     )
 
     cropped = rotated[:radius + 1]
+    return jnp.asarray(cropped, dtype=grid.dtype)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
