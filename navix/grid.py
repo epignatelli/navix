@@ -164,7 +164,7 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
     padded = jnp.pad(grid, padding, constant_values=0)
 
     # translate the grid such that the agent is `radius` away from the top and left edges
-    translated = jnp.roll(grid, -jnp.asarray(origin), axis=(0, 1))
+    translated = jnp.roll(padded, -jnp.asarray(origin), axis=(0, 1))
 
     # crop such that the agent is in the centre of the grid
     cropped = translated[: 2 * radius + 1, : 2 * radius + 1]
