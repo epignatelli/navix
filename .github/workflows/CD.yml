@@ -19,19 +19,14 @@ jobs:
 
           echo "NAVIX_VERSION=$NAVIX_VERSION" >> $GITHUB_ENV
 
-      - name: Create and push tag
-        run: |
-          echo "Creating tag ${{ env.NAVIX_VERSION }}"
-          git tag ${{ env.NAVIX_VERSION }}
-          git push --tags
-
-      - name: Create changelog
+      - name: Create changelog and push tag
         id: changelog
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          output-file: "false"
+          output-file: false
           fallback-version: ${{ env.NAVIX_VERSION }}
+          skip-commit: true
 
       - name: Create Release
         uses: ncipollo/release-action@v1
