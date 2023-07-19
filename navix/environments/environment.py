@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import sys
 import abc
 from enum import IntEnum
 from typing import Any, Callable, Dict
@@ -31,9 +32,10 @@ from flax import struct
 
 
 from .. import tasks, terminations, observations
-from ..graphics import RenderingCache
+from ..graphics import RenderingCache, TILE_SIZE
 from ..entities import State
 from ..actions import ACTIONS
+from ..spaces import Space, Discrete, Continuous
 
 
 class StepType(IntEnum):
@@ -76,6 +78,39 @@ class Environment(struct.PyTreeNode):
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
         pytree_node=False, default=terminations.on_navigation_completion
     )
+
+    @property
+    def observation_space(self) -> Space:
+        if self.observation_fn == observations.none:
+            return Continuous(shape=())
+        elif self.observation_fn == observations.categorical:
+            return Discrete(sys.maxsize, shape=(self.height, self.width))
+        elif self.observation_fn == observations.categorical_first_person:
+            radius = observations.RADIUS
+            return Discrete(sys.maxsize, shape=(radius + 1, radius * 2 + 1))
+        elif self.observation_fn == observations.rgb:
+            return Discrete(
+                256,
+                shape=(self.height * TILE_SIZE, self.width * TILE_SIZE, 3),
+                dtype=jnp.uint8,
+            )
+        elif self.observation_fn == observations.rgb_first_person:
+            radius = observations.RADIUS
+            return Discrete(
+                256,
+                shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3),
+                dtype=jnp.uint8,
+            )
+        else:
+            raise NotImplementedError(
+                "Unknown observation space for observation function {}".format(
+                    self.observation_fn
+                )
+            )
+
+    @property
+    def action_space(self) -> Space:
+        return Discrete(len(ACTIONS))
 
     @abc.abstractmethod
     def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:

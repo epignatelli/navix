@@ -19,12 +19,11 @@
 
 
 from __future__ import annotations
-from typing import Callable, Union
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
-
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, State

@@ -29,4 +29,5 @@ from . import (
     environments,
     terminations,
     config,
+    spaces,
 )
