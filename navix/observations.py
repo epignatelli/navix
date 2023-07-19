@@ -30,6 +30,8 @@ from .entities import State
 from .grid import align, idx_from_coordinates, crop, view_cone
 
 
+RADIUS = 3
+
 def none(
     state: State,
 ) -> Array:
@@ -52,7 +54,6 @@ def categorical(
 
 def categorical_first_person(
     state: State,
-    radius: int = 3,
 ) -> Array:
     # get transparency map
     transparency_map = jnp.where(state.grid == 0, 1, 0)
@@ -62,14 +63,14 @@ def categorical_first_person(
 
     # apply view mask
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, radius)
+    view = view_cone(transparency_map, player.position, RADIUS)
 
     # get categorical representation
     tags = state.get_tags()
     obs = state.grid.at[tuple(positions.T)].set(tags) * view
 
     # crop grid to agent's view
-    obs = crop(obs, player.position, player.direction, radius)
+    obs = crop(obs, player.position, player.direction, RADIUS)
 
     return obs
 
@@ -99,7 +100,6 @@ def rgb(
 
 def rgb_first_person(
     state: State,
-    radius: int = 3,
 ) -> Array:
     # calculate final image size
     image_size = (
@@ -113,7 +113,7 @@ def rgb_first_person(
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, radius)
+    view = view_cone(transparency_map, player.position, RADIUS)
     view = jax.image.resize(view, image_size, method="nearest")
     view = jnp.tile(view[..., None], (1, 1, 3))
 
@@ -131,7 +131,7 @@ def rgb_first_person(
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
     # crop grid to agent's view
-    patchwork = crop(patchwork, player.position, player.direction, radius)
+    patchwork = crop(patchwork, player.position, player.direction, RADIUS)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)

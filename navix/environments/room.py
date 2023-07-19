@@ -20,20 +20,43 @@
 
 from __future__ import annotations
 from typing import Callable, Union
+import sys
 
 import jax
 import jax.numpy as jnp
 from jax.random import KeyArray
 
+from navix.spaces import Space
 
+
+from .. import observations
+from ..spaces import Space, Continuous, Discrete
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, State
 from ..grid import random_positions, random_directions, room
-from ..graphics import RenderingCache
+from ..graphics import RenderingCache, TILE_SIZE
 from .environment import Environment, Timestep
 
 
 class Room(Environment):
+
+    @property
+    def observation_space(self) -> Space:
+        if self.observation_fn == observations.none:
+            return Continuous(shape=())
+        elif self.observation_fn == observations.categorical:
+            return Discrete(sys.maxsize, shape=(self.height, self.width))
+        elif self.observation_fn == observations.categorical_first_person:
+            radius = 3  # TOD0: make this a variable
+            return Discrete(sys.maxsize, shape=(radius + 1, radius * 2 + 1))
+        elif self.observation_fn == observations.rgb:
+            return Discrete(256, shape=(self.height * TILE_SIZE, self.width * TILE_SIZE, 3), dtype=jnp.uint8)
+        elif self.observation_fn == observations.rgb_first_person:
+            radius = 3
+            return Discrete(256, shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3), dtype=jnp.uint8)
+        else:
+            raise NotImplementedError("Unknown observation space for observation function {}".format(self.observation_fn))
+
     def reset(
         self, key: KeyArray, cache: Union[RenderingCache, None] = None
     ) -> Timestep:
