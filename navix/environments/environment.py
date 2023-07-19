@@ -89,12 +89,24 @@ class Environment(struct.PyTreeNode):
             radius = observations.RADIUS
             return Discrete(sys.maxsize, shape=(radius + 1, radius * 2 + 1))
         elif self.observation_fn == observations.rgb:
-            return Discrete(256, shape=(self.height * TILE_SIZE, self.width * TILE_SIZE, 3), dtype=jnp.uint8)
+            return Discrete(
+                256,
+                shape=(self.height * TILE_SIZE, self.width * TILE_SIZE, 3),
+                dtype=jnp.uint8,
+            )
         elif self.observation_fn == observations.rgb_first_person:
             radius = observations.RADIUS
-            return Discrete(256, shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3), dtype=jnp.uint8)
+            return Discrete(
+                256,
+                shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3),
+                dtype=jnp.uint8,
+            )
         else:
-            raise NotImplementedError("Unknown observation space for observation function {}".format(self.observation_fn))
+            raise NotImplementedError(
+                "Unknown observation space for observation function {}".format(
+                    self.observation_fn
+                )
+            )
 
     @property
     def action_space(self) -> Space:

@@ -14,8 +14,12 @@ from ..grid import mask_by_coordinates, room, random_positions, random_direction
 class KeyDoor(Environment):
     def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
         # check minimum height and width
-        assert self.height > 3, f"Room height must be greater than 3, got {self.height} instead"
-        assert self.width > 4, f"Room width must be greater than 5, got {self.width} instead"
+        assert (
+            self.height > 3
+        ), f"Room height must be greater than 3, got {self.height} instead"
+        assert (
+            self.width > 4
+        ), f"Room width must be greater than 5, got {self.width} instead"
 
         key, k1, k2, k3, k4 = jax.random.split(key, 5)
 
@@ -39,13 +43,19 @@ class KeyDoor(Environment):
         wall_cols = jnp.asarray([door_col] * (self.height - 2))
         wall_pos = jnp.stack((wall_rows, wall_cols), axis=1)
         # remove wall where the door is
-        wall_pos = jnp.delete(wall_pos, door_row - 1, axis=0, assume_unique_indices=True)
+        wall_pos = jnp.delete(
+            wall_pos, door_row - 1, axis=0, assume_unique_indices=True
+        )
         walls = Wall(position=wall_pos)
 
         # get rooms
-        first_room_mask = mask_by_coordinates(grid, (jnp.asarray(self.height), door_col), jnp.less)
+        first_room_mask = mask_by_coordinates(
+            grid, (jnp.asarray(self.height), door_col), jnp.less
+        )
         first_room = jnp.where(first_room_mask, grid, -1)  # put walls where not mask
-        second_room_mask = mask_by_coordinates(grid, (jnp.asarray(0), door_col), jnp.greater)
+        second_room_mask = mask_by_coordinates(
+            grid, (jnp.asarray(0), door_col), jnp.greater
+        )
         second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
 
         # spawn player

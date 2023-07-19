@@ -41,6 +41,7 @@ class Space(ShapedArray):
     def sample(self, key: KeyArray) -> Array:
         raise NotImplementedError()
 
+
 class Discrete(Space):
     def __init__(self, n_elements: int, shape: Shape = (), dtype=jnp.int32):
         super().__init__(shape, dtype)

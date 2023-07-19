@@ -32,6 +32,7 @@ from .grid import align, idx_from_coordinates, crop, view_cone
 
 RADIUS = 3
 
+
 def none(
     state: State,
 ) -> Array:
