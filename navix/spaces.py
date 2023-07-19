@@ -14,7 +14,6 @@
 
 
 from __future__ import annotations
-from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -25,13 +24,15 @@ from jax import Array
 from jax.core import ShapedArray, Shape
 
 
-POS_INF = jnp.asarray(1e16)
-NEG_INF = jnp.asarray(-1e16)
+MIN_INT = jax.numpy.iinfo(jnp.int16).min
+MAX_INT = jax.numpy.iinfo(jnp.int16).max
+MIN_INT_ARR = jnp.asarray(MIN_INT)
+MAX_INT_ARR = jnp.asarray(MAX_INT)
 
 
 class Space(ShapedArray):
-    minimum: Array = NEG_INF
-    maximum: Array = POS_INF
+    minimum: Array = MIN_INT_ARR
+    maximum: Array = MAX_INT_ARR
 
     def __repr__(self):
         return "{}, min={}, max={})".format(
@@ -43,19 +44,21 @@ class Space(ShapedArray):
 
 
 class Discrete(Space):
-    def __init__(self, n_elements: int, shape: Shape = (), dtype=jnp.int32):
+    def __init__(self, n_elements: int = MAX_INT, shape: Shape = (), dtype=jnp.int32):
         super().__init__(shape, dtype)
         self.minimum = jnp.asarray(0)
         self.maximum = jnp.asarray(n_elements - 1)
 
     def sample(self, key: KeyArray) -> Array:
-        return jax.random.randint(
-            key, self.shape, self.minimum, self.maximum, self.dtype
+        item = jax.random.randint(
+            key, self.shape, self.minimum, self.maximum
         )
+        # randint cannot draw jnp.uint, so we cast it later
+        return jnp.asarray(item, dtype=self.dtype)
 
 
 class Continuous(Space):
-    def __init__(self, shape: Shape = (), minimum=NEG_INF, maximum=POS_INF):
+    def __init__(self, shape: Shape = (), minimum=MIN_INT_ARR, maximum=MAX_INT_ARR):
         super().__init__(shape, jnp.float32)
         self.minimum = minimum
         self.maximum = maximum

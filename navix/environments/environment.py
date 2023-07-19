@@ -20,7 +20,6 @@
 
 from __future__ import annotations
 
-import sys
 import abc
 from enum import IntEnum
 from typing import Any, Callable, Dict
@@ -84,10 +83,10 @@ class Environment(struct.PyTreeNode):
         if self.observation_fn == observations.none:
             return Continuous(shape=())
         elif self.observation_fn == observations.categorical:
-            return Discrete(sys.maxsize, shape=(self.height, self.width))
+            return Discrete(shape=(self.height, self.width))
         elif self.observation_fn == observations.categorical_first_person:
             radius = observations.RADIUS
-            return Discrete(sys.maxsize, shape=(radius + 1, radius * 2 + 1))
+            return Discrete(shape=(radius + 1, radius * 2 + 1))
         elif self.observation_fn == observations.rgb:
             return Discrete(
                 256,
