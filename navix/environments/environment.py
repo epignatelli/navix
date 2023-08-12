@@ -16,12 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
 from __future__ import annotations
 
 import abc
-from enum import IntEnum
 from typing import Any, Callable, Dict
 import jax
 import jax.numpy as jnp
@@ -37,13 +34,15 @@ from ..actions import ACTIONS
 from ..spaces import Space, Discrete, Continuous
 
 
-class StepType(IntEnum):
-    TRANSITION = 0
-    """discount > 0, episode continues"""
-    TRUNCATION = 1
-    """discount > 0, episode ends"""
-    TERMINATION = 2
-    """discount == 0, episode ends"""
+class StepType(struct.PyTreeNode):
+    TRANSITION = jnp.asarray(0)
+    """Standard timestep transition: the episode continues"""
+    TRUNCATION = jnp.asarray(1)
+    """The environment reached its maximum number of timesteps.
+    The episode ended, but the agent could have still collected rewards.
+    The value of the state is not 0"""
+    TERMINATION = jnp.asarray(2)
+    """The episode ended and the current state is an absorbing state."""
 
 
 class Timestep(struct.PyTreeNode):
@@ -56,7 +55,7 @@ class Timestep(struct.PyTreeNode):
     reward: Array
     """The reward $r_{t=1}$ received by the agent after taking action $a_t$"""
     step_type: Array
-    """The type of the current timestep (see `StepType`)"""
+    """The type of the current timestep, 0 for TRANSITION, 1 for TRUNCATION, 2 for TERMINATION"""
     state: State
     """The true state of the MDP, $s_t$ before taking action `action`"""
     info: Dict[str, Any] = struct.field(default_factory=dict)

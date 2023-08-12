@@ -18,7 +18,7 @@ def test_rotation():
     cache = nx.graphics.RenderingCache.init(grid)
 
     entities: Dict[str, Entity] = {
-        Entities.PLAYER.value: player,
+        Entities.PLAYER: player,
     }
 
     player.check_ndim(batched=True)
@@ -84,10 +84,10 @@ def test_move():
     #  #  #  #  #
     """
     entities = {
-        Entities.PLAYER.value: player[None],
-        Entities.GOAL.value: goals[None],
-        Entities.KEY.value: keys[None],
-        Entities.DOOR.value: doors[None],
+        Entities.PLAYER: player[None],
+        Entities.GOAL: goals[None],
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors[None],
     }
     state = nx.entities.State(
         key=key,
@@ -187,10 +187,10 @@ def test_walkable():
         grid=grid,
         cache=cache,
         entities={
-            Entities.PLAYER.value: player[None],
-            Entities.GOAL.value: goals[None],
-            Entities.KEY.value: keys[None],
-            Entities.DOOR.value: doors[None],
+            Entities.PLAYER: player[None],
+            Entities.GOAL: goals[None],
+            Entities.KEY: keys[None],
+            Entities.DOOR: doors[None],
         },
     )
 
@@ -211,7 +211,7 @@ def test_walkable():
 
     # should be able to walk through an open door
     doors = state.get_doors()
-    state.entities[Entities.DOOR.value] = doors.replace(open=jnp.asarray(True)[None])
+    state.entities[Entities.DOOR] = doors.replace(open=jnp.asarray(True)[None])
     state = nx.actions.forward(state)
     state = nx.actions.backward(state)
 
@@ -263,10 +263,10 @@ def test_pickup():
     #  #  #  #  #
     """
     entities = {
-        Entities.PLAYER.value: player[None],
-        Entities.GOAL.value: goals[None],
-        Entities.KEY.value: keys[None],
-        Entities.DOOR.value: doors[None],
+        Entities.PLAYER: player[None],
+        Entities.GOAL: goals[None],
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors[None],
     }
     state = nx.entities.State(
         key=key,
@@ -332,10 +332,10 @@ def test_open():
     # W  K  0  G  W
     # W  W  W  W  W
     entities = {
-        Entities.PLAYER.value: player[None],
-        Entities.GOAL.value: goals[None],
-        Entities.KEY.value: keys[None],
-        Entities.DOOR.value: doors[None],
+        Entities.PLAYER: player[None],
+        Entities.GOAL: goals[None],
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors[None],
     }
 
     state = nx.entities.State(

@@ -25,13 +25,13 @@ from .config import config
 T = TypeVar("T", bound="Entity")
 
 
-class Entities(Enumerable):
-    WALL = "wall"
-    FLOOR = "floor"
-    PLAYER = "player"
-    GOAL = "goal"
-    KEY = "key"
-    DOOR = "door"
+class Entities(struct.PyTreeNode):
+    WALL: str = struct.field(pytree_node=False, default="wall")
+    FLOOR: str = struct.field(pytree_node=False, default="floor")
+    PLAYER: str = struct.field(pytree_node=False, default="player")
+    GOAL: str = struct.field(pytree_node=False, default="goal")
+    KEY: str = struct.field(pytree_node=False, default="key")
+    DOOR: str = struct.field(pytree_node=False, default="door")
 
 
 class Entity(Positionable, HasTag, HasSprite):
@@ -99,7 +99,7 @@ class Wall(Entity):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.WALL.value]
+        sprite = SPRITES_REGISTRY[Entities.WALL]
         return jnp.broadcast_to(sprite[None], (*self.shape, *sprite.shape))
 
     @property
@@ -129,7 +129,7 @@ class Player(Entity, Directional, Holder):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.PLAYER.value][self.direction]
+        sprite = SPRITES_REGISTRY[Entities.PLAYER][self.direction]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]
@@ -162,7 +162,7 @@ class Goal(Entity, Stochastic):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.GOAL.value]
+        sprite = SPRITES_REGISTRY[Entities.GOAL]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]
@@ -198,7 +198,7 @@ class Key(Entity, Pickable):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.KEY.value]
+        sprite = SPRITES_REGISTRY[Entities.KEY]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]
@@ -241,7 +241,7 @@ class Door(Entity, Directional, Openable):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.DOOR.value][
+        sprite = SPRITES_REGISTRY[Entities.DOOR][
             self.direction, jnp.asarray(self.open, dtype=jnp.int32)
         ]
         if sprite.ndim == 3:
@@ -270,47 +270,47 @@ class State(struct.PyTreeNode):
     """The entities in the environment, indexed via entity type string representation.
     Batched over the number of entities for each type"""
 
-    def get_entity(self, entity_enum: Entities) -> Entity:
-        return self.entities[entity_enum.value]
+    def get_entity(self, entity_enum: str) -> Entity:
+        return self.entities[entity_enum]
 
-    def set_entity(self, entity_enum: Entities, entity: Entity) -> State:
-        self.entities[entity_enum.value] = entity
+    def set_entity(self, entity_enum: str, entity: Entity) -> State:
+        self.entities[entity_enum] = entity
         return self
 
     def get_walls(self) -> Wall:
-        return self.entities.get(Entities.WALL.value, Wall())  # type: ignore
+        return self.entities.get(Entities.WALL, Wall())  # type: ignore
 
     def set_walls(self, walls: Wall) -> State:
-        self.entities[Entities.WALL.value] = walls
+        self.entities[Entities.WALL] = walls
         return self
 
     def get_player(self, idx: int = 0) -> Player:
-        return self.entities[Entities.PLAYER.value][idx]  # type: ignore
+        return self.entities[Entities.PLAYER][idx]  # type: ignore
 
     def set_player(self, player: Player, idx: int = 0) -> State:
         # TODO(epignatelli): this is a hack and won't work in multi-agent settings
-        self.entities[Entities.PLAYER.value] = player[None]
+        self.entities[Entities.PLAYER] = player[None]
         return self
 
     def get_goals(self) -> Goal:
-        return self.entities[Entities.GOAL.value]  # type: ignore
+        return self.entities[Entities.GOAL]  # type: ignore
 
     def set_goals(self, goals: Goal) -> State:
-        self.entities[Entities.GOAL.value] = goals
+        self.entities[Entities.GOAL] = goals
         return self
 
     def get_keys(self) -> Key:
-        return self.entities[Entities.KEY.value]  # type: ignore
+        return self.entities[Entities.KEY]  # type: ignore
 
     def set_keys(self, keys: Key) -> State:
-        self.entities[Entities.KEY.value] = keys
+        self.entities[Entities.KEY] = keys
         return self
 
     def get_doors(self) -> Door:
-        return self.entities[Entities.DOOR.value]  # type: ignore
+        return self.entities[Entities.DOOR]  # type: ignore
 
     def set_doors(self, doors: Door) -> State:
-        self.entities[Entities.DOOR.value] = doors
+        self.entities[Entities.DOOR] = doors
         return self
 
     def get_positions(self) -> Array:

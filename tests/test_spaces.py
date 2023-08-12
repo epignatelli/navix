@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from navix.spaces import Space, Continuous, Discrete, MAX_INT, MIN_INT
+from navix.spaces import Continuous, Discrete, MAX_INT, MIN_INT
 
 
 def test_discrete():
