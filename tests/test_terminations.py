@@ -13,8 +13,8 @@ def test_on_navigation_completion():
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1))
     entities = {
-        nx.entities.Entities.PLAYER.value: players[None],
-        nx.entities.Entities.GOAL.value: goals[None],
+        nx.entities.Entities.PLAYER: players[None],
+        nx.entities.Entities.GOAL: goals[None],
     }
 
     state = nx.entities.State(

@@ -25,10 +25,10 @@ def test_rgb():
     )
 
     entities = {
-        Entities.PLAYER.value: players[None],
-        Entities.GOAL.value: goals[None],
-        Entities.KEY.value: keys[None],
-        Entities.DOOR.value: doors,
+        Entities.PLAYER: players[None],
+        Entities.GOAL: goals[None],
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors,
     }
 
     state = nx.entities.State(
@@ -41,7 +41,7 @@ def test_rgb():
 
     doors = state.get_doors()
     doors = doors.replace(open=jnp.asarray((False, True)))
-    state.entities[Entities.DOOR.value] = doors
+    state.entities[Entities.DOOR] = doors
 
     obs = nx.observations.rgb(state)
     expected_obs_shape = (
@@ -61,30 +61,30 @@ def test_rgb():
     player = state.get_player()
     player_tile = get_tile(player.position)
     assert jnp.array_equal(
-        player_tile, sprites_registry[Entities.PLAYER.value][player.direction]
+        player_tile, sprites_registry[Entities.PLAYER][player.direction]
     ), player_tile
 
     goals = state.get_goals()
     goal_tile = get_tile(goals.position[0])
-    assert jnp.array_equal(goal_tile, sprites_registry[Entities.GOAL.value]), goal_tile
+    assert jnp.array_equal(goal_tile, sprites_registry[Entities.GOAL]), goal_tile
 
     keys = state.get_keys()
     key_tile = get_tile(keys.position[0])
-    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY.value]), key_tile
+    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY]), key_tile
 
     doors = state.get_doors()
     door_tile = get_tile(doors.position[0])
     direction = doors.direction[0]
     open = jnp.asarray(doors.open[0], dtype=jnp.int32)
     assert jnp.array_equal(
-        door_tile, sprites_registry[Entities.DOOR.value][direction, open]
+        door_tile, sprites_registry[Entities.DOOR][direction, open]
     ), door_tile
 
     door_tile = get_tile(doors.position[1])
     direction = doors.direction[1]
     open = jnp.asarray(doors.open[1], dtype=jnp.int32)
     assert jnp.array_equal(
-        door_tile, sprites_registry[Entities.DOOR.value][direction, open]
+        door_tile, sprites_registry[Entities.DOOR][direction, open]
     ), door_tile
 
     return
@@ -108,10 +108,10 @@ def test_categorical_first_person():
         open=jnp.asarray((False, True)),
     )
     entities = {
-        Entities.PLAYER.value: players[None],
-        Entities.GOAL.value: goals[None],
-        Entities.KEY.value: keys[None],
-        Entities.DOOR.value: doors,
+        Entities.PLAYER: players[None],
+        Entities.GOAL: goals[None],
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors,
     }
 
     state = nx.entities.State(
