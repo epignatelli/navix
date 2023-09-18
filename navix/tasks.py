@@ -53,7 +53,7 @@ def navigation(prev_state: State, action: Array, state: State) -> Array:
     any_reached = jnp.sum(reached)
 
     draw = jax.random.uniform(state.key, ())
-    reward = any_reached * jnp.greater_equal(draw, goals.probability)
+    reward = any_reached * jnp.less_equal(draw, goals.probability)
     reward = jnp.asarray(reward, jnp.float32).squeeze()
 
     # make sure that reward is a scalar
