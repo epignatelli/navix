@@ -50,13 +50,15 @@ def navigation(prev_state: State, action: Array, state: State) -> Array:
     reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
         player.position, goals.position
     )
-    any_reached = jnp.sum(reached)
 
-    draw = jax.random.uniform(state.key, ())
-    reward = any_reached * jnp.greater_equal(draw, goals.probability)
-    reward = jnp.asarray(reward, jnp.float32).squeeze()
+    # exoxgenous reward noise
+    draws = jax.random.uniform(state.key, (len(goals.probability),))
+    # if there is a reward and the player reached the goal, then reward
+    reward = reached * jnp.less_equal(draws, goals.probability)
+    # if two goals are at the same position, we sum them
+    reward = jnp.sum(reward, dtype=jnp.float32).squeeze()
 
-    # make sure that reward is a scalar
+    # ensure scalar reward
     assert reward.shape == (), f"Reward must be a scalar but got shape {reward.shape}"
     return reward
 

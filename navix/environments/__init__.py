@@ -21,6 +21,6 @@
 from __future__ import annotations
 
 
-from .environment import Environment, StepType, Timestep
+from .environment import Environment, Timestep
 from .room import Room
 from .keydoor import KeyDoor

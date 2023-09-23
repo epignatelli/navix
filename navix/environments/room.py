@@ -53,8 +53,8 @@ class Room(Environment):
         goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         entities = {
-            Entities.PLAYER.value: player[None],
-            Entities.GOAL.value: goal[None],
+            Entities.PLAYER: player[None],
+            Entities.GOAL: goal[None],
         }
 
         # systems

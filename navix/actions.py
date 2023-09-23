@@ -37,7 +37,7 @@ class Directions(Enum):
 
 
 def _rotate(state: State, spin: int) -> State:
-    if "player" not in state.entities:
+    if Entities.PLAYER not in state.entities:
         return state
 
     player = state.get_player(idx=0)
@@ -67,7 +67,7 @@ def _walkable(state: State, position: Array) -> Array:
 
 
 def _move(state: State, direction: Array) -> State:
-    if "player" not in state.entities:
+    if Entities.PLAYER not in state.entities:
         return state
 
     player = state.get_player(idx=0)
@@ -123,7 +123,7 @@ def left(state: State) -> State:
 
 
 def pickup(state: State) -> State:
-    if Entities.KEY.value not in state.entities:
+    if Entities.KEY not in state.entities:
         return state
 
     player = state.get_player(idx=0)
@@ -151,7 +151,7 @@ def pickup(state: State) -> State:
 def open(state: State) -> State:
     """Unlocks and opens an openable object (like a door) if possible"""
 
-    if "door" not in state.entities:
+    if Entities.DOOR not in state.entities:
         return state
 
     # get the tile in front of the player
