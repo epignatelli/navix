@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: >-
+  Navix: Accelerated gridworld navigation with JAX
+type: software
+authors:
+  - family-names: Pignatelli
+    given-names: Eduardo
+    email: edu.pignatelli@gmail.com
+    affiliation: University College London (UCL)
+    orcid: 'https://orcid.org/0000-0003-0730-2303'
+identifiers:
+  - type: url
+    value: 'https://github.com/epignatelli/navix'
+repository-code: 'https://github.com/epignatelli/navix'
+keywords:
+  - Reinforcement Learning
+  - JAX
+  - Minigrid
+license: Apache-2.0
