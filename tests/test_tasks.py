@@ -1,5 +1,46 @@
 import jax
+import jax.numpy as jnp
+
 import navix as nx
+from navix.entities import Entities, Player, Goal, Key, Door
+from navix.components import EMPTY_POCKET_ID
+
+
+def test_navigation():
+    """Unittest for https://github.com/epignatelli/navix/pull/47"""
+    height = 10
+    width = 10
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
+
+    players = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    goals = Goal(position=jnp.asarray([(1, 1), (1, 1)]), probability=jnp.asarray([0.0, 0.0]))
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0))
+    doors = Door(
+        position=jnp.asarray([(1, 5), (1, 6)]),
+        direction=jnp.asarray((0, 2)),
+        requires=jnp.asarray((0, 0)),
+        open=jnp.asarray((False, True)),
+    )
+
+    entities = {
+        Entities.PLAYER: players[None],
+        Entities.GOAL: goals,
+        Entities.KEY: keys[None],
+        Entities.DOOR: doors,
+    }
+
+    state = nx.entities.State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=nx.graphics.RenderingCache.init(grid),
+        entities=entities,
+    )
+    action = jnp.asarray(0)
+    reward = nx.tasks.navigation(state, action, state)
+    assert jnp.array_equal(reward, jnp.asarray(0.0))
 
 
 def test_tasks_composition():
@@ -23,4 +64,5 @@ def test_tasks_composition():
 
 
 if __name__ == "__main__":
-    test_tasks_composition()
+    # test_tasks_composition()
+    test_navigation()
