@@ -26,10 +26,9 @@ from jax import Array
 from .entities import Entities, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
-from jax_enums import Enumerable as Enum
 
 
-class Directions(Enum):
+class Directions:
     EAST = 0
     SOUTH = 1
     WEST = 2
