@@ -13,5 +13,3 @@ numpy
 jax
 chex
 flax
-etils
-jax_enums
