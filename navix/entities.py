@@ -1,13 +1,12 @@
 from __future__ import annotations
 import dataclasses
-from typing import Dict, Tuple, Type, TypeVar
+from typing import Dict, Tuple, TypeVar
 
 import jax
 from jax import Array
 import jax.numpy as jnp
 from flax import struct
 from jax.random import KeyArray
-from jax_enums import Enumerable
 
 from .components import (
     Positionable,
