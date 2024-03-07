@@ -4,6 +4,8 @@ import jax.numpy as jnp
 import navix as nx
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
+from navix.rendering.cache import RenderingCache, TILE_SIZE
+from navix.rendering.registry import SPRITES_REGISTRY
 
 
 def test_rgb():
@@ -16,12 +18,12 @@ def test_rgb():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
-    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0))
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour="yellow")
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
-        direction=jnp.asarray((0, 2)),
         requires=jnp.asarray((0, 0)),
         open=jnp.asarray((False, True)),
+        colour="yellow",
     )
 
     entities = {
@@ -34,10 +36,10 @@ def test_rgb():
     state = nx.entities.State(
         key=jax.random.PRNGKey(0),
         grid=grid,
-        cache=nx.graphics.RenderingCache.init(grid),
+        cache=RenderingCache.init(grid),
         entities=entities,
     )
-    sprites_registry = nx.graphics.SPRITES_REGISTRY
+    sprites_registry = SPRITES_REGISTRY
 
     doors = state.get_doors()
     doors = doors.replace(open=jnp.asarray((False, True)))
@@ -45,8 +47,8 @@ def test_rgb():
 
     obs = nx.observations.rgb(state)
     expected_obs_shape = (
-        height * nx.graphics.TILE_SIZE,
-        width * nx.graphics.TILE_SIZE,
+        height * TILE_SIZE,
+        width * TILE_SIZE,
         3,
     )
     assert (
@@ -54,9 +56,9 @@ def test_rgb():
     ), f"Expected observation {expected_obs_shape}, got {obs.shape} instead"
 
     def get_tile(position):
-        x = position[0] * nx.graphics.TILE_SIZE
-        y = position[1] * nx.graphics.TILE_SIZE
-        return obs[x : x + nx.graphics.TILE_SIZE, y : y + nx.graphics.TILE_SIZE, :]
+        x = position[0] * TILE_SIZE
+        y = position[1] * TILE_SIZE
+        return obs[x : x + TILE_SIZE, y : y + TILE_SIZE, :]
 
     player = state.get_player()
     player_tile = get_tile(player.position)
@@ -70,22 +72,16 @@ def test_rgb():
 
     keys = state.get_keys()
     key_tile = get_tile(keys.position[0])
-    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY]), key_tile
+    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY, keys.colour]), key_tile
 
     doors = state.get_doors()
     door_tile = get_tile(doors.position[0])
-    direction = doors.direction[0]
     open = jnp.asarray(doors.open[0], dtype=jnp.int32)
-    assert jnp.array_equal(
-        door_tile, sprites_registry[Entities.DOOR][direction, open]
-    ), door_tile
+    assert jnp.array_equal(door_tile, sprites_registry[Entities.DOOR, doors.colour][open]), door_tile
 
     door_tile = get_tile(doors.position[1])
-    direction = doors.direction[1]
     open = jnp.asarray(doors.open[1], dtype=jnp.int32)
-    assert jnp.array_equal(
-        door_tile, sprites_registry[Entities.DOOR][direction, open]
-    ), door_tile
+    assert jnp.array_equal(door_tile, sprites_registry[Entities.DOOR, doors.colour][open]), door_tile
 
     return
 
@@ -100,12 +96,12 @@ def test_categorical_first_person():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
-    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0))
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour="yellow")
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
-        direction=jnp.asarray((0, 2)),
         requires=jnp.asarray((0, 0)),
         open=jnp.asarray((False, True)),
+        colour="yellow",
     )
     entities = {
         Entities.PLAYER: players[None],
@@ -117,7 +113,7 @@ def test_categorical_first_person():
     state = nx.entities.State(
         key=jax.random.PRNGKey(0),
         grid=grid,
-        cache=nx.graphics.RenderingCache.init(grid),
+        cache=RenderingCache.init(grid),
         entities=entities,
     )
 

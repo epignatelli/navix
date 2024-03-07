@@ -63,7 +63,7 @@ dependencies = {file = "./requirements.txt"}
 
 
 [tool.setuptools.packages.find]
-include = ["navix*"]
+include = ["navix*", "assets*"]
 exclude = ["tests", "examples", "scripts", "docs"]
 
 

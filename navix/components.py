@@ -54,6 +54,11 @@ class Directional(Component):
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
 
 
+class HasColour(Component):
+    colour: str = struct.field(pytree_node=False)
+    """The colour of the object for rendering"""
+
+
 class Stochastic(Component):
     probability: Array = field(shape=())
     """The probability of receiving the reward, if reached."""
@@ -61,9 +66,10 @@ class Stochastic(Component):
 
 class Openable(Component):
     requires: Array = field(shape=())
-    """The id of the item required to consume this item. If set, it must be >= 1."""
+    """The id of the item required to consume this item. If set, it must be > 0.
+    If -1, the door is unlocked and does not require any key to open."""
     open: Array = field(shape=())
-    """Whether the item is open or not."""
+    """Open is jnp.asarray(0) if the entity is closed and 1 if open."""
 
 
 class Pickable(Component):

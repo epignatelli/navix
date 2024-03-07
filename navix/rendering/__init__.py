@@ -19,15 +19,6 @@
 
 
 from . import (
-    actions,
-    components,
-    entities,
-    grid,
-    observations,
-    tasks,
-    environments,
-    terminations,
-    config,
-    spaces,
-    rendering
+    cache,
+    registry
 )

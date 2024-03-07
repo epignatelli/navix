@@ -15,7 +15,7 @@ def test_rotation():
     player = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=direction, pocket=EMPTY_POCKET_ID
     )[None]
-    cache = nx.graphics.RenderingCache.init(grid)
+    cache = nx.rendering.cache.RenderingCache.init(grid)
 
     entities: Dict[str, Entity] = {
         Entities.PLAYER: player,
@@ -62,14 +62,16 @@ def test_move():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
-    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(-1))
+    keys = nx.entities.Key(
+        position=jnp.asarray((3, 1)), id=jnp.asarray(-1), colour="yellow"
+    )
     doors = nx.entities.Door(
         position=jnp.asarray((2, 2)),
-        direction=jnp.asarray(0),
         requires=jnp.asarray(-1),
         open=jnp.asarray(False),
+        colour="yellow",
     )
-    cache = nx.graphics.RenderingCache.init(grid)
+    cache = nx.rendering.cache.RenderingCache.init(grid)
 
     player.check_ndim(batched=False)
     goals.check_ndim(batched=False)
@@ -160,14 +162,16 @@ def test_walkable():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
-    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(1))
+    keys = nx.entities.Key(
+        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour="yellow"
+    )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
-        direction=jnp.asarray(0),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
+        colour="yellow",
     )
-    cache = nx.graphics.RenderingCache.init(grid)
+    cache = nx.rendering.cache.RenderingCache.init(grid)
 
     player.check_ndim(batched=False)
     goals.check_ndim(batched=False)
@@ -245,14 +249,16 @@ def test_pickup():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(1), pocket=EMPTY_POCKET_ID
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
-    keys = nx.entities.Key(position=jnp.asarray((2, 1)), id=jnp.asarray(1))
+    keys = nx.entities.Key(
+        position=jnp.asarray((2, 1)), id=jnp.asarray(1), colour="yellow"
+    )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
-        direction=jnp.asarray(0),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
+        colour="yellow",
     )
-    cache = nx.graphics.RenderingCache.init(grid)
+    cache = nx.rendering.cache.RenderingCache.init(grid)
 
     # Looks like this
     """
@@ -311,14 +317,16 @@ def test_open():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
-    keys = nx.entities.Key(position=jnp.asarray((3, 1)), id=jnp.asarray(1))
+    keys = nx.entities.Key(
+        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour="yellow"
+    )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
-        direction=jnp.asarray(0),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
+        colour="yellow"
     )
-    cache = nx.graphics.RenderingCache.init(grid)
+    cache = nx.rendering.cache.RenderingCache.init(grid)
 
     player.check_ndim(batched=False)
     goals.check_ndim(batched=False)

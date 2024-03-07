@@ -163,14 +163,15 @@ def open(state: State) -> State:
     door_found = positions_equal(position_in_front, doors.position)
 
     # and that, if so, either it does not require a key or the player has the key
-    requires_key = doors.requires != -1
+    locked = doors.requires != -1
     key_match = player.pocket == doors.requires
-    can_open = door_found & (key_match | ~requires_key)
+    can_open = door_found & (key_match | ~locked)
 
     # update doors if closed and can_open
     do_open = ~doors.open & can_open
     open = jnp.where(do_open, True, doors.open)
-    doors = doors.replace(open=open)
+    requires = jnp.where(do_open, -1, doors.requires)
+    doors = doors.replace(open=open, requires=requires)
 
     # remove key from player's pocket
     pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)

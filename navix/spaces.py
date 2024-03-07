@@ -14,14 +14,15 @@
 
 
 from __future__ import annotations
+from typing import Any, Sequence, Union
 
 import jax
 import jax.numpy as jnp
-from jax.random import KeyArray
 
-from jax.core import Shape
 from jax import Array
 from jax.core import ShapedArray, Shape
+
+Shape = Sequence[Union[int, Any]]
 
 
 MIN_INT = jax.numpy.iinfo(jnp.int16).min
@@ -39,7 +40,7 @@ class Space(ShapedArray):
             super().__repr__()[:-1], self.minimum, self.maximum
         )
 
-    def sample(self, key: KeyArray) -> Array:
+    def sample(self, key: Array) -> Array:
         raise NotImplementedError()
 
 
@@ -49,10 +50,8 @@ class Discrete(Space):
         self.minimum = jnp.asarray(0)
         self.maximum = jnp.asarray(n_elements - 1)
 
-    def sample(self, key: KeyArray) -> Array:
-        item = jax.random.randint(
-            key, self.shape, self.minimum, self.maximum
-        )
+    def sample(self, key: Array) -> Array:
+        item = jax.random.randint(key, self.shape, self.minimum, self.maximum)
         # randint cannot draw jnp.uint, so we cast it later
         return jnp.asarray(item, dtype=self.dtype)
 
@@ -63,7 +62,7 @@ class Continuous(Space):
         self.minimum = minimum
         self.maximum = maximum
 
-    def sample(self, key: KeyArray) -> Array:
+    def sample(self, key: Array) -> Array:
         assert jnp.issubdtype(self.dtype, jnp.floating)
         # see: https://github.com/google/jax/issues/14003
         lower = jnp.nan_to_num(self.minimum)
