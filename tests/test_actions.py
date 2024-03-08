@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import navix as nx
 from navix.components import EMPTY_POCKET_ID, DISCARD_PILE_COORDS
 from navix.entities import Entities, Entity, State
+from navix.rendering.registry import PALETTE
 
 
 def test_rotation():
@@ -63,13 +64,13 @@ def test_move():
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(
-        position=jnp.asarray((3, 1)), id=jnp.asarray(-1), colour="yellow"
+        position=jnp.asarray((3, 1)), id=jnp.asarray(-1), colour=PALETTE.YELLOW
     )
     doors = nx.entities.Door(
         position=jnp.asarray((2, 2)),
         requires=jnp.asarray(-1),
         open=jnp.asarray(False),
-        colour="yellow",
+        colour=PALETTE.YELLOW,
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 
@@ -163,13 +164,13 @@ def test_walkable():
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(
-        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour="yellow"
+        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour=PALETTE.YELLOW
     )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
-        colour="yellow",
+        colour=PALETTE.YELLOW,
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 
@@ -250,13 +251,13 @@ def test_pickup():
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(
-        position=jnp.asarray((2, 1)), id=jnp.asarray(1), colour="yellow"
+        position=jnp.asarray((2, 1)), id=jnp.asarray(1), colour=PALETTE.YELLOW
     )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
-        colour="yellow",
+        colour=PALETTE.YELLOW,
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 
@@ -318,13 +319,13 @@ def test_open():
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(
-        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour="yellow"
+        position=jnp.asarray((3, 1)), id=jnp.asarray(1), colour=PALETTE.YELLOW
     )
     doors = nx.entities.Door(
         position=jnp.asarray((1, 3)),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
-        colour="yellow"
+        colour=PALETTE.YELLOW
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 

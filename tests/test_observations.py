@@ -5,7 +5,7 @@ import navix as nx
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.cache import RenderingCache, TILE_SIZE
-from navix.rendering.registry import SPRITES_REGISTRY
+from navix.rendering.registry import SPRITES_REGISTRY, PALETTE
 
 
 def test_rgb():
@@ -18,12 +18,12 @@ def test_rgb():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
-    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour="yellow")
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
         requires=jnp.asarray((0, 0)),
         open=jnp.asarray((False, True)),
-        colour="yellow",
+        colour=PALETTE.YELLOW[None],
     )
 
     entities = {
@@ -72,16 +72,27 @@ def test_rgb():
 
     keys = state.get_keys()
     key_tile = get_tile(keys.position[0])
-    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY, keys.colour]), key_tile
+    colour = keys.colour[0]
+    assert jnp.array_equal(
+        key_tile, sprites_registry[Entities.KEY][colour]
+    ), key_tile
 
     doors = state.get_doors()
-    door_tile = get_tile(doors.position[0])
-    open = jnp.asarray(doors.open[0], dtype=jnp.int32)
-    assert jnp.array_equal(door_tile, sprites_registry[Entities.DOOR, doors.colour][open]), door_tile
+    door = doors[0]
+    door_tile = get_tile(door.position)
+    colour = door.colour
+    idx = jnp.asarray(door.open + 2 * door.locked, dtype=jnp.int32)
+    assert jnp.array_equal(
+        door_tile, sprites_registry[Entities.DOOR][colour, idx]
+    ), door_tile
 
-    door_tile = get_tile(doors.position[1])
-    open = jnp.asarray(doors.open[1], dtype=jnp.int32)
-    assert jnp.array_equal(door_tile, sprites_registry[Entities.DOOR, doors.colour][open]), door_tile
+    door = doors[1]
+    door_tile = get_tile(door.position)
+    colour = door.colour
+    idx = jnp.asarray(door.open + 2 * door.locked, dtype=jnp.int32)
+    assert jnp.array_equal(
+        door_tile, sprites_registry[Entities.DOOR][colour, idx]
+    ), door_tile
 
     return
 
@@ -96,12 +107,12 @@ def test_categorical_first_person():
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
     goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
-    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour="yellow")
+    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
         requires=jnp.asarray((0, 0)),
         open=jnp.asarray((False, True)),
-        colour="yellow",
+        colour=PALETTE.YELLOW,
     )
     entities = {
         Entities.PLAYER: players[None],
@@ -123,5 +134,5 @@ def test_categorical_first_person():
 
 if __name__ == "__main__":
     test_rgb()
-    test_categorical_first_person()
+    # test_categorical_first_person()
     # jax.jit(test_categorical_first_person)()

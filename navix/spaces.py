@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 
 from jax import Array
-from jax.core import ShapedArray, Shape
+from jax.core import ShapedArray
 
 Shape = Sequence[Union[int, Any]]
 
