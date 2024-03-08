@@ -9,6 +9,7 @@ setuptools_scm
 pytest
 absl-py
 # compute libraries
+pillow
 numpy
 jax
 chex
