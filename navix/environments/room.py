@@ -24,18 +24,20 @@ from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
+from flax import struct
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, State
 from ..grid import random_positions, random_directions, room
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
+from .registry import register_env
 
 
 class Room(Environment):
-    def reset(
-        self, key: Array, cache: Union[RenderingCache, None] = None
-    ) -> Timestep:
+    random_goal: bool = struct.field(pytree_node=False, default=False)
+
+    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
@@ -73,3 +75,41 @@ class Room(Environment):
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
         )
+
+
+register_env(
+    "Navix-Empty-5x5-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_goal=False),
+)
+register_env(
+    "Navix-Empty-6x6-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_goal=False),
+)
+register_env(
+    "Navix-Empty-8x8-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_goal=False),
+)
+register_env(
+    "Navix-Empty-16x16-v0",
+    lambda *args, **kwargs: Room(
+        *args, **kwargs, height=16, width=16, random_goal=False
+    ),
+)
+register_env(
+    "Navix-Empty-Random-5x5-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_goal=True),
+)
+register_env(
+    "Navix-Empty-Random-6x6-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_goal=True),
+)
+register_env(
+    "Navix-Empty-Random-8x8-v0",
+    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_goal=True),
+)
+register_env(
+    "Navix-Empty-Random-16x16-v0",
+    lambda *args, **kwargs: Room(
+        *args, **kwargs, height=16, width=16, random_goal=True
+    ),
+)

@@ -1,7 +1,8 @@
+from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
-from typing import Union
+from flax import struct
 
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
@@ -10,10 +11,13 @@ from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
 from ..grid import mask_by_coordinates, room, random_positions, random_directions
+from .registry import register_env
 
 
 class KeyDoor(Environment):
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
+    random_goal: bool = struct.field(pytree_node=False, default=False)
+
+    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (
             self.height > 3
@@ -101,3 +105,53 @@ class KeyDoor(Environment):
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
         )
+
+
+register_env(
+    "MiniGrid-DoorKey-5x5-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=5, width=5, random_goal=False
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-6x6-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=6, width=6, random_goal=False
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-8x8-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=8, width=8, random_goal=False
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-16x16-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=16, width=16, random_goal=False
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-Random-5x5-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=5, width=5, random_goal=True
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-Random-6x6-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=6, width=6, random_goal=True
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-Random-8x8-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=8, width=8, random_goal=True
+    ),
+)
+register_env(
+    "MiniGrid-DoorKey-Random-16x16-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=16, width=16, random_goal=True
+    ),
+)

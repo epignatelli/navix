@@ -65,7 +65,7 @@ class Environment(struct.PyTreeNode):
     height: int = struct.field(pytree_node=False)
     width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
-    gamma: float = struct.field(pytree_node=False, default=1.0)
+    gamma: float = struct.field(pytree_node=False, default=0.99)
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
