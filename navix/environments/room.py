@@ -35,7 +35,7 @@ from .registry import register_env
 
 
 class Room(Environment):
-    random_goal: bool = struct.field(pytree_node=False, default=False)
+    random_start: bool = struct.field(pytree_node=False, default=False)
 
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
@@ -43,8 +43,12 @@ class Room(Environment):
         # map
         grid = room(height=self.height, width=self.width)
 
-        # player
-        player_pos, goal_pos = random_positions(k1, grid, n=2)
+        # goal and player
+        if self.random_start:
+            player_pos, goal_pos = random_positions(k1, grid, n=2)
+        else:
+            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
+            player_pos = random_positions(k1, grid, n=1, exclude=goal_pos)
         direction = random_directions(k2, n=1)
         player = Player(
             position=player_pos,
@@ -79,37 +83,37 @@ class Room(Environment):
 
 register_env(
     "Navix-Empty-5x5-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_goal=False),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_start=False),
 )
 register_env(
     "Navix-Empty-6x6-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_goal=False),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_start=False),
 )
 register_env(
     "Navix-Empty-8x8-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_goal=False),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_start=False),
 )
 register_env(
     "Navix-Empty-16x16-v0",
     lambda *args, **kwargs: Room(
-        *args, **kwargs, height=16, width=16, random_goal=False
+        *args, **kwargs, height=16, width=16, random_start=False
     ),
 )
 register_env(
     "Navix-Empty-Random-5x5-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_goal=True),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_start=True),
 )
 register_env(
     "Navix-Empty-Random-6x6-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_goal=True),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_start=True),
 )
 register_env(
     "Navix-Empty-Random-8x8-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_goal=True),
+    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_start=True),
 )
 register_env(
     "Navix-Empty-Random-16x16-v0",
     lambda *args, **kwargs: Room(
-        *args, **kwargs, height=16, width=16, random_goal=True
+        *args, **kwargs, height=16, width=16, random_start=True
     ),
 )

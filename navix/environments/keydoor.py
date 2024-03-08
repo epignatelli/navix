@@ -15,7 +15,7 @@ from .registry import register_env
 
 
 class KeyDoor(Environment):
-    random_goal: bool = struct.field(pytree_node=False, default=False)
+    random_start: bool = struct.field(pytree_node=False, default=False)
 
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
@@ -63,22 +63,25 @@ class KeyDoor(Environment):
         )
         second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
 
-        # spawn player
-        player_pos = random_positions(k1, first_room)
-        player_dir = random_directions(k2)
+        # set player and goal pos
+        if self.random_start:
+            player_pos = random_positions(k1, first_room)
+            player_dir = random_directions(k2)
+            goal_pos = random_positions(k2, second_room)
+        else:
+            player_pos = jnp.asarray([1, 1])
+            player_dir = jnp.asarray(0)
+            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
+
+        # spawn goal and player
         player = Player(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
+        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
         keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
-
-        # mask the second room
-
-        # spawn goal
-        goal_pos = random_positions(k2, second_room)
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
@@ -110,48 +113,48 @@ class KeyDoor(Environment):
 register_env(
     "MiniGrid-DoorKey-5x5-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=5, width=5, random_goal=False
+        *args, **kwargs, height=5, width=5, random_start=False
     ),
 )
 register_env(
     "MiniGrid-DoorKey-6x6-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=6, width=6, random_goal=False
+        *args, **kwargs, height=6, width=6, random_start=False
     ),
 )
 register_env(
     "MiniGrid-DoorKey-8x8-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=8, width=8, random_goal=False
+        *args, **kwargs, height=8, width=8, random_start=False
     ),
 )
 register_env(
     "MiniGrid-DoorKey-16x16-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=16, width=16, random_goal=False
+        *args, **kwargs, height=16, width=16, random_start=False
     ),
 )
 register_env(
     "MiniGrid-DoorKey-Random-5x5-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=5, width=5, random_goal=True
+        *args, **kwargs, height=5, width=5, random_start=True
     ),
 )
 register_env(
     "MiniGrid-DoorKey-Random-6x6-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=6, width=6, random_goal=True
+        *args, **kwargs, height=6, width=6, random_start=True
     ),
 )
 register_env(
     "MiniGrid-DoorKey-Random-8x8-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=8, width=8, random_goal=True
+        *args, **kwargs, height=8, width=8, random_start=True
     ),
 )
 register_env(
     "MiniGrid-DoorKey-Random-16x16-v0",
     lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=16, width=16, random_goal=True
+        *args, **kwargs, height=16, width=16, random_start=True
     ),
 )
