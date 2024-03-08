@@ -22,7 +22,6 @@ from . import (
     actions,
     components,
     entities,
-    graphics,
     grid,
     observations,
     tasks,
@@ -30,4 +29,5 @@ from . import (
     terminations,
     config,
     spaces,
+    rendering
 )

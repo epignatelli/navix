@@ -4,6 +4,7 @@ import navix as nx
 
 import gymnasium as gym
 import minigrid
+from minigrid.wrappers import ImgObsWrapper
 import random
 import time
 
@@ -11,7 +12,7 @@ from timeit import timeit
 
 
 N_TIMEIT_LOOPS = 5
-N_TIMESTEPS = 1_000
+N_TIMESTEPS = 10
 N_SEEDS = 10_000
 
 
@@ -21,24 +22,27 @@ def profile_navix(seed):
     timestep = env.reset(key)
     actions = jax.random.randint(key, (N_TIMESTEPS,), 0, 6)
 
-    timestep, _ = jax.lax.while_loop(
-        lambda x: x[1] < N_TIMESTEPS,
-        lambda x: (env.step(x[0], actions[x[1]]), x[1] + 1),
-        (timestep, jnp.asarray(0)),
-    )
+    # for loop
+    for i in range(N_TIMESTEPS):
+        timestep = env.step(timestep, actions[i])
 
     return timestep
 
 
 def profile_minigrid(seed):
-    env = gym.make("MiniGrid-Empty-16x16-v0", render_mode=None)
+    num_envs = N_SEEDS // 1000
+    env = gym.vector.make(
+        "MiniGrid-Empty-16x16-v0",
+        wrappers=ImgObsWrapper,
+        num_envs=num_envs,
+        render_mode=None,
+        asynchronous=True,
+    )
     observation, info = env.reset(seed=42)
     for _ in range(N_TIMESTEPS):
         action = random.randint(0, 4)
-        observation, reward, terminated, truncated, info = env.step(action)
+        timestep = env.step([action] * num_envs)
 
-        if terminated or truncated:
-            observation, info = env.reset()
     env.close()
     return observation
 
@@ -66,6 +70,10 @@ if __name__ == "__main__":
     print(res_navix)
 
     # profile minigrid
-    print("Profiling minigrid, N_SEEDS = 1, N_TIMESTEPS = {}".format(N_TIMESTEPS))
+    print(
+        "Profiling minigrid, N_SEEDS = {}, N_TIMESTEPS = {}".format(
+            N_TIMESTEPS, N_SEEDS // 1000
+        )
+    )
     res_minigrid = timeit(lambda: profile_minigrid(0), number=N_TIMEIT_LOOPS)
     print(res_minigrid)

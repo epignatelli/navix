@@ -22,13 +22,12 @@ import abc
 from typing import Any, Callable, Dict
 import jax
 import jax.numpy as jnp
-from jax.random import KeyArray
 from jax import Array
 from flax import struct
 
 
 from .. import tasks, terminations, observations
-from ..graphics import RenderingCache, TILE_SIZE
+from ..rendering.cache import RenderingCache, TILE_SIZE
 from ..entities import State
 from ..actions import ACTIONS
 from ..spaces import Space, Discrete, Continuous
@@ -111,7 +110,7 @@ class Environment(struct.PyTreeNode):
         return Discrete(len(ACTIONS))
 
     @abc.abstractmethod
-    def reset(self, key: KeyArray, cache: RenderingCache | None = None) -> Timestep:
+    def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
         raise NotImplementedError()
 
     def _step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:

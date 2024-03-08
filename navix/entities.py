@@ -6,11 +6,12 @@ import jax
 from jax import Array
 import jax.numpy as jnp
 from flax import struct
-from jax.random import KeyArray
+
 
 from .components import (
     Positionable,
     Directional,
+    HasColour,
     HasTag,
     Stochastic,
     Openable,
@@ -18,7 +19,8 @@ from .components import (
     Holder,
     HasSprite,
 )
-from .graphics import RenderingCache, SPRITES_REGISTRY
+from .rendering.cache import RenderingCache
+from .rendering.registry import PALETTE, SPRITES_REGISTRY
 from .config import config
 
 T = TypeVar("T", bound="Entity")
@@ -65,9 +67,17 @@ class Entity(Positionable, HasTag, HasSprite):
         return jax.tree_util.tree_map(lambda x: x[idx], self)
 
     @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
     def shape(self) -> Tuple[int, ...]:
         """The batch shape of the entity"""
-        return self.position.shape[: self.position.ndim - 1]
+        return self.position.shape[:-1]
+
+    @property
+    def ndim(self) -> int:
+        return self.position.ndim - 1
 
     @property
     def walkable(self) -> Array:
@@ -175,7 +185,7 @@ class Goal(Entity, Stochastic):
         return jnp.broadcast_to(jnp.asarray(3), self.shape)
 
 
-class Key(Entity, Pickable):
+class Key(Entity, Pickable, HasColour):
     """Pickable items are world objects that can be picked up by the player.
     Examples of pickable items are keys, coins, etc."""
 
@@ -183,9 +193,10 @@ class Key(Entity, Pickable):
     def create(
         cls,
         position: Array,
+        colour: Array,
         id: Array,
     ) -> Key:
-        return cls(position=position, id=id)
+        return cls(position=position, id=id, colour=colour)
 
     @property
     def walkable(self) -> Array:
@@ -197,7 +208,7 @@ class Key(Entity, Pickable):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.KEY]
+        sprite = SPRITES_REGISTRY[Entities.KEY][self.colour]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]
@@ -211,7 +222,7 @@ class Key(Entity, Pickable):
         return jnp.broadcast_to(jnp.asarray(4), self.shape)
 
 
-class Door(Entity, Directional, Openable):
+class Door(Entity, Openable, HasColour):
     """Consumable items are world objects that can be consumed by the player.
     Consuming an item requires a tool (e.g. a key to open a door).
     A tool is an id (int) of another item, specified in the `requires` field (-1 if no tool is required).
@@ -224,11 +235,16 @@ class Door(Entity, Directional, Openable):
     def create(
         cls,
         position: Array,
-        direction: Array,
         requires: Array,
+        colour: Array,
         open: Array,
     ) -> Door:
-        return cls(position=position, direction=direction, requires=requires, open=open)
+        return cls(
+            position=position,
+            requires=requires,
+            open=open,
+            colour=colour,
+        )
 
     @property
     def walkable(self) -> Array:
@@ -241,7 +257,7 @@ class Door(Entity, Directional, Openable):
     @property
     def sprite(self) -> Array:
         sprite = SPRITES_REGISTRY[Entities.DOOR][
-            self.direction, jnp.asarray(self.open, dtype=jnp.int32)
+            self.colour, jnp.asarray(self.open + 2 * self.locked, dtype=jnp.int32)
         ]
         if sprite.ndim == 3:
             # batch it
@@ -255,11 +271,15 @@ class Door(Entity, Directional, Openable):
     def tag(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(5), self.shape)
 
+    @property
+    def locked(self) -> Array:
+        return self.requires != jnp.asarray(-1)
+
 
 class State(struct.PyTreeNode):
     """The Markovian state of the environment"""
 
-    key: KeyArray
+    key: Array
     """The random number generator state"""
     grid: Array
     """The base map of the environment that remains constant throughout the training"""

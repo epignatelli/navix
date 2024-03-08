@@ -24,7 +24,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from . import graphics
+from .rendering.cache import TILE_SIZE, unflatten_patches
 from .components import DISCARD_PILE_IDX
 from .entities import State
 from .grid import align, idx_from_coordinates, crop, view_cone
@@ -92,10 +92,10 @@ def rgb(
     patches = patches[:DISCARD_PILE_IDX]
     # unflatten patches to reconstruct the image
     image_size = (
-        state.grid.shape[0] * graphics.TILE_SIZE,
-        state.grid.shape[1] * graphics.TILE_SIZE,
+        state.grid.shape[0] * TILE_SIZE,
+        state.grid.shape[1] * TILE_SIZE,
     )
-    image = graphics.unflatten_patches(patches, image_size)
+    image = unflatten_patches(patches, image_size)
     return image
 
 
@@ -104,8 +104,8 @@ def rgb_first_person(
 ) -> Array:
     # calculate final image size
     image_size = (
-        state.grid.shape[0] * graphics.TILE_SIZE,
-        state.grid.shape[1] * graphics.TILE_SIZE,
+        state.grid.shape[0] * TILE_SIZE,
+        state.grid.shape[1] * TILE_SIZE,
     )
 
     # get agent's view

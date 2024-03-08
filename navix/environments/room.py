@@ -23,18 +23,18 @@ from typing import Union
 
 import jax
 import jax.numpy as jnp
-from jax.random import KeyArray
+from jax import Array
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, State
 from ..grid import random_positions, random_directions, room
-from ..graphics import RenderingCache
+from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
 
 
 class Room(Environment):
     def reset(
-        self, key: KeyArray, cache: Union[RenderingCache, None] = None
+        self, key: Array, cache: Union[RenderingCache, None] = None
     ) -> Timestep:
         key, k1, k2 = jax.random.split(key, 3)
 

@@ -1,10 +1,11 @@
 import jax
 import jax.numpy as jnp
-from jax.random import KeyArray
+from jax import Array
 from typing import Union
 
 from ..components import EMPTY_POCKET_ID
-from ..graphics import RenderingCache
+from ..rendering.cache import RenderingCache
+from ..rendering.registry import PALETTE
 from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
@@ -12,7 +13,7 @@ from ..grid import mask_by_coordinates, room, random_positions, random_direction
 
 
 class KeyDoor(Environment):
-    def reset(self, key: KeyArray, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
+    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
         # check minimum height and width
         assert (
             self.height > 3
@@ -34,8 +35,8 @@ class KeyDoor(Environment):
         doors = Door(
             position=door_pos,
             requires=jnp.asarray(3),
-            direction=jnp.asarray(0),
             open=jnp.asarray(False),
+            colour=PALETTE.YELLOW,
         )
 
         # wall positions
@@ -67,7 +68,7 @@ class KeyDoor(Environment):
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key(position=key_pos, id=jnp.asarray(3))
+        keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
 
         # mask the second room
 

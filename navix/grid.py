@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
-from jax.random import KeyArray
 from jax import Array
 
 
@@ -32,7 +31,7 @@ Coordinates = Tuple[Array, Array]
 
 
 def coordinates(grid: Array) -> Coordinates:
-    return tuple(jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]])
+    return tuple(jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]])  # type: ignore
 
 
 def idx_from_coordinates(grid: Array, coordinates: Array):
@@ -110,7 +109,7 @@ def align(patch: Array, current_direction: Array, desired_direction: Array) -> A
 
 
 def random_positions(
-    key: KeyArray, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
+    key: Array, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
 ) -> Array:
     probs = grid.reshape(-1)
     indices = idx_from_coordinates(grid, exclude)
@@ -120,7 +119,7 @@ def random_positions(
     return position.squeeze()
 
 
-def random_directions(key: KeyArray, n=1) -> Array:
+def random_directions(key: Array, n=1) -> Array:
     return jax.random.randint(key, (n,), 0, 4).squeeze()
 
 
@@ -141,7 +140,7 @@ def room(height: int, width: int):
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
 
-def two_rooms(height: int, width: int, key: KeyArray) -> Tuple[Array, Array]:
+def two_rooms(height: int, width: int, key: Array) -> Tuple[Array, Array]:
     """Two rooms separated by a vertical wall at `width // 2`"""
     # create room
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
