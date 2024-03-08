@@ -46,10 +46,11 @@ class Room(Environment):
         # goal and player
         if self.random_start:
             player_pos, goal_pos = random_positions(k1, grid, n=2)
+            direction = random_directions(k2, n=1)
         else:
             goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-            player_pos = random_positions(k1, grid, n=1, exclude=goal_pos)
-        direction = random_directions(k2, n=1)
+            player_pos = jnp.asarray([1, 1])
+            direction = jnp.asarray(0)
         player = Player(
             position=player_pos,
             direction=direction,
