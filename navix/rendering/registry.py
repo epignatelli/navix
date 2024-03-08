@@ -30,56 +30,27 @@ def load_sprite(name: str) -> Array:
     return resized
 
 
-class Colours:
-    RED: str = "red"
-    GREEN: str = "green"
-    BLUE: str = "blue"
-    PURPLE: str = "purple"
-    YELLOW: str = "yellow"
-    GREY: str = "grey"
+class PALETTE:
+    RED: Array = jnp.asarray(0)
+    GREEN: Array = jnp.asarray(1)
+    BLUE: Array = jnp.asarray(2)
+    PURPLE: Array = jnp.asarray(3)
+    YELLOW: Array = jnp.asarray(4)
+    GREY: Array = jnp.asarray(5)
 
+    @classmethod
+    def as_string(cls):
+        return ["red", "green", "blue", "purple", "yellow", "grey"]
 
-COLOURS = [
-    Colours.RED,
-    Colours.GREEN,
-    Colours.BLUE,
-    Colours.PURPLE,
-    Colours.YELLOW,
-    Colours.GREY,
-]
+    @classmethod
+    def as_array(cls):
+        return [cls.RED, cls.GREEN, cls.BLUE, cls.PURPLE, cls.YELLOW, cls.GREY]
 
 
 class SpritesRegistry:
     def __init__(self):
-        self._registry = {}
+        self.registry = {}
         self.build_registry()
-
-    def __getitem__(self, key: str | Tuple[str, str]) -> Array:
-        return self.registry[key]
-
-    @property
-    def registry(self) -> Dict[str | Tuple[str, str], Array]:
-        # lazy init
-        if self._registry is None:
-            self.build_registry()
-        return self._registry
-
-    def get(
-        self,
-        name: str,
-        direction: Array | None = None,
-        closed: Array | None = None,
-        colour: str | None = None,
-    ) -> Array:
-        key = name
-        if colour is not None:
-            key = (name, colour)
-        sprite = self._registry[key]
-        if direction is not None:
-            sprite = sprite[direction]
-        if closed is not None:
-            sprite = sprite[closed]
-        return sprite
 
     def build_registry(self):
         """Populates the sprites registry for all entities."""
@@ -91,20 +62,22 @@ class SpritesRegistry:
         self.set_door_sprite()
 
     def set_wall_sprite(self):
-        self._registry["wall"] = load_sprite("wall")
+        self.registry["wall"] = load_sprite("wall")
 
     def set_floor_sprite(self):
-        self._registry["floor"] = load_sprite("floor")
+        self.registry["floor"] = load_sprite("floor")
 
     def set_goal_sprite(self):
-        self._registry["goal"] = load_sprite("goal")
+        self.registry["goal"] = load_sprite("goal")
 
     def set_key_sprite(self):
-        for colour in COLOURS:
-            self._registry["key", colour] = load_sprite("key" + f"_{colour}")
+        keys_coloured = [
+            load_sprite("key" + f"_{colour}") for colour in PALETTE.as_string()
+        ]
+        self.registry["key"] = jnp.stack(keys_coloured, axis=0)
 
     def set_player_sprite(self):
-        self._registry["player"] = jnp.stack(
+        self.registry["player"] = jnp.stack(
             [
                 load_sprite("player_east"),
                 load_sprite("player_south"),
@@ -114,20 +87,15 @@ class SpritesRegistry:
         )
 
     def set_door_sprite(self):
-        for colour in COLOURS:
-            door_closed_sprite = load_sprite("door" + "_closed" + f"_{colour}")
-            door_open_sprite = load_sprite("door" + "_open" + f"_{colour}")
-            door_locked_sprite = load_sprite("door" + "_locked" + f"_{colour}")
-
-            # cannot use tuples here, see https://github.com/google/jax/issues/16559
-            door = jnp.zeros((3, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8)
-
-            door = door.at[0].set(door_closed_sprite)
-            door = door.at[1].set(door_open_sprite)
-            door = door.at[2].set(door_locked_sprite)
-
-            self._registry["door", colour] = door
+        door = jnp.zeros(
+            (len(PALETTE.as_string()), 3, TILE_SIZE, TILE_SIZE, 3), dtype=jnp.uint8
+        )
+        for c_idx, colour in enumerate(PALETTE.as_string()):
+            for s_idx, state in enumerate(["closed", "open", "locked"]):
+                sprite = load_sprite("door" + f"_{state}" + f"_{colour}")
+                door = door.at[c_idx, s_idx].set(sprite)
+        self.registry["door"] = door
 
 
 # initialise sprites registry
-SPRITES_REGISTRY = SpritesRegistry()
+SPRITES_REGISTRY = SpritesRegistry().registry

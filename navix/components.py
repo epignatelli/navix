@@ -55,8 +55,8 @@ class Directional(Component):
 
 
 class HasColour(Component):
-    colour: str = struct.field(pytree_node=False)
-    """The colour of the object for rendering"""
+    colour: Array = field(shape=())
+    """The colour of the object for rendering. """
 
 
 class Stochastic(Component):

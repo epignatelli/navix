@@ -1,0 +1,9 @@
+pygame 2.5.0 (SDL 2.28.0, Python 3.10.12)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Profiling navix, N_SEEDS = 10000, N_TIMESTEPS = 1000
+	Compiling...
+	Compiled in 1.09s
+	Running ...
+2.770467633381486
+Profiling minigrid, N_SEEDS = 1, N_TIMESTEPS = 1000
+0.7811506940051913

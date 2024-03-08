@@ -20,7 +20,7 @@ from .components import (
     HasSprite,
 )
 from .rendering.cache import RenderingCache
-from .rendering.registry import Colours, SPRITES_REGISTRY
+from .rendering.registry import PALETTE, SPRITES_REGISTRY
 from .config import config
 
 T = TypeVar("T", bound="Entity")
@@ -193,7 +193,7 @@ class Key(Entity, Pickable, HasColour):
     def create(
         cls,
         position: Array,
-        colour: str,
+        colour: Array,
         id: Array,
     ) -> Key:
         return cls(position=position, id=id, colour=colour)
@@ -208,7 +208,7 @@ class Key(Entity, Pickable, HasColour):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.KEY, self.colour]
+        sprite = SPRITES_REGISTRY[Entities.KEY][self.colour]
         if sprite.ndim == 3:
             # batch it
             sprite = sprite[None]
@@ -236,7 +236,7 @@ class Door(Entity, Openable, HasColour):
         cls,
         position: Array,
         requires: Array,
-        colour: str,
+        colour: Array,
         open: Array,
     ) -> Door:
         return cls(
@@ -256,8 +256,8 @@ class Door(Entity, Openable, HasColour):
 
     @property
     def sprite(self) -> Array:
-        sprite = SPRITES_REGISTRY[Entities.DOOR, self.colour][
-            jnp.asarray(self.open + 2 * self.locked, dtype=jnp.int32)
+        sprite = SPRITES_REGISTRY[Entities.DOOR][
+            self.colour, jnp.asarray(self.open + 2 * self.locked, dtype=jnp.int32)
         ]
         if sprite.ndim == 3:
             # batch it

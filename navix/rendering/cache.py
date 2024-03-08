@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Dict, Tuple
 
 import jax
 from jax import Array
@@ -31,7 +31,7 @@ class RenderingCache(struct.PyTreeNode):
 
 
 def render_background(
-    grid: Array, sprites_registry: SpritesRegistry = SPRITES_REGISTRY
+    grid: Array, sprites_registry: Dict[str, Array] = SPRITES_REGISTRY
 ) -> Array:
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
@@ -44,8 +44,8 @@ def render_background(
 
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
     # index by [entity_type, direction, open/closed, y, x, channel]
-    wall_tile = tile_grid(grid, sprites_registry.get("wall"))
-    floor_tile = tile_grid(grid, sprites_registry.get("floor"))
+    wall_tile = tile_grid(grid, sprites_registry["wall"])
+    floor_tile = tile_grid(grid, sprites_registry["floor"])
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 

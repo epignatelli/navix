@@ -5,7 +5,7 @@ from typing import Union
 
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
-from ..rendering.registry import Colours
+from ..rendering.registry import PALETTE
 from ..environments import Environment
 from ..entities import State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
@@ -36,7 +36,7 @@ class KeyDoor(Environment):
             position=door_pos,
             requires=jnp.asarray(3),
             open=jnp.asarray(False),
-            colour=Colours.YELLOW,
+            colour=PALETTE.YELLOW,
         )
 
         # wall positions
@@ -68,7 +68,7 @@ class KeyDoor(Environment):
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key(position=key_pos, id=jnp.asarray(3), colour=Colours.YELLOW)
+        keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
 
         # mask the second room
 
