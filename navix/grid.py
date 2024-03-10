@@ -135,7 +135,7 @@ def positions_equal(a: Array, b: Array) -> Array:
 
 
 def room(height: int, width: int):
-    """A grid of ids of size `width` x `height`"""
+    """A grid of ids of size `width` x `height`, including the sorrounding walls"""
     grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
     return jnp.pad(grid, 1, mode="constant", constant_values=-1)
 
@@ -150,6 +150,28 @@ def two_rooms(height: int, width: int, key: Array) -> Tuple[Array, Array]:
     wall_at = jax.random.randint(key, (), 2, width - 2)
     grid = grid.at[1:-1, wall_at].set(-1)
     return grid, wall_at
+
+
+def vertical_wall(grid: Array, row_idx: int, opening_col_idx: Array | None= None) -> Array:
+    rows = jnp.arange(1, grid.shape[0] - 1)
+    cols = jnp.asarray([row_idx] * (grid.shape[0] - 2))
+    positions = jnp.stack((rows, cols), axis=1)
+    if opening_col_idx is not None:
+        positions = jnp.delete(
+            positions, opening_col_idx - 1, axis=0, assume_unique_indices=True
+        )
+    return positions
+
+
+def horizontal_wall(grid: Array, col_idx: int, opening_row_idx: Array | None= None) -> Array:
+    rows = jnp.asarray([col_idx] * (grid.shape[1] - 2))
+    cols = jnp.arange(1, grid.shape[1] - 1)
+    positions = jnp.stack((rows, cols), axis=1)
+    if opening_row_idx is not None:
+        positions = jnp.delete(
+            positions, opening_row_idx - 1, axis=0, assume_unique_indices=True
+        )
+    return positions
 
 
 def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:

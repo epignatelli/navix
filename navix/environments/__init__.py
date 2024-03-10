@@ -24,3 +24,4 @@ from __future__ import annotations
 from .environment import Environment, Timestep
 from .room import Room
 from .keydoor import KeyDoor
+from .four_rooms import FourRooms
