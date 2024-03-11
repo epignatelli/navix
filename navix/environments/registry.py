@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Callable
 
 from jax import Array
@@ -6,11 +5,11 @@ from jax import Array
 from ..entities import State
 
 
-ENVS = {}
+ENVS_REGISTRY = {}
 
 
 def register_env(name: str, ctor: Callable):
-    ENVS[name] = ctor
+    ENVS_REGISTRY[name] = ctor
 
 
 def make(
@@ -26,7 +25,7 @@ def make(
             f"Environment {name} not yet implemented. Please open a feature request!\
             \nhttps://github.com/epignatelli/naxiv"
         )
-    ctor = ENVS[name]
+    ctor = ENVS_REGISTRY[name]
     return ctor(
         max_steps=max_steps,
         observation_fn=observation_fn,
@@ -63,9 +62,6 @@ NotImplementedEnvs = [
     "MiniGrid-GoToDoor-8x8-v0",
     "MiniGrid-GoToObject-6x6-N2-v0",
     "MiniGrid-GoToObject-8x8-N2-v0",
-    "MiniGrid-LavaGapS5-v0",
-    "MiniGrid-LavaGapS6-v0",
-    "MiniGrid-LavaGapS7-v0",
     "MiniGrid-LockedRoom-v0",
     "MiniGrid-MemoryS17Random-v0",
     "MiniGrid-MemoryS13Random-v0",

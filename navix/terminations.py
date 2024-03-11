@@ -20,10 +20,21 @@
 
 from __future__ import annotations
 
+from typing import Callable
 from jax import Array
 import jax.numpy as jnp
 from .entities import State
 from .grid import positions_equal
+
+
+def compose(
+    termination_fn_1: Callable,
+    termination_fn_2: Callable,
+    operator: Callable = jnp.logical_or,
+) -> Callable:
+    return lambda *args, **kwargs: operator(
+        termination_fn_1(*args, **kwargs), termination_fn_2(*args, **kwargs)
+    )
 
 
 def check_truncation(terminated: Array, truncated: Array) -> Array:
@@ -37,3 +48,11 @@ def on_navigation_completion(prev_state: State, action: Array, state: State) -> 
 
     reached = positions_equal(player.position, goals.position)
     return jnp.any(reached)
+
+
+def on_lava(prev_state: State, action: Array, state: State) -> Array:
+    player = state.get_player()
+    lavas = state.get_lavas()
+
+    fall = positions_equal(player.position, lavas.position)
+    return jnp.any(fall)
