@@ -111,49 +111,49 @@ class KeyDoor(Environment):
 
 
 register_env(
-    "MiniGrid-DoorKey-5x5-v0",
+    "Navix-DoorKey-5x5-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=5, width=5, random_start=False
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-6x6-v0",
+    "Navix-DoorKey-6x6-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=6, width=6, random_start=False
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-8x8-v0",
+    "Navix-DoorKey-8x8-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=8, width=8, random_start=False
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-16x16-v0",
+    "Navix-DoorKey-16x16-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=16, width=16, random_start=False
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-Random-5x5-v0",
+    "Navix-DoorKey-Random-5x5-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=5, width=5, random_start=True
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-Random-6x6-v0",
+    "Navix-DoorKey-Random-6x6-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=6, width=6, random_start=True
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-Random-8x8-v0",
+    "Navix-DoorKey-Random-8x8-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=8, width=8, random_start=True
     ),
 )
 register_env(
-    "MiniGrid-DoorKey-Random-16x16-v0",
+    "Navix-DoorKey-Random-16x16-v0",
     lambda *args, **kwargs: KeyDoor(
         *args, **kwargs, height=16, width=16, random_start=True
     ),

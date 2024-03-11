@@ -84,37 +84,43 @@ class Room(Environment):
 
 register_env(
     "Navix-Empty-5x5-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_start=False),
+    lambda *args, **kwargs: Room(
+        height=5, width=5, random_start=False, *args, **kwargs
+    ),
 )
 register_env(
     "Navix-Empty-6x6-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_start=False),
+    lambda *args, **kwargs: Room(
+        height=6, width=6, random_start=False, *args, **kwargs
+    ),
 )
 register_env(
     "Navix-Empty-8x8-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_start=False),
+    lambda *args, **kwargs: Room(
+        height=8, width=8, random_start=False, *args, **kwargs
+    ),
 )
 register_env(
     "Navix-Empty-16x16-v0",
     lambda *args, **kwargs: Room(
-        *args, **kwargs, height=16, width=16, random_start=False
+        height=16, width=16, random_start=False, *args, **kwargs
     ),
 )
 register_env(
     "Navix-Empty-Random-5x5-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=5, width=5, random_start=True),
+    lambda *args, **kwargs: Room(height=5, width=5, random_start=True, *args, **kwargs),
 )
 register_env(
     "Navix-Empty-Random-6x6-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=6, width=6, random_start=True),
+    lambda *args, **kwargs: Room(height=6, width=6, random_start=True, *args, **kwargs),
 )
 register_env(
     "Navix-Empty-Random-8x8-v0",
-    lambda *args, **kwargs: Room(*args, **kwargs, height=8, width=8, random_start=True),
+    lambda *args, **kwargs: Room(height=8, width=8, random_start=True, *args, **kwargs),
 )
 register_env(
     "Navix-Empty-Random-16x16-v0",
     lambda *args, **kwargs: Room(
-        *args, **kwargs, height=16, width=16, random_start=True
+        height=16, width=16, random_start=True, *args, **kwargs
     ),
 )

@@ -15,6 +15,7 @@ def register_env(name: str, ctor: Callable):
 
 def make(
     name: str,
+    max_steps: int,
     observation_fn: Callable[[State], Array],
     reward_fn: Callable[[State, Array, State], Array],
     termination_fn: Callable[[State, Array, State], Array],
@@ -26,7 +27,13 @@ def make(
             \nhttps://github.com/epignatelli/naxiv"
         )
     ctor = ENVS[name]
-    return ctor(observation_fn, reward_fn, termination_fn, **kwargs)
+    return ctor(
+        max_steps=max_steps,
+        observation_fn=observation_fn,
+        reward_fn=reward_fn,
+        termination_fn=termination_fn,
+        **kwargs,
+    )
 
 
 NotImplementedEnvs = [
@@ -56,12 +63,6 @@ NotImplementedEnvs = [
     "MiniGrid-GoToDoor-8x8-v0",
     "MiniGrid-GoToObject-6x6-N2-v0",
     "MiniGrid-GoToObject-8x8-N2-v0",
-    "MiniGrid-KeyCorridorS3R1-v0",
-    "MiniGrid-KeyCorridorS3R2-v0",
-    "MiniGrid-KeyCorridorS3R3-v0",
-    "MiniGrid-KeyCorridorS4R3-v0",
-    "MiniGrid-KeyCorridorS5R3-v0",
-    "MiniGrid-KeyCorridorS6R3-v0",
     "MiniGrid-LavaGapS5-v0",
     "MiniGrid-LavaGapS6-v0",
     "MiniGrid-LavaGapS7-v0",

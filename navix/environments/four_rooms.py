@@ -104,12 +104,12 @@ class FourRooms(Environment):
 
 
 register_env(
-    "MiniGrid-FourRooms-v0",
+    "Navix-FourRooms-v0",
     lambda *args, **kwargs: FourRooms(*args, **kwargs, height=19, width=19),
 )
 
 
 register_env(
-    "MiniGrid-FourRooms-19x19-v0",
+    "Navix-FourRooms-19x19-v0",
     lambda *args, **kwargs: FourRooms(*args, **kwargs, height=19, width=19),
 )

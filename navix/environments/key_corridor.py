@@ -133,3 +133,29 @@ class KeyCorridor(Environment):
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
         )
+
+
+register_env(
+    "Navix-KeyCorridorS3R1-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=3, width=7),
+)
+register_env(
+    "Navix-KeyCorridorS3R2-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=5, width=7),
+)
+register_env(
+    "Navix-KeyCorridorS3R3-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=7, width=7),
+)
+register_env(
+    "Navix-KeyCorridorS4R3-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=10, width=10),
+)
+register_env(
+    "Navix-KeyCorridorS5R3-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=13, width=13),
+)
+register_env(
+    "Navix-KeyCorridorS6R3-v0",
+    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=16, width=16),
+)
