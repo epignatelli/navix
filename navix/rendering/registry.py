@@ -13,7 +13,7 @@ SPRITES_DIR = os.path.normpath(
     os.path.join(__file__, "..", "..", "..", "assets", "sprites")
 )
 MIN_TILE__SIZE = 8
-TILE_SIZE = 32
+TILE_SIZE = 16
 
 
 def load_sprite(name: str) -> Array:
@@ -26,8 +26,8 @@ def load_sprite(name: str) -> Array:
     path = os.path.join(SPRITES_DIR, f"{name}.png")
     image = Image.open(path)
     array = jnp.asarray(image)
-    resized = jax.image.resize(array, (TILE_SIZE, TILE_SIZE, 3), method="nearest")
-    return resized
+    resized = jax.image.resize(array, (TILE_SIZE, TILE_SIZE, 3), method="cubic")
+    return jnp.asarray(resized, dtype=jnp.uint8)
 
 
 class PALETTE:
