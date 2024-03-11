@@ -60,6 +60,9 @@ class SpritesRegistry:
         self.set_key_sprite()
         self.set_player_sprite()
         self.set_door_sprite()
+        self.set_lava_sprite()
+        self.set_ball_sprite()
+        self.set_box_sprite()
 
     def set_wall_sprite(self):
         self.registry["wall"] = load_sprite("wall")
@@ -95,6 +98,21 @@ class SpritesRegistry:
                 sprite = load_sprite("door" + f"_{state}" + f"_{colour}")
                 door = door.at[c_idx, s_idx].set(sprite)
         self.registry["door"] = door
+
+    def set_lava_sprite(self):
+        self.registry["lava"] = load_sprite("lava")
+
+    def set_ball_sprite(self):
+        ball_coloured = [
+            load_sprite("ball" + f"_{colour}") for colour in PALETTE.as_string()
+        ]
+        self.registry["ball"] = jnp.stack(ball_coloured, axis=0)
+
+    def set_box_sprite(self):
+        box_coloured = [
+            load_sprite("box" + f"_{colour}") for colour in PALETTE.as_string()
+        ]
+        self.registry["box"] = jnp.stack(box_coloured, axis=0)
 
 
 # initialise sprites registry

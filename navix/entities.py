@@ -33,6 +33,9 @@ class Entities(struct.PyTreeNode):
     GOAL: str = struct.field(pytree_node=False, default="goal")
     KEY: str = struct.field(pytree_node=False, default="key")
     DOOR: str = struct.field(pytree_node=False, default="door")
+    LAVA: str = struct.field(pytree_node=False, default="lava")
+    BALL: str = struct.field(pytree_node=False, default="ball")
+    BOX: str = struct.field(pytree_node=False, default="box")
 
 
 class Entity(Positionable, HasTag, HasSprite):
@@ -276,6 +279,112 @@ class Door(Entity, Openable, HasColour):
         return self.requires != jnp.asarray(-1)
 
 
+class Lava(Entity):
+    """Goals are entities that can be reached by the player"""
+
+    @classmethod
+    def create(
+        cls,
+        position: Array,
+    ) -> Lava:
+        return cls(position=position)
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
+
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.LAVA]
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (*self.shape, *sprite.shape[1:]))
+        return sprite
+
+    @property
+    def tag(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(6), self.shape)
+
+
+class Ball(Entity, HasColour, Stochastic):
+    """Goals are entities that can be reached by the player"""
+
+    @classmethod
+    def create(
+        cls,
+        position: Array,
+        colour: Array,
+        probability: Array,
+    ) -> Ball:
+        return cls(position=position, colour=colour, probability=probability)
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
+
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.BALL][self.colour]
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (*self.shape, *sprite.shape[1:]))
+        return sprite
+
+    @property
+    def tag(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(7), self.shape)
+
+
+class Box(Entity, HasColour, Holder):
+    """Goals are entities that can be reached by the player"""
+
+    @classmethod
+    def create(
+        cls,
+        position: Array,
+        colour: Array,
+        pocket: Array,
+    ) -> Box:
+        return cls(position=position, colour=colour, pocket=pocket)
+
+    @property
+    def walkable(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(False), self.shape)
+
+    @property
+    def transparent(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(True), self.shape)
+
+    @property
+    def sprite(self) -> Array:
+        sprite = SPRITES_REGISTRY[Entities.BOX][self.colour]
+        if sprite.ndim == 3:
+            # batch it
+            sprite = sprite[None]
+        # ensure same batch size
+        if sprite.shape[0] != self.position.shape[0]:
+            sprite = jnp.broadcast_to(sprite, (*self.shape, *sprite.shape[1:]))
+        return sprite
+
+    @property
+    def tag(self) -> Array:
+        return jnp.broadcast_to(jnp.asarray(8), self.shape)
+
+
 class State(struct.PyTreeNode):
     """The Markovian state of the environment"""
 
@@ -330,6 +439,23 @@ class State(struct.PyTreeNode):
 
     def set_doors(self, doors: Door) -> State:
         self.entities[Entities.DOOR] = doors
+        return self
+
+    def get_lavas(self) -> Lava:
+        return self.entities[Entities.LAVA]  # type: ignore
+
+    def get_balls(self) -> Ball:
+        return self.entities[Entities.BALL]  # type: ignore
+
+    def get_boxes(self) -> Ball:
+        return self.entities[Entities.BOX]  # type: ignore
+
+    def set_balls(self, balls: Ball) -> State:
+        self.entities[Entities.BALL] = balls
+        return self
+
+    def set_boxes(self, boxes: Box) -> State:
+        self.entities[Entities.BOX] = boxes
         return self
 
     def get_positions(self) -> Array:
