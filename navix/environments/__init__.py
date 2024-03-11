@@ -25,3 +25,4 @@ from .environment import Environment, Timestep
 from .room import Room
 from .keydoor import KeyDoor
 from .four_rooms import FourRooms
+from .key_corridor import KeyCorridor

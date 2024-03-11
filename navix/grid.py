@@ -19,12 +19,15 @@
 
 
 from __future__ import annotations
+from functools import partial
 
 
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, List, Tuple
 import jax
 import jax.numpy as jnp
 from jax import Array
+import jax.tree_util as jtu
+from flax import struct
 
 
 Coordinates = Tuple[Array, Array]
@@ -123,6 +126,10 @@ def random_directions(key: Array, n=1) -> Array:
     return jax.random.randint(key, (n,), 0, 4).squeeze()
 
 
+def random_colour(key: Array, n=1) -> Array:
+    return jax.random.randint(key, (n,), 0, 6).squeeze()
+
+
 def positions_equal(a: Array, b: Array) -> Array:
     if b.ndim == 1:
         b = b[None]
@@ -152,7 +159,9 @@ def two_rooms(height: int, width: int, key: Array) -> Tuple[Array, Array]:
     return grid, wall_at
 
 
-def vertical_wall(grid: Array, row_idx: int, opening_col_idx: Array | None= None) -> Array:
+def vertical_wall(
+    grid: Array, row_idx: int, opening_col_idx: Array | None = None
+) -> Array:
     rows = jnp.arange(1, grid.shape[0] - 1)
     cols = jnp.asarray([row_idx] * (grid.shape[0] - 2))
     positions = jnp.stack((rows, cols), axis=1)
@@ -163,7 +172,9 @@ def vertical_wall(grid: Array, row_idx: int, opening_col_idx: Array | None= None
     return positions
 
 
-def horizontal_wall(grid: Array, col_idx: int, opening_row_idx: Array | None= None) -> Array:
+def horizontal_wall(
+    grid: Array, col_idx: int, opening_row_idx: Array | None = None
+) -> Array:
     rows = jnp.asarray([col_idx] * (grid.shape[1] - 2))
     cols = jnp.arange(1, grid.shape[1] - 1)
     positions = jnp.stack((rows, cols), axis=1)
@@ -242,3 +253,68 @@ def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:
         grid.append(row)
 
     return jnp.asarray(grid, dtype=jnp.int32)
+
+
+class RoomsGrid(struct.PyTreeNode):
+    room_starts: Array  # shape (rows, cols)
+    room_size: Tuple[int, int]
+
+    @classmethod
+    def create(
+        cls, num_rows: int, num_cols: int, room_size: Tuple[int, int]
+    ) -> RoomsGrid:
+        # generate rooms grid
+        height = num_rows * (room_size[0] + 1)
+        width = num_cols * (room_size[1] + 1)
+        starts = jnp.mgrid[
+            : height: room_size[0] + 1,
+            : width: room_size[1] + 1,
+        ].transpose(1, 2, 0)
+        starts = jnp.asarray(starts, dtype=jnp.int32)
+        sizes = jnp.ones((num_rows, num_cols, 2)) * jnp.asarray(
+            [[[room_size]]]
+        )
+        sizes = jnp.asarray(sizes, dtype=jnp.int32)
+        return cls(starts, room_size)
+
+    def get_grid(self, occupied_positions: Array | None = None) -> Array:
+        room_size = self.room_size
+        num_rows, num_cols = self.room_starts.shape[:2]
+        grid = jnp.zeros(
+            (1 + num_rows * (room_size[0] + 1), 1 + num_cols * (room_size[1] + 1))
+        )
+        grid = grid.at[jnp.arange(num_rows + 1) * (room_size[0] + 1)].set(-1)
+        grid = grid.at[:, jnp.arange(num_cols + 1) * (room_size[1] + 1)].set(-1)
+
+        if occupied_positions is not None:
+            grid = grid.at[tuple(occupied_positions.T)].set(0)
+        return grid
+
+    def position_in_room(self, row: Array, col: Array, *, key: Array) -> Array:
+        k1, k2 = jax.random.split(key)
+        local_row = jax.random.randint(k1, (), minval=1, maxval=self.room_size[0])
+        local_col = jax.random.randint(k2, (), minval=1, maxval=self.room_size[1])
+        return jnp.asarray(local_row, local_col) + self.room_starts[row, col]
+
+    @partial(jax.jit, static_argnums=3)
+    def position_on_border(
+        self, row: Array, col: Array, side: int, *, key: Array
+    ) -> Array:
+        """Side is 0: west, 1: east, 2: north, 3: south (like padding)"""
+        starts = self.room_starts[row, col]
+        room_size = self.room_size
+        if side == 0:
+            idx = jax.random.randint(key, (), minval=1, maxval=room_size[0] + 1)
+            pos = (starts[0] + idx, starts[1])
+        elif side == 1:
+            idx = jax.random.randint(key, (), minval=1, maxval=room_size[0] + 1)
+            pos = (starts[0] + idx, starts[1] + room_size[1] + 1)
+        elif side == 2:
+            idx = jax.random.randint(key, (), minval=1, maxval=room_size[1] + 1)
+            pos = (starts[0], starts[1] + idx)
+        elif side == 3:
+            idx = jax.random.randint(key, (), minval=1, maxval=room_size[1] + 1)
+            pos = (starts[0] + room_size[0] + 1, starts[1] + idx)
+        else:
+            raise ValueError("Side should be less than 4 and greater than -1")
+        return jnp.asarray(pos)

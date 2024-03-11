@@ -24,7 +24,6 @@ from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
-from flax import struct
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, State, Wall
