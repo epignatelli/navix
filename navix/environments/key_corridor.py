@@ -11,7 +11,7 @@ from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..rendering.registry import PALETTE
 from ..environments import Environment
-from ..entities import State, Player, Key, Door, Goal, Wall
+from ..entities import Ball, State, Player, Key, Door, Goal, Wall
 from ..environments import Timestep
 from ..grid import (
     mask_by_coordinates,
@@ -32,7 +32,7 @@ class KeyCorridor(Environment):
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)
         room_size = (self.width - 3) // 3
-        k1, k2, k3, k4, k5 = jax.random.split(key, num=5)
+        k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
 
         # grid of rooms
         grid = RoomsGrid.create(n_rows, 3, (room_size, room_size))
@@ -57,7 +57,7 @@ class KeyCorridor(Environment):
         # ball
         ball_room_row = jax.random.randint(k3, (), minval=0, maxval=n_rows)
         ball_pos = grid.position_in_room(ball_room_row, jnp.asarray(2), key=k4)
-        ball = Goal.create(ball_pos, jnp.asarray(1.0))
+        ball = Ball.create(ball_pos, random_colour(k6), probability=jnp.asarray(0.0))
 
         # Doors
         doors = []
@@ -68,7 +68,7 @@ class KeyCorridor(Environment):
             requires, colour, open = jax.lax.cond(
                 jnp.array_equal(row, ball_room_row),
                 lambda: (key_id, key_colour, jnp.asarray(2)),
-                lambda: (jnp.asarray(-1), random_colour(k6), jnp.asarray(0)),
+                lambda: (jnp.asarray(-1), random_colour(k5), jnp.asarray(0)),
             )
             doors.append(
                 Door.create(
