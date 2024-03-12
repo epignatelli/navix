@@ -27,3 +27,4 @@ from .key_door import KeyDoor
 from .four_rooms import FourRooms
 from .key_corridor import KeyCorridor
 from .lava_gap import LavaGap
+from .crossings import Crossings
