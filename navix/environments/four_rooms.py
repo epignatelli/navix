@@ -43,7 +43,7 @@ class FourRooms(Environment):
 
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert self.height > 4, f"Insufficient height for room {self.height} < 4"
-        assert self.width > 4,  f"Insufficient width for room {self.width} < 4"
+        assert self.width > 4, f"Insufficient width for room {self.width} < 4"
         key, k1, k2 = jax.random.split(key, 3)
 
         # map
@@ -105,11 +105,5 @@ class FourRooms(Environment):
 
 register_env(
     "Navix-FourRooms-v0",
-    lambda *args, **kwargs: FourRooms(*args, **kwargs, height=19, width=19),
-)
-
-
-register_env(
-    "Navix-FourRooms-19x19-v0",
     lambda *args, **kwargs: FourRooms(*args, **kwargs, height=19, width=19),
 )
