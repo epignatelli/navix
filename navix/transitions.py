@@ -25,7 +25,7 @@ from jax import Array
 import jax
 import jax.numpy as jnp
 from .entities import State, Entities, Ball
-from .grid import translate
+from .grid import positions_equal, translate
 from .actions import _walkable
 
 
@@ -49,7 +49,7 @@ def update_balls(state: State) -> State:
     def update_one(position, key):
         direction = jax.random.randint(key, (), minval=0, maxval=4)
         new_position = translate(position, direction)
-        can_move = _walkable(state, new_position)
+        can_move = _can_move_there(state, new_position)
         return jnp.where(can_move, new_position, position)
 
     if Entities.BALL in state.entities:
@@ -60,3 +60,14 @@ def update_balls(state: State) -> State:
         state.entities[Entities.BALL] = balls
         state = state.replace(key=keys[0])
     return state
+
+
+def _can_move_there(state: State, position: Array) -> Array:
+    # according to the grid
+    walkable = jnp.equal(state.grid[tuple(position)], 0)
+
+    # according to entities
+    for k in state.entities:
+        obstructs = positions_equal(state.entities[k].position, position)
+        walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
+    return jnp.asarray(walkable, dtype=jnp.bool_)
