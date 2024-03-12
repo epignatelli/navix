@@ -40,7 +40,7 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
     return jnp.clip(result, 0, 2)
 
 
-def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
+def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
     return state.events.goal_reached
 
 
@@ -50,3 +50,6 @@ def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
 
 def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
     return state.events.ball_hit
+
+
+DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)

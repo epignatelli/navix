@@ -28,14 +28,13 @@ from jax import Array
 from .entities import State
 
 
-def compose(*fns: Callable[[State, Array, State], Array]):
-    def composed(prev_state: State, action: Array, state: State) -> Array:
-        reward = jnp.asarray(0.0)
-        for fn in fns:
-            reward += fn(prev_state, action, state)
-        return reward
-
-    return composed
+def compose(
+    *reward_functions: Callable[[State, Array, State], Array],
+    operator: Callable = jnp.sum,
+) -> Callable:
+    return lambda prev_state, action, state: operator(
+        jnp.asarray([f(prev_state, action, state) for f in reward_functions])
+    )
 
 
 def free(state: State) -> Array:
@@ -64,3 +63,6 @@ def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
     return state.events.wall_hit * cost
+
+
+DEFAULT_TASK = compose(navigation, action_cost)

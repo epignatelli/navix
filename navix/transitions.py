@@ -78,3 +78,6 @@ def _can_spawn_there(state: State, position: Array) -> Tuple[Array, Events]:
             )
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_), events
+
+
+DEFAULT_TRANSITION = stochastic_transition

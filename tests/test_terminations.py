@@ -24,14 +24,14 @@ def test_on_navigation_completion():
         entities=entities,
     )
     # shpuld not terminate
-    termination = nx.terminations.on_navigation_completion(state, jnp.asarray(0), state)
+    termination = nx.terminations.on_goal_reached(state, jnp.asarray(0), state)
     assert not termination, f"Should not terminate, got {termination} instead"
 
     # artificially put agent on goal
     player = state.get_player()
     goals = state.get_goals()
     new_state = state.set_player(player.replace(position=goals.position[0]))
-    termination = nx.terminations.on_navigation_completion(
+    termination = nx.terminations.on_goal_reached(
         state, jnp.asarray(0), new_state
     )
     assert termination, f"Should terminate, got {termination} instead"

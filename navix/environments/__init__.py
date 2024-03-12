@@ -29,3 +29,4 @@ from .key_corridor import KeyCorridor
 from .lava_gap import LavaGap
 from .crossings import Crossings
 from .dynamic_obstacles import DynamicObstacles
+from.dist_shift import DistShift

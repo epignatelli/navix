@@ -70,14 +70,14 @@ class Environment(struct.PyTreeNode):
         pytree_node=False, default=observations.none
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=tasks.navigation
+        pytree_node=False, default=tasks.DEFAULT_TASK
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=terminations.on_navigation_completion
+        pytree_node=False, default=terminations.DEFAULT_TERMINATION
     )
     transitions_fn: Callable[
         [State, Array, Tuple[Callable[[State], State], ...]], State
-    ] = struct.field(pytree_node=False, default=transitions.stochastic_transition)
+    ] = struct.field(pytree_node=False, default=transitions.DEFAULT_TRANSITION)
     action_set: Tuple[Callable[[State], State], ...] = struct.field(
         pytree_node=False, default=DEFAULT_ACTION_SET
     )
