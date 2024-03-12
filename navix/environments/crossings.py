@@ -80,7 +80,7 @@ class Crossings(Environment):
 
         start = jnp.asarray([0, 0], dtype=jnp.int32)
         step_size = 3
-        for i in range(num_obstacles * 2):
+        for i in range(10):
             k2, k3 = jax.random.split(k2)
             direction = jax.random.randint(k2, (), minval=0, maxval=2)
             start, grid = update(direction, start, grid, step_size)
