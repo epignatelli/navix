@@ -121,7 +121,6 @@ class Environment(struct.PyTreeNode):
 
     def _step(self, timestep: Timestep, action: Array) -> Timestep:
         # update agents
-        # state = jax.lax.switch(action, self.actions_set.values(), timestep.state)
         state = self.transitions_fn(timestep.state, action, self.action_set)
 
         # build timestep
