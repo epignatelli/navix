@@ -19,17 +19,17 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
 
-from .. import tasks, terminations, observations
+from .. import tasks, terminations, observations, transitions
 from ..rendering.cache import RenderingCache, TILE_SIZE
 from ..entities import State
-from ..actions import ACTIONS
+from ..actions import DEFAULT_ACTION_SET
 from ..spaces import Space, Discrete, Continuous
 
 
@@ -75,6 +75,12 @@ class Environment(struct.PyTreeNode):
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
         pytree_node=False, default=terminations.on_navigation_completion
     )
+    transitions_fn: Callable[
+        [State, Array, Tuple[Callable[[State], State], ...]], State
+    ] = struct.field(pytree_node=False, default=transitions.stochastic_transition)
+    action_set: Tuple[Callable[[State], State], ...] = struct.field(
+        pytree_node=False, default=DEFAULT_ACTION_SET
+    )
 
     @property
     def observation_space(self) -> Space:
@@ -107,15 +113,16 @@ class Environment(struct.PyTreeNode):
 
     @property
     def action_space(self) -> Space:
-        return Discrete(len(ACTIONS))
+        return Discrete(len(self.action_set))
 
     @abc.abstractmethod
     def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
         raise NotImplementedError()
 
-    def _step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
+    def _step(self, timestep: Timestep, action: Array) -> Timestep:
         # update agents
-        state = jax.lax.switch(action, actions_set.values(), timestep.state)
+        # state = jax.lax.switch(action, self.actions_set.values(), timestep.state)
+        state = self.transitions_fn(timestep.state, action, self.action_set)
 
         # build timestep
         return Timestep(
@@ -127,13 +134,13 @@ class Environment(struct.PyTreeNode):
             observation=self.observation(state),
         )
 
-    def step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
+    def step(self, timestep: Timestep, action: Array) -> Timestep:
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
             lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
-            lambda timestep: self._step(timestep, action, actions_set),
+            lambda timestep: self._step(timestep, action),
             timestep,
         )
 

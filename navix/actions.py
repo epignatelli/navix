@@ -186,15 +186,27 @@ def open(state: State) -> State:
 
 
 # TODO(epignatelli): a mutable dictionary here is dangerous
-ACTIONS = {
-    # -1: undefined,
-    0: noop,
-    1: rotate_cw,
-    2: rotate_ccw,
-    3: forward,
-    4: right,
-    5: backward,
-    6: left,
-    7: pickup,
-    8: open,
-}
+# ACTIONS = {
+#     # -1: undefined,
+#     0: noop,
+#     1: rotate_cw,
+#     2: rotate_ccw,
+#     3: forward,
+#     4: right,
+#     5: backward,
+#     6: left,
+#     7: pickup,
+#     8: open,
+# }
+
+DEFAULT_ACTION_SET = (
+    noop,
+    rotate_cw,
+    rotate_ccw,
+    forward,
+    right,
+    backward,
+    left,
+    pickup,
+    open,
+)

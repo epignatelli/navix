@@ -29,5 +29,6 @@ from . import (
     terminations,
     config,
     spaces,
-    rendering
+    rendering,
+    transitions,
 )
