@@ -22,7 +22,6 @@ from __future__ import annotations
 from typing import Callable
 
 
-import jax
 import jax.numpy as jnp
 from jax import Array
 
@@ -44,23 +43,7 @@ def free(state: State) -> Array:
 
 
 def navigation(prev_state: State, action: Array, state: State) -> Array:
-    player = state.get_player()
-    goals = state.get_goals()
-
-    reached = jax.vmap(jnp.array_equal, in_axes=(None, 0))(
-        player.position, goals.position
-    )
-
-    # exoxgenous reward noise
-    draws = jax.random.uniform(state.key, (len(goals.probability),))
-    # if there is a reward and the player reached the goal, then reward
-    reward = reached * jnp.less_equal(draws, goals.probability)
-    # if two goals are at the same position, we sum them
-    reward = jnp.sum(reward, dtype=jnp.float32).squeeze()
-
-    # ensure scalar reward
-    assert reward.shape == (), f"Reward must be a scalar but got shape {reward.shape}"
-    return reward
+    return jnp.asarray(state.events.goal_reached, dtype=jnp.float32)
 
 
 def action_cost(
@@ -80,11 +63,4 @@ def time_cost(
 def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
-    prev_player = prev_state.get_player()
-    player = state.get_player()
-
-    # if state is unchanged, maybe the wall was hit
-    didnt_move = jnp.array_equal(prev_player.position, player.position)
-    but_wanted_to = jnp.less_equal(3, action) * jnp.less_equal(action, 6)
-    hit = jnp.logical_and(didnt_move, but_wanted_to)
-    return -jnp.asarray(cost) * hit
+    return state.events.wall_hit * cost

@@ -24,16 +24,14 @@ from typing import Callable
 from jax import Array
 import jax.numpy as jnp
 from .entities import State
-from .grid import positions_equal
 
 
 def compose(
-    termination_fn_1: Callable,
-    termination_fn_2: Callable,
-    operator: Callable = jnp.logical_or,
+    *term_functions: Callable[[State, Array, State], Array],
+    operator: Callable = jnp.any,
 ) -> Callable:
-    return lambda *args, **kwargs: operator(
-        termination_fn_1(*args, **kwargs), termination_fn_2(*args, **kwargs)
+    return lambda prev_state, action, state: operator(
+        [term_f(prev_state, action, state) for term_f in term_functions]
     )
 
 
@@ -43,16 +41,12 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
 
 
 def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
-    player = state.get_player()
-    goals = state.get_goals()
-
-    reached = positions_equal(player.position, goals.position)
-    return jnp.any(reached)
+    return state.events.goal_reached
 
 
-def on_lava(prev_state: State, action: Array, state: State) -> Array:
-    player = state.get_player()
-    lavas = state.get_lavas()
+def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
+    return state.events.lava_fall
 
-    fall = positions_equal(player.position, lavas.position)
-    return jnp.any(fall)
+
+def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
+    return state.events.ball_hit

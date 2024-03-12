@@ -385,6 +385,27 @@ class Box(Entity, HasColour, Holder):
         return jnp.broadcast_to(jnp.asarray(8), self.shape)
 
 
+class Events(struct.PyTreeNode):
+    goal_reached: Array = jnp.asarray(False)
+    wall_hit: Array = jnp.asarray(False)
+    ball_hit: Array = jnp.asarray(False)
+    lava_fall: Array = jnp.asarray(False)
+    key_pickup: Array = jnp.asarray(False)
+
+    def record(self, entity: str) -> Events:
+        if entity == Entities.GOAL:
+            return self.replace(goal_reached=jnp.asarray(True))
+        elif entity == Entities.WALL:
+            return self.replace(wall_hit=jnp.asarray(True))
+        elif entity == Entities.BALL:
+            return self.replace(ball_hit=jnp.asarray(True))
+        elif entity == Entities.LAVA:
+            return self.replace(lava_fall=jnp.asarray(True))
+        elif entity == Entities.KEY:
+            return self.replace(key_pickup=jnp.asarray(True))
+        return self
+
+
 class State(struct.PyTreeNode):
     """The Markovian state of the environment"""
 
@@ -397,6 +418,9 @@ class State(struct.PyTreeNode):
     entities: Dict[str, Entity] = struct.field(default_factory=dict)
     """The entities in the environment, indexed via entity type string representation.
     Batched over the number of entities for each type"""
+    events: Events = Events()
+    """A struct indicating which events happened this timestep. For example, the
+    goal is reached, or the player is hit by a ball."""
 
     def get_entity(self, entity_enum: str) -> Entity:
         return self.entities[entity_enum]
@@ -457,6 +481,9 @@ class State(struct.PyTreeNode):
     def set_boxes(self, boxes: Box) -> State:
         self.entities[Entities.BOX] = boxes
         return self
+
+    def set_events(self, events: Events) -> State:
+        return self.replace(events=events)
 
     def get_positions(self) -> Array:
         return jnp.concatenate([self.entities[k].position for k in self.entities])

@@ -204,7 +204,7 @@ def test_walkable():
         player.check_ndim(batched=False)
         prev_pos = player.position
         pos = nx.grid.translate_forward(prev_pos, player.direction, jnp.asarray(1))
-        assert not nx.actions._walkable(
+        assert not nx.actions._can_walk_there(
             state, pos
         ), "Expected position {} to be not walkable, since it is a {}".format(
             pos, state.grid[tuple(pos)]

@@ -20,13 +20,13 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Tuple
+from typing import Callable, Tuple
 from jax import Array
 import jax
 import jax.numpy as jnp
-from .entities import State, Entities, Ball
+import jax.tree_util as jtu
+from .entities import Events, State, Entities, Ball
 from .grid import positions_equal, translate
-from .actions import _walkable
 
 
 def deterministic_transition(
@@ -49,25 +49,33 @@ def update_balls(state: State) -> State:
     def update_one(position, key):
         direction = jax.random.randint(key, (), minval=0, maxval=4)
         new_position = translate(position, direction)
-        can_move = _can_move_there(state, new_position)
-        return jnp.where(can_move, new_position, position)
+        can_move, events = _can_spawn_there(state, new_position)
+        return jnp.where(can_move, new_position, position), events
 
     if Entities.BALL in state.entities:
         balls: Ball = state.entities[Entities.BALL]  # type: ignore
         keys = jax.random.split(state.key, len(balls.position) + 1)
-        new_position = jax.jit(jax.vmap(update_one))(balls.position, keys[1:])
+        new_position, events = jax.jit(jax.vmap(update_one))(balls.position, keys[1:])
+        # update structs
         balls = balls.replace(position=new_position)
-        state.entities[Entities.BALL] = balls
-        state = state.replace(key=keys[0])
+        state = state.set_balls(balls)
+        events = jtu.tree_map(lambda x: jnp.any(x), events)
+        state = state.replace(key=keys[0], events=events)
     return state
 
 
-def _can_move_there(state: State, position: Array) -> Array:
+def _can_spawn_there(state: State, position: Array) -> Tuple[Array, Events]:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
+    events = jax.lax.cond(
+        walkable, lambda: state.events, lambda: state.events.record(Entities.WALL)
+    )
 
     # according to entities
     for k in state.entities:
         obstructs = positions_equal(state.entities[k].position, position)
+        events = jax.lax.cond(
+            jnp.any(obstructs), lambda x: x.record(k), lambda x: x, events
+        )
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
-    return jnp.asarray(walkable, dtype=jnp.bool_)
+    return jnp.asarray(walkable, dtype=jnp.bool_), events
