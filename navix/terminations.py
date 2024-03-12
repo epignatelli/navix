@@ -31,7 +31,7 @@ def compose(
     operator: Callable = jnp.any,
 ) -> Callable:
     return lambda prev_state, action, state: operator(
-        [term_f(prev_state, action, state) for term_f in term_functions]
+        jnp.asarray([term_f(prev_state, action, state) for term_f in term_functions])
     )
 
 

@@ -67,15 +67,14 @@ def update_balls(state: State) -> State:
 def _can_spawn_there(state: State, position: Array) -> Tuple[Array, Events]:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
-    events = jax.lax.cond(
-        walkable, lambda: state.events, lambda: state.events.record(Entities.WALL)
-    )
 
     # according to entities
+    events = state.events
     for k in state.entities:
         obstructs = positions_equal(state.entities[k].position, position)
-        events = jax.lax.cond(
-            jnp.any(obstructs), lambda x: x.record(k), lambda x: x, events
-        )
+        if k == Entities.PLAYER:
+            events = jax.lax.cond(
+                jnp.any(obstructs), lambda x: x.record(Entities.BALL), lambda x: x, events
+            )
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_), events
