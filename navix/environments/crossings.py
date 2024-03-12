@@ -43,10 +43,10 @@ class Crossings(Environment):
         }
 
         # crossings
-        obstacles_hor = jnp.mgrid[1 : self.height - 2 : 2, : self.width].transpose(
+        obstacles_hor = jnp.mgrid[1 : self.height - 2 : 2, 1: self.width - 1].transpose(
             1, 2, 0
         )
-        obstacles_ver = jnp.mgrid[: self.height, 1 : self.width - 2 : 2].transpose(
+        obstacles_ver = jnp.mgrid[1: self.height - 1, 1 : self.width - 2 : 2].transpose(
             2, 1, 0
         )
         all_obstacles_pos = jnp.concatenate([obstacles_hor, obstacles_ver])
@@ -100,20 +100,6 @@ class Crossings(Environment):
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
-        )
-
-    def crossing(self, size: int, *, key: Array) -> Array:
-        direction = jax.random.randint(key, (), 0, 2)
-        row = jax.random.randint(key, (), 2, size - 2)
-        col = jax.random.randint(key, (), 2, size - 2)
-        return jax.lax.cond(
-            direction,
-            lambda: jnp.stack(
-                [jnp.arange(size), jnp.ones(size, dtype=jnp.int32) * row], axis=1
-            ),
-            lambda: jnp.stack(
-                [jnp.ones(size, dtype=jnp.int32) * col, jnp.arange(size)], axis=1
-            ),
         )
 
 
