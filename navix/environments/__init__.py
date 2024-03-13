@@ -23,4 +23,11 @@ from __future__ import annotations
 
 from .environment import Environment, Timestep
 from .room import Room
-from .keydoor import KeyDoor
+from .key_door import KeyDoor
+from .four_rooms import FourRooms
+from .key_corridor import KeyCorridor
+from .lava_gap import LavaGap
+from .crossings import Crossings
+from .dynamic_obstacles import DynamicObstacles
+from .dist_shift import DistShift
+from .go_to_door import GoToDoor

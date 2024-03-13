@@ -1,7 +1,26 @@
+# Copyright 2023 The Navix Authors.
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+
+#   http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
 from __future__ import annotations
 
 import os
-from typing import Dict, Tuple
 from PIL import Image
 
 import jax
@@ -13,7 +32,7 @@ SPRITES_DIR = os.path.normpath(
     os.path.join(__file__, "..", "..", "..", "assets", "sprites")
 )
 MIN_TILE__SIZE = 8
-TILE_SIZE = 32
+TILE_SIZE = 16
 
 
 def load_sprite(name: str) -> Array:
@@ -26,8 +45,8 @@ def load_sprite(name: str) -> Array:
     path = os.path.join(SPRITES_DIR, f"{name}.png")
     image = Image.open(path)
     array = jnp.asarray(image)
-    resized = jax.image.resize(array, (TILE_SIZE, TILE_SIZE, 3), method="nearest")
-    return resized
+    resized = jax.image.resize(array, (TILE_SIZE, TILE_SIZE, 3), method="cubic")
+    return jnp.asarray(resized, dtype=jnp.uint8)
 
 
 class PALETTE:
@@ -60,6 +79,9 @@ class SpritesRegistry:
         self.set_key_sprite()
         self.set_player_sprite()
         self.set_door_sprite()
+        self.set_lava_sprite()
+        self.set_ball_sprite()
+        self.set_box_sprite()
 
     def set_wall_sprite(self):
         self.registry["wall"] = load_sprite("wall")
@@ -95,6 +117,21 @@ class SpritesRegistry:
                 sprite = load_sprite("door" + f"_{state}" + f"_{colour}")
                 door = door.at[c_idx, s_idx].set(sprite)
         self.registry["door"] = door
+
+    def set_lava_sprite(self):
+        self.registry["lava"] = load_sprite("lava")
+
+    def set_ball_sprite(self):
+        ball_coloured = [
+            load_sprite("ball" + f"_{colour}") for colour in PALETTE.as_string()
+        ]
+        self.registry["ball"] = jnp.stack(ball_coloured, axis=0)
+
+    def set_box_sprite(self):
+        box_coloured = [
+            load_sprite("box" + f"_{colour}") for colour in PALETTE.as_string()
+        ]
+        self.registry["box"] = jnp.stack(box_coloured, axis=0)
 
 
 # initialise sprites registry

@@ -1,19 +1,44 @@
+# Copyright 2023 The Navix Authors.
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+
+#   http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
+from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
-from typing import Union
+from flax import struct
 
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..rendering.registry import PALETTE
-from ..environments import Environment
-from ..entities import State, Player, Key, Door, Goal, Wall
-from ..environments import Timestep
+from . import Environment
+from ..entities import Player, Key, Door, Goal, Wall
+from ..states import State
+from . import Timestep
 from ..grid import mask_by_coordinates, room, random_positions, random_directions
+from .registry import register_env
 
 
 class KeyDoor(Environment):
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:  # type: ignore
+    random_start: bool = struct.field(pytree_node=False, default=False)
+
+    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (
             self.height > 3
@@ -59,22 +84,25 @@ class KeyDoor(Environment):
         )
         second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
 
-        # spawn player
-        player_pos = random_positions(k1, first_room)
-        player_dir = random_directions(k2)
+        # set player and goal pos
+        if self.random_start:
+            player_pos = random_positions(k1, first_room)
+            player_dir = random_directions(k2)
+            goal_pos = random_positions(k2, second_room)
+        else:
+            player_pos = jnp.asarray([1, 1])
+            player_dir = jnp.asarray(0)
+            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
+
+        # spawn goal and player
         player = Player(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
+        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
         keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
-
-        # mask the second room
-
-        # spawn goal
-        goal_pos = random_positions(k2, second_room)
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
 
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
@@ -101,3 +129,53 @@ class KeyDoor(Environment):
             step_type=jnp.asarray(0, dtype=jnp.int32),
             state=state,
         )
+
+
+register_env(
+    "Navix-DoorKey-5x5-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=5, width=5, random_start=False
+    ),
+)
+register_env(
+    "Navix-DoorKey-6x6-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=6, width=6, random_start=False
+    ),
+)
+register_env(
+    "Navix-DoorKey-8x8-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=8, width=8, random_start=False
+    ),
+)
+register_env(
+    "Navix-DoorKey-16x16-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=16, width=16, random_start=False
+    ),
+)
+register_env(
+    "Navix-DoorKey-Random-5x5-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=5, width=5, random_start=True
+    ),
+)
+register_env(
+    "Navix-DoorKey-Random-6x6-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=6, width=6, random_start=True
+    ),
+)
+register_env(
+    "Navix-DoorKey-Random-8x8-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=8, width=8, random_start=True
+    ),
+)
+register_env(
+    "Navix-DoorKey-Random-16x16-v0",
+    lambda *args, **kwargs: KeyDoor(
+        *args, **kwargs, height=16, width=16, random_start=True
+    ),
+)

@@ -19,17 +19,17 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
 
-from .. import tasks, terminations, observations
+from .. import rewards, terminations, observations, transitions
 from ..rendering.cache import RenderingCache, TILE_SIZE
-from ..entities import State
-from ..actions import ACTIONS
+from ..states import State
+from ..actions import DEFAULT_ACTION_SET
 from ..spaces import Space, Discrete, Continuous
 
 
@@ -65,15 +65,22 @@ class Environment(struct.PyTreeNode):
     height: int = struct.field(pytree_node=False)
     width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
-    gamma: float = struct.field(pytree_node=False, default=1.0)
+    gamma: float = struct.field(pytree_node=False, default=0.99)
+    penality_coeff: float = struct.field(pytree_node=False, default=0.9)
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
     reward_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=tasks.navigation
+        pytree_node=False, default=rewards.DEFAULT_TASK
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
-        pytree_node=False, default=terminations.on_navigation_completion
+        pytree_node=False, default=terminations.DEFAULT_TERMINATION
+    )
+    transitions_fn: Callable[
+        [State, Array, Tuple[Callable[[State], State], ...]], State
+    ] = struct.field(pytree_node=False, default=transitions.DEFAULT_TRANSITION)
+    action_set: Tuple[Callable[[State], State], ...] = struct.field(
+        pytree_node=False, default=DEFAULT_ACTION_SET
     )
 
     @property
@@ -107,34 +114,59 @@ class Environment(struct.PyTreeNode):
 
     @property
     def action_space(self) -> Space:
-        return Discrete(len(ACTIONS))
+        return Discrete(len(self.action_set))
 
     @abc.abstractmethod
     def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
         raise NotImplementedError()
 
-    def _step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
-        # update agents
-        state = jax.lax.switch(action, actions_set.values(), timestep.state)
-
-        # build timestep
-        return Timestep(
-            t=timestep.t + 1,
-            state=state,
-            action=jnp.asarray(action),
-            reward=self.reward(timestep.state, action, state),
-            step_type=self.termination(timestep.state, action, state, timestep.t + 1),
-            observation=self.observation(state),
-        )
-
-    def step(self, timestep: Timestep, action: Array, actions_set=ACTIONS) -> Timestep:
+    def step(self, timestep: Timestep, action: Array) -> Timestep:
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
-            lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
-            lambda timestep: self._step(timestep, action, actions_set),
+            lambda timestep: self._reset(timestep.state.key, timestep.state.cache),
+            lambda timestep: self._step(timestep, action),
             timestep,
+        )
+
+    def _reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
+        k1, k2 = jax.random.split(key)
+        timestep = self.reset(k1, cache)
+        return timestep.replace(state=timestep.state.replace(key=k2))
+
+    def _step(self, timestep: Timestep, action: Array) -> Timestep:
+        """
+        Args:
+            timestep (Timestep): The timestep at time $t$.
+            action (Array): The action $a_t \\sim \\pi(A_t | s_t)$
+        Returns:
+            (Timestep): The timestep at time $t + 1$
+        """
+        # update agents
+        state = self.transitions_fn(timestep.state, action, self.action_set)
+        t = timestep.t + 1
+
+        # calculate termination
+        step_type = self.termination(timestep.state, action, state, timestep.t + 1)
+
+        # calculate reward
+        reward = self.reward(timestep.state, action, state)
+        reward = jax.lax.cond(
+            step_type == StepType.TERMINATION,
+            lambda reward: reward - self.penality_coeff * (t / self.max_steps),
+            lambda reward: reward,
+            reward,
+        )
+
+        # build timestep
+        return Timestep(
+            t=t,
+            state=state,
+            action=jnp.asarray(action),
+            reward=reward,
+            step_type=step_type,
+            observation=self.observation(state),
         )
 
     def observation(self, state: State):

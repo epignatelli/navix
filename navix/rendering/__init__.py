@@ -18,7 +18,4 @@
 # under the License.
 
 
-from . import (
-    cache,
-    registry
-)
+from . import cache, registry
