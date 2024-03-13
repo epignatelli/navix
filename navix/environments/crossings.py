@@ -111,7 +111,7 @@ class Crossings(Environment):
         state = State(
             key=key,
             grid=grid,
-            cache=cache or RenderingCache.init(grid),
+            cache=RenderingCache.init(grid),
             entities=entities,
         )
         return Timestep(
