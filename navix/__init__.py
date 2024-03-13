@@ -24,11 +24,12 @@ from . import (
     entities,
     grid,
     observations,
-    tasks,
+    rewards,
     environments,
     terminations,
     config,
     spaces,
     rendering,
     transitions,
+    events,
 )

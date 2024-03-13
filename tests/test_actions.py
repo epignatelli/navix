@@ -325,7 +325,7 @@ def test_open():
         position=jnp.asarray((1, 3)),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
-        colour=PALETTE.YELLOW
+        colour=PALETTE.YELLOW,
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 

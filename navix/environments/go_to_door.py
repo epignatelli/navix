@@ -26,9 +26,11 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from .. import rewards, terminations
 from ..components import EMPTY_POCKET_ID
-from ..entities import Entities, Goal, Door, Player, State
-from ..grid import random_colour, random_positions, random_directions, room
+from ..entities import Entities, Door, Player
+from ..states import EventType, State, Event
+from ..grid import random_colour, random_directions
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
 from .registry import register_env
@@ -41,7 +43,7 @@ class GoToDoor(Environment):
         # map
         grid = jnp.zeros((self.height, self.width), dtype=jnp.int32)
 
-        k1, k2, k3, k4, k5 = jax.random.split(key, num=5)
+        k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
         room_height = jax.random.randint(k1, (), minval=5, maxval=self.height)
         room_width = jax.random.randint(k1, (), minval=5, maxval=self.width)
 
@@ -49,7 +51,7 @@ class GoToDoor(Environment):
         grid = grid.at[jnp.asarray([0, room_height - 1])].set(-1)
         grid = grid.at[:, jnp.asarray([0, room_width - 1])].set(-1)
 
-        # goal and player
+        # player
         player_row = jax.random.randint(k2, (), minval=1, maxval=room_height - 1)
         player_col = jax.random.randint(k3, (), minval=1, maxval=room_width - 1)
         player_pos = jnp.asarray([player_row, player_col])
@@ -62,8 +64,8 @@ class GoToDoor(Environment):
 
         # doors
         k6, k7 = jax.random.split(k5, num=2)
-        rows = jax.random.randint(k6, (2,), minval=2, maxval=room_height - 1)
-        cols = jax.random.randint(k7, (2,), minval=2, maxval=room_width - 1)
+        rows = jax.random.randint(k6, (2,), minval=2, maxval=room_height - 2)
+        cols = jax.random.randint(k7, (2,), minval=2, maxval=room_width - 2)
         positions = jnp.asarray(
             [
                 [rows[0], room_width - 1],
@@ -81,15 +83,25 @@ class GoToDoor(Environment):
 
         entities = {
             Entities.PLAYER: player[None],
-            Entities.LAVA: doors,
+            Entities.DOOR: doors,
         }
+
+        idx = jax.random.randint(k6, (), minval=0, maxval=4)
+        target_door = doors[idx]
+        mission = Event(
+            position=target_door.position,
+            colour=target_door.colour,
+            happened=jnp.asarray(False),
+            event_type=EventType.REACH,
+        )
 
         # systems
         state = State(
             key=key,
             grid=grid,
-            cache=cache or RenderingCache.init(grid),
+            cache=RenderingCache.init(grid),
             entities=entities,
+            mission=mission,
         )
 
         return Timestep(
@@ -104,13 +116,34 @@ class GoToDoor(Environment):
 
 register_env(
     "Navix-GoToDoor-5x5-v0",
-    lambda *args, **kwargs: GoToDoor(height=5, width=5, *args, **kwargs),
+    lambda *args, **kwargs: GoToDoor(
+        height=5,
+        width=5,
+        reward_fn=rewards.on_door_done,
+        termination_fn=terminations.on_door_done,
+        *args,
+        **kwargs,
+    ),
 )
 register_env(
     "Navix-GoToDoor-6x6-v0",
-    lambda *args, **kwargs: GoToDoor(height=6, width=6, *args, **kwargs),
+    lambda *args, **kwargs: GoToDoor(
+        height=6,
+        width=6,
+        reward_fn=rewards.on_door_done,
+        termination_fn=terminations.on_door_done,
+        *args,
+        **kwargs,
+    ),
 )
 register_env(
     "Navix-GoToDoor-8x8-v0",
-    lambda *args, **kwargs: GoToDoor(height=8, width=8, *args, **kwargs),
+    lambda *args, **kwargs: GoToDoor(
+        height=8,
+        width=8,
+        reward_fn=rewards.on_door_done,
+        termination_fn=terminations.on_door_done,
+        *args,
+        **kwargs,
+    ),
 )

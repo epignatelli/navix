@@ -16,14 +16,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
 from __future__ import annotations
 
 from typing import Callable
 from jax import Array
 import jax.numpy as jnp
-from .entities import State
+
+from . import events
+from .states import State
+from .grid import translate
+from .entities import Entities, Player
 
 
 def compose(
@@ -41,15 +43,19 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
 
 
 def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
-    return state.events.goal_reached
+    return jnp.asarray(events.on_goal_reached(state), dtype=jnp.bool_)
 
 
 def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
-    return state.events.lava_fall
+    return jnp.asarray(events.on_lava_fall(state), dtype=jnp.bool_)
 
 
 def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
-    return state.events.ball_hit
+    return jnp.asarray(events.on_ball_hit(state), dtype=jnp.bool_)
+
+
+def on_door_done(prev_state: State, action: Array, state: State) -> Array:
+    return jnp.asarray(events.on_door_done(state), dtype=jnp.bool_)
 
 
 DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)

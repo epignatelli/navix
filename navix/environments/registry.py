@@ -22,7 +22,7 @@ from typing import Callable
 
 from jax import Array
 
-from ..entities import State
+from ..states import State
 
 
 ENVS_REGISTRY = {}

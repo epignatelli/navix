@@ -27,14 +27,14 @@ from jax import Array
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
-from ..entities import State, Player, Goal, Lava
+from ..entities import Player, Goal, Lava
+from ..states import State
 from . import Timestep
 from ..grid import room
 from .registry import register_env
 
 
 class LavaGap(Environment):
-
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (
@@ -66,9 +66,7 @@ class LavaGap(Environment):
         lava_cols = jnp.asarray([col] * (self.height - 2))
         lava_pos = jnp.stack((lava_row, lava_cols), axis=1)
         # remove lava where the door is
-        lava_pos = jnp.delete(
-            lava_pos, gap_row - 1, axis=0, assume_unique_indices=True
-        )
+        lava_pos = jnp.delete(lava_pos, gap_row - 1, axis=0, assume_unique_indices=True)
         lavas = Lava(position=lava_pos)
 
         entities = {
@@ -95,19 +93,13 @@ class LavaGap(Environment):
 
 register_env(
     "Navix-DoorKey-S5-v0",
-    lambda *args, **kwargs: LavaGap(
-        *args, **kwargs, height=5, width=5
-    ),
+    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=5, width=5),
 )
 register_env(
     "Navix-DoorKey-S6-v0",
-    lambda *args, **kwargs: LavaGap(
-        *args, **kwargs, height=6, width=6
-    ),
+    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=6, width=6),
 )
 register_env(
     "Navix-DoorKey-S7-v0",
-    lambda *args, **kwargs: LavaGap(
-        *args, **kwargs, height=7, width=7
-    ),
+    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=7, width=7),
 )

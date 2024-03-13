@@ -21,14 +21,14 @@
 from __future__ import annotations
 from typing import Union
 
-import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
 from ..components import EMPTY_POCKET_ID
-from ..entities import Entities, Goal, Lava, Player, State
-from ..grid import random_positions, random_directions, room
+from ..entities import Entities, Goal, Lava, Player
+from ..states import State
+from ..grid import room
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
 from .registry import register_env

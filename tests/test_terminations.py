@@ -31,9 +31,7 @@ def test_on_navigation_completion():
     player = state.get_player()
     goals = state.get_goals()
     new_state = state.set_player(player.replace(position=goals.position[0]))
-    termination = nx.terminations.on_goal_reached(
-        state, jnp.asarray(0), new_state
-    )
+    termination = nx.terminations.on_goal_reached(state, jnp.asarray(0), new_state)
     assert termination, f"Should terminate, got {termination} instead"
 
 

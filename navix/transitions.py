@@ -25,7 +25,8 @@ from jax import Array
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
-from .entities import Events, State, Entities, Ball
+from .entities import Entities, Ball
+from .states import EventsManager, State
 from .grid import positions_equal, translate
 
 
@@ -64,7 +65,7 @@ def update_balls(state: State) -> State:
     return state
 
 
-def _can_spawn_there(state: State, position: Array) -> Tuple[Array, Events]:
+def _can_spawn_there(state: State, position: Array) -> Tuple[Array, EventsManager]:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
 
@@ -74,7 +75,10 @@ def _can_spawn_there(state: State, position: Array) -> Tuple[Array, Events]:
         obstructs = positions_equal(state.entities[k].position, position)
         if k == Entities.PLAYER:
             events = jax.lax.cond(
-                jnp.any(obstructs), lambda x: x.record(Entities.BALL), lambda x: x, events
+                jnp.any(obstructs),
+                lambda x: x.record_ball_hit(state.entities[k], position),
+                lambda x: x,
+                events,
             )
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_), events

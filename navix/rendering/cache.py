@@ -27,7 +27,7 @@ from jax import Array
 import jax.numpy as jnp
 from flax import struct
 
-from .registry import SpritesRegistry, TILE_SIZE, SPRITES_REGISTRY
+from .registry import TILE_SIZE, SPRITES_REGISTRY
 
 
 class RenderingCache(struct.PyTreeNode):

@@ -16,7 +16,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 from __future__ import annotations
 from typing import Tuple
 
@@ -25,7 +24,8 @@ from jax import Array
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
-from .entities import Entities, Events, State
+from .entities import Entities
+from .states import EventsManager, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
 
@@ -54,17 +54,22 @@ def _rotate(state: State, spin: int) -> State:
     return state
 
 
-def _can_walk_there(state: State, position: Array) -> Tuple[Array, Events]:
+def _can_walk_there(state: State, position: Array) -> Tuple[Array, EventsManager]:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(position)], 0)
     events = jax.lax.cond(
-        walkable, lambda: state.events, lambda: state.events.record(Entities.WALL)
+        walkable,
+        lambda: state.events,
+        lambda: state.events.record_grid_hit(position),
     )
 
     for k in state.entities:
         same_position = positions_equal(state.entities[k].position, position)
         events = jax.lax.cond(
-            jnp.any(same_position), lambda x: x.record(k), lambda x: x, events
+            jnp.any(same_position),
+            lambda x: x.record_walk_into(state.entities[k], position),
+            lambda x: x,
+            events,
         )
         obstructs = jnp.logical_and(
             jnp.logical_not(state.entities[k].walkable), same_position
@@ -84,7 +89,6 @@ def _move(state: State, direction: Array) -> State:
     # update structs
     player = player.replace(position=new_position)
     state = state.set_player(player)
-    events = jtu.tree_map(lambda x: jnp.any(x), events)
     return state.replace(events=events)
 
 
@@ -143,13 +147,23 @@ def pickup(state: State) -> State:
 
     # update events
     events = jax.lax.cond(
-        key_found, lambda: state.events.record(Entities.KEY), lambda: state.events
+        key_found,
+        lambda: state.events.record_key_pickup(keys, position_in_front),
+        lambda: state.events,
     )
 
     state = state.set_player(player)
     state = state.set_keys(keys)
     state = state.set_events(events)
     return state
+
+
+def drop(state: State) -> State:
+    raise NotImplementedError()
+
+
+def toggle(state: State) -> State:
+    raise NotImplementedError()
 
 
 def open(state: State) -> State:
@@ -184,13 +198,38 @@ def open(state: State) -> State:
         jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player
     )
 
+    # update events
+    events = jax.lax.cond(
+        jnp.any(do_open),
+        lambda: state.events.record_door_opening(doors, position_in_front),
+        lambda: state.events,
+    )
+
     state = state.set_player(player)
     state = state.set_doors(doors)
+    state = state.set_events(events)
 
     return state
 
 
-DEFAULT_ACTION_SET = (
+def done(state: State) -> State:
+    return state
+
+
+# DEFAULT_ACTION_SET = (
+#     rotate_ccw,
+#     rotate_cw,
+#     forward,
+#     pickup,
+#     drop,
+#     toggle,
+#     done
+# )
+"""Default action set from Minigrid. See
+https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.py"""
+
+
+COMPLETE_ACTION_SET = (
     noop,
     rotate_cw,
     rotate_ccw,
@@ -200,4 +239,8 @@ DEFAULT_ACTION_SET = (
     left,
     pickup,
     open,
+    done,
 )
+
+
+DEFAULT_ACTION_SET = COMPLETE_ACTION_SET

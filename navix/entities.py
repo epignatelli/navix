@@ -41,30 +41,30 @@ class Entities(struct.PyTreeNode):
 class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
-    def __post_init__(self) -> None:
-        if not config.ARRAY_CHECKS_ENABLED:
-            return
-        # Check that all fields have the same batch size
-        fields = self.__dataclass_fields__
-        batch_size = self.shape[0:]
-        for path, leaf in jax.tree_util.tree_leaves_with_path(self):
-            name = path[0].name
-            default_ndim = len(fields[name].metadata["shape"])
-            prefix = int(default_ndim != leaf.ndim)
-            leaf_batch_size = leaf.shape[:prefix]
-            assert (
-                leaf_batch_size == batch_size
-            ), f"Expected {name} to have batch size {batch_size}, got {leaf_batch_size} instead"
+    # def __post_init__(self) -> None:
+    #     if not config.ARRAY_CHECKS_ENABLED:
+    #         return
+    #     # Check that all fields have the same batch size
+    #     fields = self.__dataclass_fields__
+    #     batch_size = self.shape[0:]
+    #     for path, leaf in jax.tree_util.tree_leaves_with_path(self):
+    #         name = path[0].name
+    #         default_ndim = len(fields[name].metadata["shape"])
+    #         prefix = int(default_ndim != leaf.ndim)
+    #         leaf_batch_size = leaf.shape[:prefix]
+    #         assert (
+    #             leaf_batch_size == batch_size
+    #         ), f"Expected {name} to have batch size {batch_size}, got {leaf_batch_size} instead"
 
-    def check_ndim(self, batched: bool = False) -> None:
-        if not config.ARRAY_CHECKS_ENABLED:
-            return
-        for field in dataclasses.fields(self):
-            value = getattr(self, field.name)
-            default_ndim = len(field.metadata["shape"])
-            assert (
-                value.ndim == default_ndim + batched
-            ), f"Expected {field.name} to have ndim {default_ndim - batched}, got {value.ndim} instead"
+    # def check_ndim(self, batched: bool = False) -> None:
+    #     if not config.ARRAY_CHECKS_ENABLED:
+    #         return
+    #     for field in dataclasses.fields(self):
+    #         value = getattr(self, field.name)
+    #         default_ndim = len(field.metadata["shape"])
+    #         assert (
+    #             value.ndim == default_ndim + batched
+    #         ), f"Expected {field.name} to have ndim {default_ndim - batched}, got {value.ndim} instead"
 
     def __getitem__(self: T, idx) -> T:
         return jax.tree_util.tree_map(lambda x: x[idx], self)
@@ -383,116 +383,3 @@ class Box(Entity, HasColour, Holder):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(jnp.asarray(8), self.shape)
-
-
-class Events(struct.PyTreeNode):
-    goal_reached: Array = jnp.asarray(False)
-    wall_hit: Array = jnp.asarray(False)
-    ball_hit: Array = jnp.asarray(False)
-    lava_fall: Array = jnp.asarray(False)
-    key_pickup: Array = jnp.asarray(False)
-
-    def record(self, entity: str) -> Events:
-        if entity == Entities.GOAL:
-            return self.replace(goal_reached=jnp.asarray(True))
-        elif entity == Entities.WALL:
-            return self.replace(wall_hit=jnp.asarray(True))
-        elif entity == Entities.BALL:
-            return self.replace(ball_hit=jnp.asarray(True))
-        elif entity == Entities.LAVA:
-            return self.replace(lava_fall=jnp.asarray(True))
-        elif entity == Entities.KEY:
-            return self.replace(key_pickup=jnp.asarray(True))
-        return self
-
-
-class State(struct.PyTreeNode):
-    """The Markovian state of the environment"""
-
-    key: Array
-    """The random number generator state"""
-    grid: Array
-    """The base map of the environment that remains constant throughout the training"""
-    cache: RenderingCache
-    """The rendering cache to speed up rendering"""
-    entities: Dict[str, Entity] = struct.field(default_factory=dict)
-    """The entities in the environment, indexed via entity type string representation.
-    Batched over the number of entities for each type"""
-    events: Events = Events()
-    """A struct indicating which events happened this timestep. For example, the
-    goal is reached, or the player is hit by a ball."""
-
-    def get_entity(self, entity_enum: str) -> Entity:
-        return self.entities[entity_enum]
-
-    def set_entity(self, entity_enum: str, entity: Entity) -> State:
-        self.entities[entity_enum] = entity
-        return self
-
-    def get_walls(self) -> Wall:
-        return self.entities.get(Entities.WALL, Wall())  # type: ignore
-
-    def set_walls(self, walls: Wall) -> State:
-        self.entities[Entities.WALL] = walls
-        return self
-
-    def get_player(self, idx: int = 0) -> Player:
-        return self.entities[Entities.PLAYER][idx]  # type: ignore
-
-    def set_player(self, player: Player, idx: int = 0) -> State:
-        # TODO(epignatelli): this is a hack and won't work in multi-agent settings
-        self.entities[Entities.PLAYER] = player[None]
-        return self
-
-    def get_goals(self) -> Goal:
-        return self.entities[Entities.GOAL]  # type: ignore
-
-    def set_goals(self, goals: Goal) -> State:
-        self.entities[Entities.GOAL] = goals
-        return self
-
-    def get_keys(self) -> Key:
-        return self.entities[Entities.KEY]  # type: ignore
-
-    def set_keys(self, keys: Key) -> State:
-        self.entities[Entities.KEY] = keys
-        return self
-
-    def get_doors(self) -> Door:
-        return self.entities[Entities.DOOR]  # type: ignore
-
-    def set_doors(self, doors: Door) -> State:
-        self.entities[Entities.DOOR] = doors
-        return self
-
-    def get_lavas(self) -> Lava:
-        return self.entities[Entities.LAVA]  # type: ignore
-
-    def get_balls(self) -> Ball:
-        return self.entities[Entities.BALL]  # type: ignore
-
-    def get_boxes(self) -> Ball:
-        return self.entities[Entities.BOX]  # type: ignore
-
-    def set_balls(self, balls: Ball) -> State:
-        self.entities[Entities.BALL] = balls
-        return self
-
-    def set_boxes(self, boxes: Box) -> State:
-        self.entities[Entities.BOX] = boxes
-        return self
-
-    def set_events(self, events: Events) -> State:
-        return self.replace(events=events)
-
-    def get_positions(self) -> Array:
-        return jnp.concatenate([self.entities[k].position for k in self.entities])
-
-    def get_tags(self) -> Array:
-        return jnp.concatenate([self.entities[k].tag for k in self.entities])
-
-    def get_sprites(self) -> Array:
-        return jnp.concatenate([self.entities[k].sprite for k in self.entities])
-
-    def get_transparency(self) -> Array:
-        return jnp.concatenate([self.entities[k].transparent for k in self.entities])

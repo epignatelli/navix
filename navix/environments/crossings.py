@@ -27,7 +27,8 @@ from flax import struct
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
-from ..entities import State, Player, Goal, Lava
+from ..entities import Player, Goal, Lava
+from ..states import State
 from . import Timestep
 from ..grid import room
 from .registry import register_env

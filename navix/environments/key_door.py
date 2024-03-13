@@ -28,7 +28,8 @@ from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..rendering.registry import PALETTE
 from . import Environment
-from ..entities import State, Player, Key, Door, Goal, Wall
+from ..entities import Player, Key, Door, Goal, Wall
+from ..states import State
 from . import Timestep
 from ..grid import mask_by_coordinates, room, random_positions, random_directions
 from .registry import register_env

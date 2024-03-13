@@ -27,7 +27,8 @@ from jax import Array
 from flax import struct
 
 from ..components import EMPTY_POCKET_ID
-from ..entities import Entities, Goal, Player, State
+from ..entities import Entities, Goal, Player
+from ..states import State
 from ..grid import random_positions, random_directions, room
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep

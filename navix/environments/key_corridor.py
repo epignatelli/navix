@@ -20,34 +20,23 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Union
+from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
 import jax.tree_util as jtu
-from flax import struct
 
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
-from ..rendering.registry import PALETTE
 from ..environments import Environment
-from ..entities import Ball, State, Player, Key, Door, Goal, Wall
+from ..entities import Ball, Player, Key, Door
+from ..states import State
 from ..environments import Timestep
-from ..grid import (
-    mask_by_coordinates,
-    room,
-    random_positions,
-    random_directions,
-    random_colour,
-    vertical_wall,
-    horizontal_wall,
-    RoomsGrid,
-)
+from ..grid import random_directions, random_colour, RoomsGrid
 from .registry import register_env
 
 
 class KeyCorridor(Environment):
-
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)

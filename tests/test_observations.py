@@ -73,9 +73,7 @@ def test_rgb():
     keys = state.get_keys()
     key_tile = get_tile(keys.position[0])
     colour = keys.colour[0]
-    assert jnp.array_equal(
-        key_tile, sprites_registry[Entities.KEY][colour]
-    ), key_tile
+    assert jnp.array_equal(key_tile, sprites_registry[Entities.KEY][colour]), key_tile
 
     doors = state.get_doors()
     door = doors[0]

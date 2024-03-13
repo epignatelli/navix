@@ -26,7 +26,8 @@ import jax.numpy as jnp
 from jax import Array
 
 from ..components import EMPTY_POCKET_ID
-from ..entities import Entities, Goal, Player, State, Wall
+from ..entities import Entities, Goal, Player, Wall
+from ..states import State
 from ..grid import (
     random_positions,
     random_directions,
@@ -40,7 +41,6 @@ from .registry import register_env
 
 
 class FourRooms(Environment):
-
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert self.height > 4, f"Insufficient height for room {self.height} < 4"
         assert self.width > 4, f"Insufficient width for room {self.width} < 4"

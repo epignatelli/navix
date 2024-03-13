@@ -267,13 +267,11 @@ class RoomsGrid(struct.PyTreeNode):
         height = num_rows * (room_size[0] + 1)
         width = num_cols * (room_size[1] + 1)
         starts = jnp.mgrid[
-            : height: room_size[0] + 1,
-            : width: room_size[1] + 1,
+            : height : room_size[0] + 1,
+            : width : room_size[1] + 1,
         ].transpose(1, 2, 0)
         starts = jnp.asarray(starts, dtype=jnp.int32)
-        sizes = jnp.ones((num_rows, num_cols, 2)) * jnp.asarray(
-            [[[room_size]]]
-        )
+        sizes = jnp.ones((num_rows, num_cols, 2)) * jnp.asarray([[[room_size]]])
         sizes = jnp.asarray(sizes, dtype=jnp.int32)
         return cls(starts, room_size)
 
