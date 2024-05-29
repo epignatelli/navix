@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.states import State
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.registry import PALETTE
@@ -35,7 +36,7 @@ def test_navigation():
         Entities.DOOR: doors,
     }
 
-    state = nx.entities.State(
+    state = State(
         key=jax.random.PRNGKey(0),
         grid=grid,
         cache=nx.rendering.cache.RenderingCache.init(grid),

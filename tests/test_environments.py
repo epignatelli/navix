@@ -24,7 +24,7 @@ def test_room():
         for action in actions:
             timestep = step(timestep, jnp.asarray(action))
             print()
-            print(nx.actions.ACTIONS[action])
+            print(nx.actions.DEFAULT_ACTION_SET[action])
             print(timestep)
         return timestep
 
@@ -63,7 +63,7 @@ def test_keydoor():
         for action in actions:
             timestep = step(timestep, jnp.asarray(action))
             print()
-            print(nx.actions.ACTIONS[action])
+            print(nx.actions.DEFAULT_ACTION_SET[action])
             print(timestep)
         return timestep
 
@@ -82,5 +82,5 @@ def test_keydoor2():
 if __name__ == "__main__":
     # test_room()
     # jax.jit(test_room)()
-    # test_keydoor()
-    test_keydoor2()
+    test_keydoor()
+    # test_keydoor2()

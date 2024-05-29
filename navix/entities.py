@@ -1,6 +1,5 @@
 from __future__ import annotations
-import dataclasses
-from typing import Dict, Tuple, TypeVar
+from typing import Tuple, TypeVar
 
 import jax
 from jax import Array
@@ -19,9 +18,7 @@ from .components import (
     Holder,
     HasSprite,
 )
-from .rendering.cache import RenderingCache
-from .rendering.registry import PALETTE, SPRITES_REGISTRY
-from .config import config
+from .rendering.registry import SPRITES_REGISTRY
 
 T = TypeVar("T", bound="Entity")
 

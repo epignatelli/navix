@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.states import State
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.cache import RenderingCache, TILE_SIZE
@@ -33,7 +34,7 @@ def test_rgb():
         Entities.DOOR: doors,
     }
 
-    state = nx.entities.State(
+    state = State(
         key=jax.random.PRNGKey(0),
         grid=grid,
         cache=RenderingCache.init(grid),
@@ -119,7 +120,7 @@ def test_categorical_first_person():
         Entities.DOOR: doors,
     }
 
-    state = nx.entities.State(
+    state = State(
         key=jax.random.PRNGKey(0),
         grid=grid,
         cache=RenderingCache.init(grid),

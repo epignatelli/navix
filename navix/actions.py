@@ -31,10 +31,10 @@ from .grid import translate, rotate, positions_equal
 
 
 class Directions:
-    EAST = 0
-    SOUTH = 1
-    WEST = 2
-    NORTH = 3
+    EAST = jnp.asarray(0)
+    SOUTH = jnp.asarray(1)
+    WEST = jnp.asarray(2)
+    NORTH = jnp.asarray(3)
 
 
 def _rotate(state: State, spin: int) -> State:
@@ -147,7 +147,7 @@ def pickup(state: State) -> State:
 
     # update events
     events = jax.lax.cond(
-        key_found,
+        jnp.any(key_found),
         lambda: state.events.record_key_pickup(keys, position_in_front),
         lambda: state.events,
     )

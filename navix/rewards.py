@@ -43,7 +43,7 @@ def free(state: State) -> Array:
 
 
 def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
-    return jnp.asarray(events.on_goal_reached, dtype=jnp.float32)
+    return jnp.asarray(events.on_goal_reached(state), dtype=jnp.float32)
 
 
 def action_cost(
