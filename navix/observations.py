@@ -26,7 +26,7 @@ from jax import Array
 
 from .rendering.cache import TILE_SIZE, unflatten_patches
 from .components import DISCARD_PILE_IDX
-from .entities import State
+from .states import State
 from .grid import align, idx_from_coordinates, crop, view_cone
 
 

@@ -21,48 +21,49 @@
 from __future__ import annotations
 from typing import Union
 
-import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
 from ..components import EMPTY_POCKET_ID
-from ..entities import Entities, Goal, Player
+from ..entities import Entities, Goal, Lava, Player
 from ..states import State
-from ..grid import random_positions, random_directions, room
+from ..grid import room
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
 from .registry import register_env
 
 
-class Room(Environment):
-    random_start: bool = struct.field(pytree_node=False, default=False)
+class DistShift(Environment):
+    split_lava: bool = struct.field(pytree_node=False, default=False)
 
     def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
-        key, k1, k2 = jax.random.split(key, 3)
-
         # map
         grid = room(height=self.height, width=self.width)
 
         # goal and player
-        if self.random_start:
-            player_pos, goal_pos = random_positions(k1, grid, n=2)
-            direction = random_directions(k2, n=1)
-        else:
-            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-            player_pos = jnp.asarray([1, 1])
-            direction = jnp.asarray(0)
+        player_pos = jnp.asarray([1, 1])
+        direction = jnp.asarray(0)
         player = Player(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
         )
         # goal
+        goal_pos = jnp.asarray([1, self.width - 2])
         goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+
+        # lava
+        last_row = 5 if self.split_lava else 2
+        lava_pos = jnp.asarray(
+            [[1, 3], [1, 4], [1, 5], [last_row, 3], [last_row, 4], [last_row, 5]]
+        )
+        lava = Lava.create(lava_pos)
 
         entities = {
             Entities.PLAYER: player[None],
             Entities.GOAL: goal[None],
+            Entities.LAVA: lava,
         }
 
         # systems
@@ -84,44 +85,14 @@ class Room(Environment):
 
 
 register_env(
-    "Navix-Empty-5x5-v0",
-    lambda *args, **kwargs: Room(
-        height=5, width=5, random_start=False, *args, **kwargs
+    "Navix-DistShift1-v0",
+    lambda *args, **kwargs: DistShift(
+        height=7, width=9, split_lava=False, *args, **kwargs
     ),
 )
 register_env(
-    "Navix-Empty-6x6-v0",
-    lambda *args, **kwargs: Room(
-        height=6, width=6, random_start=False, *args, **kwargs
-    ),
-)
-register_env(
-    "Navix-Empty-8x8-v0",
-    lambda *args, **kwargs: Room(
-        height=8, width=8, random_start=False, *args, **kwargs
-    ),
-)
-register_env(
-    "Navix-Empty-16x16-v0",
-    lambda *args, **kwargs: Room(
-        height=16, width=16, random_start=False, *args, **kwargs
-    ),
-)
-register_env(
-    "Navix-Empty-Random-5x5-v0",
-    lambda *args, **kwargs: Room(height=5, width=5, random_start=True, *args, **kwargs),
-)
-register_env(
-    "Navix-Empty-Random-6x6-v0",
-    lambda *args, **kwargs: Room(height=6, width=6, random_start=True, *args, **kwargs),
-)
-register_env(
-    "Navix-Empty-Random-8x8-v0",
-    lambda *args, **kwargs: Room(height=8, width=8, random_start=True, *args, **kwargs),
-)
-register_env(
-    "Navix-Empty-Random-16x16-v0",
-    lambda *args, **kwargs: Room(
-        height=16, width=16, random_start=True, *args, **kwargs
+    "Navix-DistShift2-v0",
+    lambda *args, **kwargs: DistShift(
+        height=7, width=9, split_lava=True, *args, **kwargs
     ),
 )

@@ -3,8 +3,10 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.actions import Directions
 from navix.components import EMPTY_POCKET_ID, DISCARD_PILE_COORDS
-from navix.entities import Entities, Entity, State
+from navix.entities import Entities, Entity
+from navix.states import State
 from navix.rendering.registry import PALETTE
 
 
@@ -24,7 +26,7 @@ def test_rotation():
 
     player.check_ndim(batched=True)
 
-    state = nx.entities.State(
+    state = State(
         grid=grid,
         entities=entities,
         cache=cache,
@@ -92,7 +94,7 @@ def test_move():
         Entities.KEY: keys[None],
         Entities.DOOR: doors[None],
     }
-    state = nx.entities.State(
+    state = State(
         key=key,
         grid=grid,
         entities=entities,
@@ -155,12 +157,11 @@ def test_move():
 
 
 def test_walkable():
-    heigh, width = 5, 5
-    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
-    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    height, width = 5, 5
+    grid = nx.grid.room(height, width)
     key = jax.random.PRNGKey(0)
     player = nx.entities.Player(
-        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+        position=jnp.asarray((1, 1)), direction=Directions.EAST, pocket=EMPTY_POCKET_ID
     )
     goals = nx.entities.Goal(position=jnp.asarray((3, 3)), probability=jnp.asarray(1.0))
     keys = nx.entities.Key(
@@ -187,7 +188,7 @@ def test_walkable():
     #  K  .  G #
     #  #  #  #  #
     """
-    state = nx.entities.State(
+    state = State(
         key=key,
         grid=grid,
         cache=cache,
@@ -204,8 +205,9 @@ def test_walkable():
         player.check_ndim(batched=False)
         prev_pos = player.position
         pos = nx.grid.translate_forward(prev_pos, player.direction, jnp.asarray(1))
-        assert not nx.actions._walkable(
-            state, pos
+        walkable, _ = nx.actions._can_walk_there(state, pos)
+        assert (
+            not walkable
         ), "Expected position {} to be not walkable, since it is a {}".format(
             pos, state.grid[tuple(pos)]
         )
@@ -275,7 +277,7 @@ def test_pickup():
         Entities.KEY: keys[None],
         Entities.DOOR: doors[None],
     }
-    state = nx.entities.State(
+    state = State(
         key=key,
         grid=grid,
         cache=cache,
@@ -325,7 +327,7 @@ def test_open():
         position=jnp.asarray((1, 3)),
         requires=jnp.asarray(1),
         open=jnp.asarray(False),
-        colour=PALETTE.YELLOW
+        colour=PALETTE.YELLOW,
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
 
@@ -347,7 +349,7 @@ def test_open():
         Entities.DOOR: doors[None],
     }
 
-    state = nx.entities.State(
+    state = State(
         key=key,
         grid=grid,
         cache=cache,
@@ -428,8 +430,8 @@ def test_open():
 
 
 if __name__ == "__main__":
-    test_rotation()
-    test_move()
+    # test_rotation()
+    # test_move()
     test_walkable()
     test_pickup()
-    test_open()
+    # test_open()

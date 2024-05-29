@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
 
-import navix as nx
 from navix.entities import Goal, Player
 from navix.rendering.registry import TILE_SIZE
 

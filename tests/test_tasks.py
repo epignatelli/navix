@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
+from navix.states import State
 from navix.entities import Entities, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.registry import PALETTE
@@ -35,23 +36,23 @@ def test_navigation():
         Entities.DOOR: doors,
     }
 
-    state = nx.entities.State(
+    state = State(
         key=jax.random.PRNGKey(0),
         grid=grid,
         cache=nx.rendering.cache.RenderingCache.init(grid),
         entities=entities,
     )
     action = jnp.asarray(0)
-    reward = nx.tasks.navigation(state, action, state)
+    reward = nx.rewards.on_goal_reached(state, action, state)
     assert jnp.array_equal(reward, jnp.asarray(0.0))
 
 
 def test_tasks_composition():
-    reward_fn = nx.tasks.compose(
-        nx.tasks.navigation,
-        nx.tasks.action_cost,
-        nx.tasks.time_cost,
-        nx.tasks.wall_hit_cost,
+    reward_fn = nx.rewards.compose(
+        nx.rewards.on_goal_reached,
+        nx.rewards.action_cost,
+        nx.rewards.time_cost,
+        nx.rewards.wall_hit_cost,
     )
 
     env = nx.environments.Room(height=3, width=3, max_steps=8, reward_fn=reward_fn)

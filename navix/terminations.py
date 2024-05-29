@@ -16,14 +16,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
 from __future__ import annotations
 
+from typing import Callable
 from jax import Array
 import jax.numpy as jnp
-from .entities import State
-from .grid import positions_equal
+
+from . import events
+from .states import State
+from .grid import translate
+from .entities import Entities, Player
+
+
+def compose(
+    *term_functions: Callable[[State, Array, State], Array],
+    operator: Callable = jnp.any,
+) -> Callable:
+    return lambda prev_state, action, state: operator(
+        jnp.asarray([term_f(prev_state, action, state) for term_f in term_functions])
+    )
 
 
 def check_truncation(terminated: Array, truncated: Array) -> Array:
@@ -31,9 +42,20 @@ def check_truncation(terminated: Array, truncated: Array) -> Array:
     return jnp.clip(result, 0, 2)
 
 
-def on_navigation_completion(prev_state: State, action: Array, state: State) -> Array:
-    player = state.get_player()
-    goals = state.get_goals()
+def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
+    return jnp.asarray(events.on_goal_reached(state), dtype=jnp.bool_)
 
-    reached = positions_equal(player.position, goals.position)
-    return jnp.any(reached)
+
+def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
+    return jnp.asarray(events.on_lava_fall(state), dtype=jnp.bool_)
+
+
+def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
+    return jnp.asarray(events.on_ball_hit(state), dtype=jnp.bool_)
+
+
+def on_door_done(prev_state: State, action: Array, state: State) -> Array:
+    return jnp.asarray(events.on_door_done(state), dtype=jnp.bool_)
+
+
+DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)

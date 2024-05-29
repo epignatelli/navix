@@ -20,15 +20,23 @@ def test_discrete():
 def test_continuous():
     key = jax.random.PRNGKey(42)
     shapes = ((), (0,), (0, 0), (1, 2), (5, 5))
-    min_max = [(0.0, 1.0), (0.0, 1), (0, 1), (1.0, -1.0), (MIN_INT, MAX_INT),]
+    min_max = [
+        (0.0, 1.0),
+        (0.0, 1),
+        (0, 1),
+        (1.0, -1.0),
+        (MIN_INT, MAX_INT),
+    ]
     for shape in shapes:
         for minimum, maximum in min_max:
-            space = Continuous(shape=shape, minimum=jnp.asarray(minimum), maximum=jnp.asarray(maximum))
+            space = Continuous(
+                shape=shape, minimum=jnp.asarray(minimum), maximum=jnp.asarray(maximum)
+            )
             sample = space.sample(key)
             print(sample)
             assert jnp.all(jnp.logical_not(jnp.isnan(sample)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_discrete()
     test_continuous()
