@@ -19,7 +19,7 @@ N_SEEDS = 10_000
 def profile_navix(seed):
     env = nx.environments.Room(16, 16, 8)
     key = jax.random.PRNGKey(seed)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
     actions = jax.random.randint(key, (N_TIMESTEPS,), 0, 6)
 
     # for loop

@@ -26,6 +26,8 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, Ball
 from ..states import State
@@ -40,7 +42,7 @@ class DynamicObstacles(Environment):
     random_start: bool = struct.field(pytree_node=False, default=False)
     n_obstacles: int = struct.field(pytree_node=False, default=2)
 
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         key, k1, k2, k3 = jax.random.split(key, 4)
 
         # map
@@ -88,7 +90,7 @@ class DynamicObstacles(Environment):
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(0, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -99,36 +101,84 @@ class DynamicObstacles(Environment):
 register_env(
     "Navix-Dynamic-Obstacles-5x5-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=5, width=5, n_obstacles=2, random_start=False, *args, **kwargs
+        height=5,
+        width=5,
+        n_obstacles=2,
+        random_start=False,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Dynamic-Obstacles-5x5-Random-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=5, width=5, n_obstacles=2, random_start=True, *args, **kwargs
+        height=5,
+        width=5,
+        n_obstacles=2,
+        random_start=True,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Dynamic-Obstacles-6x6-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=6, width=6, n_obstacles=3, random_start=False, *args, **kwargs
+        height=6,
+        width=6,
+        n_obstacles=3,
+        random_start=False,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Dynamic-Obstacles-6x6-Random-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=6, width=6, n_obstacles=3, random_start=True, *args, **kwargs
+        height=6,
+        width=6,
+        n_obstacles=3,
+        random_start=True,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Dynamic-Obstacles-8x8-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=8, width=8, n_obstacles=4, random_start=False, *args, **kwargs
+        height=8,
+        width=8,
+        n_obstacles=4,
+        random_start=False,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Dynamic-Obstacles-16x16-v0",
     lambda *args, **kwargs: DynamicObstacles(
-        height=16, width=16, n_obstacles=8, random_start=False, *args, **kwargs
+        height=16,
+        width=16,
+        n_obstacles=8,
+        random_start=False,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )

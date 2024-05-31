@@ -25,6 +25,8 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Player, Wall
 from ..states import State
@@ -41,7 +43,7 @@ from .registry import register_env
 
 
 class FourRooms(Environment):
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert self.height > 4, f"Insufficient height for room {self.height} < 4"
         assert self.width > 4, f"Insufficient width for room {self.width} < 4"
         key, k1, k2 = jax.random.split(key, 3)
@@ -95,7 +97,7 @@ class FourRooms(Environment):
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(0, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -105,5 +107,13 @@ class FourRooms(Environment):
 
 register_env(
     "Navix-FourRooms-v0",
-    lambda *args, **kwargs: FourRooms(*args, **kwargs, height=19, width=19),
+    lambda *args, **kwargs: FourRooms.create(
+        height=19,
+        width=19,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),        
+        *args,
+        **kwargs,
+    ),
 )

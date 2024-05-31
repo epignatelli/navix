@@ -60,13 +60,31 @@ class Timestep(struct.PyTreeNode):
     info: Dict[str, Any] = struct.field(default_factory=dict)
     """Additional information about the environment. Useful for accumulations (e.g. returns)"""
 
+    def is_truncation(self) -> Array:
+        return self.step_type == StepType.TRUNCATION
+
+    def is_termination(self) -> Array:
+        return self.step_type == StepType.TERMINATION
+
+    def is_transition(self) -> Array:
+        return self.step_type == StepType.TRANSITION
+
+    def is_done(self) -> Array:
+        return jnp.logical_or(self.is_truncation(), self.is_termination())
+
+    def is_start(self) -> Array:
+        return self.t == 0
+
 
 class Environment(struct.PyTreeNode):
     height: int = struct.field(pytree_node=False)
     width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
+    observation_space: Space = struct.field(pytree_node=False)
+    action_space: Space = struct.field(pytree_node=False)
+    reward_space: Space = struct.field(pytree_node=False)
     gamma: float = struct.field(pytree_node=False, default=0.99)
-    penality_coeff: float = struct.field(pytree_node=False, default=0.9)
+    penality_coeff: float = struct.field(pytree_node=False, default=0.0)
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
@@ -83,57 +101,71 @@ class Environment(struct.PyTreeNode):
         pytree_node=False, default=DEFAULT_ACTION_SET
     )
 
-    @property
-    def observation_space(self) -> Space:
-        if self.observation_fn == observations.none:
-            return Continuous(shape=())
-        elif self.observation_fn == observations.categorical:
-            return Discrete(shape=(self.height, self.width))
-        elif self.observation_fn == observations.categorical_first_person:
-            radius = observations.RADIUS
-            return Discrete(shape=(radius + 1, radius * 2 + 1))
-        elif self.observation_fn == observations.rgb:
-            return Discrete(
-                256,
-                shape=(self.height * TILE_SIZE, self.width * TILE_SIZE, 3),
-                dtype=jnp.uint8,
-            )
-        elif self.observation_fn == observations.rgb_first_person:
-            radius = observations.RADIUS
-            return Discrete(
-                256,
-                shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3),
-                dtype=jnp.uint8,
-            )
-        else:
-            raise NotImplementedError(
-                "Unknown observation space for observation function {}".format(
-                    self.observation_fn
-                )
-            )
+    @classmethod
+    def create(
+        cls,
+        height: int,
+        width: int,
+        max_steps: int,
+        observation_fn: Callable[[State], Array] = observations.symbolic,
+        reward_fn: Callable[[State, Array, State], Array] = rewards.DEFAULT_TASK,
+        termination_fn: Callable[
+            [State, Array, State], Array
+        ] = terminations.DEFAULT_TERMINATION,
+        transitions_fn: Callable[
+            [State, Array, Tuple[Callable[[State], State], ...]], State
+        ] = transitions.DEFAULT_TRANSITION,
+        action_set: Tuple[Callable[[State], State], ...] = DEFAULT_ACTION_SET,
+        observation_space: Space | None = None,
+        action_space: Space | None = None,
+        reward_space: Space | None = None,
+        **kwargs,
+    ) -> Environment:
 
-    @property
-    def action_space(self) -> Space:
-        return Discrete(len(self.action_set))
+        if observation_space is None:
+            observation_space = cls._get_obs_space_from_fn(
+                width, height, observation_fn
+            )
+        if action_space is None:
+            action_space = Discrete.create(len(action_set))
+        if reward_space is None:
+            reward_space = Continuous.create(
+                shape=(), minimum=jnp.asarray(-1.0), maximum=jnp.asarray(1.0)
+            )
+        return cls(
+            height=height,
+            width=width,
+            max_steps=max_steps,
+            observation_fn=observation_fn,
+            reward_fn=reward_fn,
+            termination_fn=termination_fn,
+            transitions_fn=transitions_fn,
+            action_set=action_set,
+            observation_space=observation_space,
+            action_space=action_space,
+            reward_space=reward_space,
+            **kwargs,
+        )
 
     @abc.abstractmethod
-    def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
+    def _reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
         raise NotImplementedError()
+
+    def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
+        k1, k2 = jax.random.split(key)
+        timestep = self._reset(k1, cache)
+        timestep.info["return"] = jnp.asarray(0.0)
+        return timestep.replace(state=timestep.state.replace(key=k2))
 
     def step(self, timestep: Timestep, action: Array) -> Timestep:
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
             should_reset,
-            lambda timestep: self._reset(timestep.state.key, timestep.state.cache),
+            lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
             lambda timestep: self._step(timestep, action),
             timestep,
         )
-
-    def _reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
-        k1, k2 = jax.random.split(key)
-        timestep = self.reset(k1, cache)
-        return timestep.replace(state=timestep.state.replace(key=k2))
 
     def _step(self, timestep: Timestep, action: Array) -> Timestep:
         """
@@ -151,7 +183,7 @@ class Environment(struct.PyTreeNode):
         step_type = self.termination(timestep.state, action, state, timestep.t + 1)
 
         # calculate reward
-        reward = self.reward(timestep.state, action, state)
+        reward = self.reward_fn(timestep.state, action, state)
         reward = jax.lax.cond(
             step_type == StepType.TERMINATION,
             lambda reward: reward - self.penality_coeff * (t / self.max_steps),
@@ -159,21 +191,21 @@ class Environment(struct.PyTreeNode):
             reward,
         )
 
-        # build timestep
-        return Timestep(
+        new_timestep = Timestep(
             t=t,
             state=state,
             action=jnp.asarray(action),
             reward=reward,
             step_type=step_type,
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
         )
 
-    def observation(self, state: State):
-        return self.observation_fn(state)
+        new_timestep.info["return"] = (
+            timestep.info.get("return", jnp.asarray(0.0)) + reward
+        )
 
-    def reward(self, state: State, action: Array, new_state: State):
-        return self.reward_fn(state, action, new_state)
+        # build timestep
+        return new_timestep
 
     def termination(
         self, prev_state: State, action: Array, state: State, t: Array
@@ -181,3 +213,42 @@ class Environment(struct.PyTreeNode):
         terminated = self.termination_fn(prev_state, action, state)
         truncated = t >= self.max_steps
         return terminations.check_truncation(terminated, truncated)
+
+    @staticmethod
+    def _get_obs_space_from_fn(
+        width: int, height: int, observation_fn: Callable[[State], Array]
+    ) -> Space:
+        if observation_fn == observations.none:
+            return Continuous.create(
+                shape=(), minimum=jnp.asarray(0.0), maximum=jnp.asarray(0.0)
+            )
+        elif observation_fn == observations.categorical:
+            return Discrete.create(n_elements=9, shape=(height, width))
+        elif observation_fn == observations.categorical_first_person:
+            radius = observations.RADIUS
+            return Discrete.create(n_elements=9, shape=(radius + 1, radius * 2 + 1))
+        elif observation_fn == observations.rgb:
+            return Discrete.create(
+                256,
+                shape=(height * TILE_SIZE, width * TILE_SIZE, 3),
+                dtype=jnp.uint8,
+            )
+        elif observation_fn == observations.rgb_first_person:
+            radius = observations.RADIUS
+            return Discrete.create(
+                n_elements=256,
+                shape=(radius * TILE_SIZE * 2 + 1, radius * TILE_SIZE * 2 + 1, 3),
+                dtype=jnp.uint8,
+            )
+        elif observation_fn == observations.symbolic:
+            return Discrete.create(
+                n_elements=9,
+                shape=(height, width, 3),
+                dtype=jnp.uint8,
+            )
+        else:
+            raise NotImplementedError(
+                "Unknown observation space for observation function {}".format(
+                    observation_fn
+                )
+            )

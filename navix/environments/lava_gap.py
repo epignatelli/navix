@@ -24,6 +24,8 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
@@ -35,7 +37,7 @@ from .registry import register_env
 
 
 class LavaGap(Environment):
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (
             self.height > 3
@@ -83,7 +85,7 @@ class LavaGap(Environment):
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(-1, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -93,13 +95,37 @@ class LavaGap(Environment):
 
 register_env(
     "Navix-DoorKey-S5-v0",
-    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=5, width=5),
+    lambda *args, **kwargs: LavaGap(
+        *args,
+        **kwargs,
+        height=5,
+        width=5,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-DoorKey-S6-v0",
-    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=6, width=6),
+    lambda *args, **kwargs: LavaGap(
+        *args,
+        **kwargs,
+        height=6,
+        width=6,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-DoorKey-S7-v0",
-    lambda *args, **kwargs: LavaGap(*args, **kwargs, height=7, width=7),
+    lambda *args, **kwargs: LavaGap(
+        *args,
+        **kwargs,
+        height=7,
+        width=7,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )

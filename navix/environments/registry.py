@@ -20,10 +20,6 @@
 
 from typing import Callable
 
-from jax import Array
-
-from ..states import State
-
 
 ENVS_REGISTRY = {}
 
@@ -32,27 +28,14 @@ def register_env(name: str, ctor: Callable):
     ENVS_REGISTRY[name] = ctor
 
 
-def make(
-    name: str,
-    max_steps: int,
-    observation_fn: Callable[[State], Array],
-    reward_fn: Callable[[State, Array, State], Array],
-    termination_fn: Callable[[State, Array, State], Array],
-    **kwargs,
-):
+def make(name: str, max_steps: int = 100, **kwargs):
     if name in NotImplementedEnvs:
         raise NotImplementedError(
             f"Environment {name} not yet implemented. Please open a feature request!\
             \nhttps://github.com/epignatelli/naxiv"
         )
     ctor = ENVS_REGISTRY[name]
-    return ctor(
-        max_steps=max_steps,
-        observation_fn=observation_fn,
-        reward_fn=reward_fn,
-        termination_fn=termination_fn,
-        **kwargs,
-    )
+    return ctor(max_steps=max_steps, **kwargs)
 
 
 NotImplementedEnvs = [

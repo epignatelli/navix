@@ -24,13 +24,14 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
 from ..entities import Player, Goal, Lava
 from ..states import State
 from . import Timestep
-from ..grid import room
 from .registry import register_env
 
 
@@ -38,7 +39,7 @@ class Crossings(Environment):
     n_crossings: int = struct.field(pytree_node=False, default=1)
     is_lava: bool = struct.field(pytree_node=False, default=False)
 
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert (
             self.height == self.width
         ), f"Crossings are only defined for square grids, got height {self.height} and \
@@ -116,7 +117,7 @@ class Crossings(Environment):
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(-1, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -126,25 +127,53 @@ class Crossings(Environment):
 
 register_env(
     "Navix-Crossings-S9N1-v0",
-    lambda *args, **kwargs: Crossings(
-        *args, **kwargs, height=9, width=9, n_crossings=1
+    lambda *args, **kwargs: Crossings.create(
+        height=9,
+        width=9,
+        n_crossings=1,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Crossings-S9N2-v0",
     lambda *args, **kwargs: Crossings(
-        *args, **kwargs, height=9, width=9, n_crossings=2
+        height=9,
+        width=9,
+        n_crossings=2,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Crossings-S9N3-v0",
     lambda *args, **kwargs: Crossings(
-        *args, **kwargs, height=9, width=9, n_crossings=3
+        height=9,
+        width=9,
+        n_crossings=3,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-Crossings-S11N5-v0",
     lambda *args, **kwargs: Crossings(
-        *args, **kwargs, height=11, width=11, n_crossings=5
+        height=11,
+        width=11,
+        n_crossings=5,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
