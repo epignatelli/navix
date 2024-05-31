@@ -33,3 +33,5 @@ from . import (
     transitions,
     events,
 )
+
+from .environments.registry import make, register_env, ENVS_REGISTRY
