@@ -38,31 +38,6 @@ class Entities(struct.PyTreeNode):
 class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
-    # def __post_init__(self) -> None:
-    #     if not config.ARRAY_CHECKS_ENABLED:
-    #         return
-    #     # Check that all fields have the same batch size
-    #     fields = self.__dataclass_fields__
-    #     batch_size = self.shape[0:]
-    #     for path, leaf in jax.tree_util.tree_leaves_with_path(self):
-    #         name = path[0].name
-    #         default_ndim = len(fields[name].metadata["shape"])
-    #         prefix = int(default_ndim != leaf.ndim)
-    #         leaf_batch_size = leaf.shape[:prefix]
-    #         assert (
-    #             leaf_batch_size == batch_size
-    #         ), f"Expected {name} to have batch size {batch_size}, got {leaf_batch_size} instead"
-
-    # def check_ndim(self, batched: bool = False) -> None:
-    #     if not config.ARRAY_CHECKS_ENABLED:
-    #         return
-    #     for field in dataclasses.fields(self):
-    #         value = getattr(self, field.name)
-    #         default_ndim = len(field.metadata["shape"])
-    #         assert (
-    #             value.ndim == default_ndim + batched
-    #         ), f"Expected {field.name} to have ndim {default_ndim - batched}, got {value.ndim} instead"
-
     def __getitem__(self: T, idx) -> T:
         return jax.tree_util.tree_map(lambda x: x[idx], self)
 
