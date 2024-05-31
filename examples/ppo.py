@@ -1,3 +1,5 @@
+# This implementation of PPO is inspired from:
+# https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
 from dataclasses import dataclass
 import time
 
@@ -456,5 +458,8 @@ if __name__ == "__main__":
     print("Training complete")
     print(f"Compilation time cost: {compilation_time}")
     print(f"Training time cost: {training_time}")
-    print(f"Logging time cost: {logging_time}")
-    print(f"Total time cost: {compilation_time + training_time + logging_time}")
+    total_time = compilation_time + training_time
+    if not args.debug:
+        print(f"Logging time cost: {logging_time}")
+        total_time += logging_time
+    print(f"Total time cost: {total_time}")
