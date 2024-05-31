@@ -24,24 +24,21 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from navix.spaces import Space
+
 from .rendering.cache import TILE_SIZE, unflatten_patches
-from .components import DISCARD_PILE_IDX
+from .components import DISCARD_PILE_IDX, HasColour, Openable
 from .states import State
 from .grid import align, idx_from_coordinates, crop, view_cone
 
 
 RADIUS = 3
 
-
-def none(
-    state: State,
-) -> Array:
+def none(state: State) -> Array:
     return jnp.asarray(())
 
 
-def categorical(
-    state: State,
-) -> Array:
+def categorical(state: State) -> Array:
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
@@ -53,9 +50,7 @@ def categorical(
     return grid.reshape(shape)
 
 
-def categorical_first_person(
-    state: State,
-) -> Array:
+def categorical_first_person(state: State) -> Array:
     # get transparency map
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
@@ -76,9 +71,68 @@ def categorical_first_person(
     return obs
 
 
-def rgb(
-    state: State,
-) -> Array:
+def symbolic(state: State) -> Array:
+    """Fully observable grid with a symbolic state representation.
+    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
+    where X and Y are the coordinates on the grid, and IDX is the id of the object."""
+    obs = jnp.zeros(state.grid.shape + (3,), dtype=jnp.uint8)
+    for entity_class in state.entities:
+        entity = state.entities[entity_class]
+        tag = entity.tag
+        colour = (
+            entity.colour
+            if isinstance(entity, HasColour)
+            else jnp.zeros(entity.shape) - 1
+        )
+        entity_state = (
+            entity.open + (entity.requires != jnp.zeros(entity.shape) - 1)
+            if isinstance(entity, Openable)
+            else jnp.zeros(entity.shape) - 1
+        )
+        entity_symbol = jnp.concatenate([tag, colour, entity_state], axis=-1)
+        obs.at[entity.position].set(entity_symbol)
+    return obs
+
+
+# def symbolic_first_person(state: State) -> Array:
+#     """First-person view with a symbolic state representation.
+#     The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
+#     where X and Y are the coordinates on the grid, and IDX is the id of the object."""
+#     # get transparency map
+#     transparency_map = jnp.where(state.grid == 0, 1, 0)
+#     positions = state.get_positions()
+#     transparent = state.get_transparency()
+#     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+
+#     # apply view mask
+#     player = state.get_player()
+#     view = view_cone(transparency_map, player.position, RADIUS)
+
+#     # get symbolic representation
+#     obs = jnp.zeros(state.grid.shape + (3,), dtype=jnp.uint8)
+#     for entity_class in state.entities:
+#         entity = state.entities[entity_class]
+#         tag = entity.tag
+#         colour = (
+#             entity.colour
+#             if isinstance(entity, HasColour)
+#             else jnp.zeros(entity.shape) - 1
+#         )
+#         entity_state = (
+#             entity.open + (entity.requires != jnp.zeros(entity.shape) - 1)
+#             if isinstance(entity, Openable)
+#             else jnp.zeros(entity.shape) - 1
+#         )
+#         entity_symbol = jnp.concatenate([tag, colour, entity_state], axis=-1)
+#         obs.at[entity.position].set(entity_symbol)
+
+#     # crop grid to agent's view
+#     obs = crop(obs, player.position, player.direction, RADIUS) * view
+
+#     return obs
+
+
+def rgb(state: State) -> Array:
     # for 1-d vs 2-d indexing benchamarks
     # see https://github.com/epignatelli/navix/tree/observation/2dindexing
 
@@ -99,9 +153,7 @@ def rgb(
     return image
 
 
-def rgb_first_person(
-    state: State,
-) -> Array:
+def rgb_first_person(state: State) -> Array:
     # calculate final image size
     image_size = (
         state.grid.shape[0] * TILE_SIZE,
