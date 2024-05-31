@@ -11,7 +11,7 @@ N_SEEDS = 100
 def f(seed):
     key = jax.random.PRNGKey(seed)
     env = nx.environments.Room(16, 16, 8, observation_fn=nx.observations.rgb)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
 
     for _ in range(N_TIMESTEPS):
         action = jax.random.randint(timestep.state.key, (), 0, 6)
@@ -22,7 +22,7 @@ def f(seed):
 def f_scan(seed):
     key = jax.random.PRNGKey(seed)
     env = nx.environments.Room(16, 16, 8, observation_fn=nx.observations.rgb)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
 
     def body_fun(carry, x):
         timestep = carry

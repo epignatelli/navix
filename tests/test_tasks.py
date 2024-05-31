@@ -59,7 +59,7 @@ def test_tasks_composition():
     key = jax.random.PRNGKey(0)
 
     def _test():
-        timestep = env.reset(key)
+        timestep = env._reset(key)
         for _ in range(10):
             timestep = env.step(timestep, jax.random.randint(key, (), 0, 7))
         return timestep

@@ -18,7 +18,7 @@ def test_observation(observation_fn):
             height=5, width=10, max_steps=100, gamma=1.0, observation_fn=observation_fn
         )
         key = jax.random.PRNGKey(seed)
-        timestep = env.reset(key)
+        timestep = env._reset(key)
 
         # option 1
         # actions = jax.random.randint(key, (100,), 0, 6)

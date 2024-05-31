@@ -7,7 +7,7 @@ def test_room():
     def f():
         env = nx.environments.Room(height=3, width=3, max_steps=8)
         key = jax.random.PRNGKey(4)
-        reset = jax.jit(env.reset)
+        reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
         # these are optimal actios for navigation + action_cost
@@ -37,7 +37,7 @@ def test_keydoor():
     def f():
         env = nx.environments.KeyDoor(height=5, width=10, max_steps=8)
         key = jax.random.PRNGKey(1)
-        reset = jax.jit(env.reset)
+        reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
         #  these are optimal actions for navigation + action_cost
@@ -75,7 +75,7 @@ def test_keydoor2():
     env = nx.environments.KeyDoor(5, 7, 100, observation_fn=nx.observations.rgb)
 
     key = jax.random.PRNGKey(1)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
     return
 
 
