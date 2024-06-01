@@ -24,7 +24,8 @@ from navix.environments.environment import Timestep
 @dataclass
 class Args:
     project_name = "navix"
-    env_id: str = "Navix-Empty-Random-5x5-v0"
+    # env_id: str = "Navix-Empty-Random-5x5-v0"
+    env_id: str = "Navix-DoorKey-Random-6x6-v0"
     seed: int = 0
     budget: int = 10_000_000
     num_envs: int = 8
@@ -243,20 +244,19 @@ def make_train(args):
             # --- UPDATE AGENT  -----------------------------------------------
             # -----------------------------------------------------------------
             def _update_epoch(update_state: UpdateState, _) -> Tuple[UpdateState, Dict]:
-                def _update_minbatch(
+                def _sgd_update(
                     train_state: TrainState,
                     minibatch: Tuple[Buffer, jax.Array, jax.Array],
                 ) -> Tuple[TrainState, Dict]:
-                    traj_batch, advantages, targets = minibatch
-
-                    def _loss_fn(params, traj_batch, gae, targets):
+                    def _loss_fn(params, transition_batch, gae, targets):
+                        # this is already vmapped over the minibatches
                         # RERUN NETWORK
-                        pi, value = network.apply(params, traj_batch.obs)
-                        log_prob = pi.log_prob(traj_batch.action)
+                        pi, value = network.apply(params, transition_batch.obs)
+                        log_prob = pi.log_prob(transition_batch.action)
 
                         # CALCULATE VALUE LOSS
-                        value_pred_clipped = traj_batch.value + (
-                            value - traj_batch.value
+                        value_pred_clipped = transition_batch.value + (
+                            value - transition_batch.value
                         ).clip(-args.clip_eps, args.clip_eps)
                         value_losses = jnp.square(value - targets)
                         value_losses_clipped = jnp.square(value_pred_clipped - targets)
@@ -265,7 +265,7 @@ def make_train(args):
                         )
 
                         # CALCULATE ACTOR LOSS
-                        ratio = jnp.exp(log_prob - traj_batch.log_prob)
+                        ratio = jnp.exp(log_prob - transition_batch.log_prob)
                         gae = (gae - gae.mean()) / (gae.std() + 1e-8)
                         loss_actor1 = ratio * gae
                         loss_actor2 = (
@@ -287,19 +287,20 @@ def make_train(args):
                         )
 
                         # log
-                        logratio = log_prob - traj_batch.log_prob
+                        logratio = log_prob - transition_batch.log_prob
                         approx_kl = ((ratio - 1) - logratio).mean()
                         clipfrac = jnp.mean(jnp.abs(ratio - 1.0) > args.clip_eps)
                         log = {
-                            "ppo/total_loss": total_loss,
-                            "ppo/value_loss": value_loss,
-                            "ppo/actor_loss": loss_actor,
-                            "ppo/entropy": entropy,
-                            "ppo/approx_kl": approx_kl,
-                            "ppo/clipfrac": clipfrac,
+                            "loss/total_loss": total_loss,
+                            "loss/value_loss": value_loss,
+                            "loss/actor_loss": loss_actor,
+                            "loss/entropy": entropy,
+                            "loss/approx_kl": approx_kl,
+                            "loss/clipfrac": clipfrac,
                         }
                         return total_loss, log
 
+                    traj_batch, advantages, targets = minibatch
                     grad_fn = jax.value_and_grad(_loss_fn, has_aux=True)
                     (_, log), grads = grad_fn(
                         train_state.params, traj_batch, advantages, targets
@@ -307,14 +308,15 @@ def make_train(args):
                     train_state = train_state.apply_gradients(grads=grads)
                     return train_state, log
 
+                # unpack state
                 train_state = update_state.train_state
                 traj_batch = update_state.traj_batch
                 advantages = update_state.advantages
                 targets = update_state.targets
                 rng = update_state.rng
-                rng, _rng = jax.random.split(rng)
 
                 # Batching and Shuffling
+                rng, _rng = jax.random.split(rng)
                 batch_size = minibatch_size * args.num_minibatches
                 assert (
                     batch_size == args.num_steps * args.num_envs
@@ -328,16 +330,14 @@ def make_train(args):
                     lambda x: jnp.take(x, permutation, axis=0), batch
                 )
 
-                # Mini-batch Updates
+                # One epoch update over all mini-batches
                 minibatches = jax.tree_util.tree_map(
                     lambda x: jnp.reshape(
                         x, [args.num_minibatches, -1] + list(x.shape[1:])
                     ),
                     shuffled_batch,
                 )
-                train_state, logs = jax.lax.scan(
-                    _update_minbatch, train_state, minibatches
-                )
+                train_state, logs = jax.lax.scan(_sgd_update, train_state, minibatches)
                 update_state = UpdateState(
                     train_state=train_state,
                     traj_batch=traj_batch,
@@ -355,10 +355,13 @@ def make_train(args):
                 targets=targets,
                 rng=rng,
             )
-            # update state
+            # All epochs update
             update_state, logs = jax.lax.scan(
                 _update_epoch, update_state, None, args.update_epochs
             )
+            # logs size (num_mini_batches, num_epochs)
+            # average logs over epochs and minibatches
+            logs = jax.tree.map(lambda x: jnp.mean(x), logs)
             train_state = update_state.train_state
             rng = update_state.rng
 
@@ -371,7 +374,7 @@ def make_train(args):
 
             # Debugging mode
             if args.debug:
-                jax.debug.callback(report_and_log, logs)
+                jax.debug.callback(report_and_log, logs, experience)
 
             runner_state = RunnerState(
                 train_state=train_state,
@@ -397,7 +400,7 @@ def make_train(args):
     return train
 
 
-def report_and_log(logs, commit=True):
+def report_and_log(logs, experience):
     start_time = time.time()
     mask = logs.pop("done_mask")  # (T, N)
     returns = logs.pop("returns")  # (T, N)
@@ -421,14 +424,17 @@ def report_and_log(logs, commit=True):
             f"Logging time cost: {time.time() - start_time}"
         )
     )
-    wandb.log(logs, step=logs["update_step"], commit=commit)
+
+    logs = {k: v.item() for k, v in logs.items()}
+    wandb.log(logs, step=logs["update_step"])
 
 
 def report_final_log(logs):
+    print(jax.tree.map(lambda x: x.shape, logs))
     len_logs = len(logs["update_step"])
     for step in range(len_logs):
         step_logs = {k: v[step] for k, v in logs.items()}
-        report_and_log(step_logs, commit=True)
+        report_and_log(step_logs, None)
 
 
 if __name__ == "__main__":
