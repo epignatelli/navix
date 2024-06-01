@@ -24,6 +24,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from navix.entities import Wall
 from navix.spaces import Space
 
 from .rendering.cache import TILE_SIZE, unflatten_patches
@@ -33,6 +34,7 @@ from .grid import align, idx_from_coordinates, crop, view_cone
 
 
 RADIUS = 3
+
 
 def none(state: State) -> Array:
     return jnp.asarray(())
@@ -75,7 +77,11 @@ def symbolic(state: State) -> Array:
     """Fully observable grid with a symbolic state representation.
     The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
     where X and Y are the coordinates on the grid, and IDX is the id of the object."""
-    obs = jnp.zeros(state.grid.shape + (3,), dtype=jnp.uint8)
+    # initialise empty observation
+    minus_ones = jnp.zeros(state.grid.shape) - 1
+    obs = jnp.stack([state.grid, minus_ones, minus_ones], axis=-1)
+
+    # place entities
     for entity_class in state.entities:
         entity = state.entities[entity_class]
         tag = entity.tag
@@ -89,47 +95,9 @@ def symbolic(state: State) -> Array:
             if isinstance(entity, Openable)
             else jnp.zeros(entity.shape) - 1
         )
-        entity_symbol = jnp.concatenate([tag, colour, entity_state], axis=-1)
-        obs.at[entity.position].set(entity_symbol)
+        entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1)
+        obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
     return obs
-
-
-# def symbolic_first_person(state: State) -> Array:
-#     """First-person view with a symbolic state representation.
-#     The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
-#     where X and Y are the coordinates on the grid, and IDX is the id of the object."""
-#     # get transparency map
-#     transparency_map = jnp.where(state.grid == 0, 1, 0)
-#     positions = state.get_positions()
-#     transparent = state.get_transparency()
-#     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-
-#     # apply view mask
-#     player = state.get_player()
-#     view = view_cone(transparency_map, player.position, RADIUS)
-
-#     # get symbolic representation
-#     obs = jnp.zeros(state.grid.shape + (3,), dtype=jnp.uint8)
-#     for entity_class in state.entities:
-#         entity = state.entities[entity_class]
-#         tag = entity.tag
-#         colour = (
-#             entity.colour
-#             if isinstance(entity, HasColour)
-#             else jnp.zeros(entity.shape) - 1
-#         )
-#         entity_state = (
-#             entity.open + (entity.requires != jnp.zeros(entity.shape) - 1)
-#             if isinstance(entity, Openable)
-#             else jnp.zeros(entity.shape) - 1
-#         )
-#         entity_symbol = jnp.concatenate([tag, colour, entity_state], axis=-1)
-#         obs.at[entity.position].set(entity_symbol)
-
-#     # crop grid to agent's view
-#     obs = crop(obs, player.position, player.direction, RADIUS) * view
-
-#     return obs
 
 
 def rgb(state: State) -> Array:
