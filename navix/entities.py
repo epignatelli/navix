@@ -88,7 +88,7 @@ class Wall(Entity):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(0), self.shape)
+        return jnp.broadcast_to(jnp.asarray(-1), self.shape)
 
 
 class Player(Entity, Directional, Holder):
