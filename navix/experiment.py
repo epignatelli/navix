@@ -1,6 +1,8 @@
 from dataclasses import asdict
 import time
+from typing import Tuple
 import jax
+import jax.numpy as jnp
 import wandb
 from navix.agents.agent import Agent
 from navix.environments.environment import Environment
@@ -13,25 +15,24 @@ class Experiment:
         budget: int,
         agent: Agent,
         env: Environment,
-        seed: int,
+        env_id: str = "",
+        seeds: Tuple[int, ...] = (0,),
         debug: bool = False,
     ):
         self.name = name
         self.budget = budget
         self.agent = agent
         self.env = env
-        self.seed = seed
+        self.env_id = env_id
+        self.seeds = seeds
         self.debug = debug
 
     def run(self):
-        config = {**vars(self), **asdict(self.agent.hparams)}
-        wandb.init(project=self.name, config=config)
-
-        rng = jax.random.PRNGKey(self.seed)
+        rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
 
         print("Compiling training function...")
         start_time = time.time()
-        train_fn = jax.jit(self.agent.train).lower(rng).compile()
+        train_fn = jax.jit(jax.vmap(self.agent.train)).lower(rng).compile()
         compilation_time = time.time() - start_time
         print(f"Compilation time cost: {compilation_time}")
 
@@ -44,8 +45,15 @@ class Experiment:
         if not self.debug:
             print("Logging final results to wandb...")
             start_time = time.time()
-            self.agent.log_on_train_end(logs)
-            wandb.log({})
+            if len(self.seeds) > 1:
+                for seed in self.seeds:
+                    config = {**vars(self), **asdict(self.agent.hparams)}
+                    config.update(seed=seed)
+                    wandb.init(project=self.name, config=config)
+                    print("Logging results for seed:", seed)
+                    log = jax.tree.map(lambda x: x[seed], logs)
+                    self.agent.log_on_train_end(log)
+                    wandb.finish()
             logging_time = time.time() - start_time
             print(f"Logging time cost: {logging_time}")
 

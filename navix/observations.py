@@ -100,10 +100,19 @@ def symbolic(state: State) -> Array:
     return obs
 
 
-def rgb(state: State) -> Array:
-    # for 1-d vs 2-d indexing benchamarks
-    # see https://github.com/epignatelli/navix/tree/observation/2dindexing
+def symbolic_first_person(state: State) -> Array:
+    """First person view with a symbolic state representation.
+    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
+    where X and Y are the coordinates on the grid, and IDX is the id of the object."""
+    # get transparency map
+    obs = symbolic(state)
 
+    player = state.get_player()
+    obs = crop(obs, player.position, player.direction, RADIUS)
+    return obs
+
+
+def rgb(state: State) -> Array:
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tiles corresponding to the entities
@@ -123,20 +132,18 @@ def rgb(state: State) -> Array:
 
 def rgb_first_person(state: State) -> Array:
     # calculate final image size
-    image_size = (
-        state.grid.shape[0] * TILE_SIZE,
-        state.grid.shape[1] * TILE_SIZE,
-    )
-
     # get agent's view
-    transparency_map = jnp.where(state.grid == 0, 1, 0)
-    positions = state.get_positions()
-    transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-    player = state.get_player()
-    view = view_cone(transparency_map, player.position, RADIUS)
-    view = jax.image.resize(view, image_size, method="nearest")
-    view = jnp.tile(view[..., None], (1, 1, 3))
+    # image_size = (
+    #     state.grid.shape[0] * TILE_SIZE,
+    #     state.grid.shape[1] * TILE_SIZE,
+    # )
+    # transparency_map = jnp.where(state.grid == 0, 1, 0)
+    # positions = state.get_positions()
+    # transparent = state.get_transparency()
+    # transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+    # view = view_cone(transparency_map, player.position, RADIUS)
+    # view = jax.image.resize(view, image_size, method="nearest")
+    # view = jnp.tile(view[..., None], (1, 1, 3))
 
     # get sprites aligned to player's direction
     sprites = state.get_sprites()
@@ -152,6 +159,7 @@ def rgb_first_person(state: State) -> Array:
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
     # crop grid to agent's view
+    player = state.get_player()
     patchwork = crop(patchwork, player.position, player.direction, RADIUS)
 
     # reconstruct image

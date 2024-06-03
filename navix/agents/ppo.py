@@ -1,6 +1,6 @@
-# This implementation of PPO is roughly inspired by:
+# This implementation of PPO is broadly inspired by:
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import time
 
 import numpy as np
@@ -15,33 +15,35 @@ import distrax
 import wandb
 from flax import struct
 
+from navix.observations import rgb
 from navix.agents.agent import Agent, HParams
 from navix.environments import Environment
 from navix.environments.environment import Timestep
+from navix.states import State
 
 
 # THIS DOES NOT WORK!
 # See https://github.com/google/flax/issues/3956
-# class ActorCritic(nn.Module):
-#     actor_encoder: nn.Module
-#     critic_encoder: nn.Module
-#     action_dim: int
+class ActorCritic(nn.Module):
+    actor_encoder: nn.Module
+    critic_encoder: nn.Module
+    action_dim: int
 
-#     @nn.compact
-#     def __call__(self, x):
-#         actor_repr = self.actor_encoder(x)
-#         logits = nn.Dense(
-#             self.action_dim,
-#             kernel_init=orthogonal(0.01),
-#             bias_init=constant(0.0),
-#         )(actor_repr)
-#         pi = distrax.Categorical(logits=logits)
+    @nn.compact
+    def __call__(self, x):
+        actor_repr = self.actor_encoder(x)
+        logits = nn.Dense(
+            self.action_dim,
+            kernel_init=orthogonal(0.01),
+            bias_init=constant(0.0),
+        )(actor_repr)
+        pi = distrax.Categorical(logits=logits)
 
-#         critic_repr = self.critic_encoder(x)
-#         value = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
-#             critic_repr
-#         )
-#         return pi, jnp.squeeze(value, axis=-1)
+        critic_repr = self.critic_encoder(x)
+        value = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
+            critic_repr
+        )
+        return pi, jnp.squeeze(value, axis=-1)
 
 
 @dataclass
@@ -56,8 +58,6 @@ class PPOHparams(HParams):
     """Number of minibatches to split the data into for training."""
     num_epochs: int = 1
     """Number of epochs to train for."""
-    gamma: float = 0.99
-    """Discount factor."""
     gae_lambda: float = 0.95
     """Lambda parameter of the TD(lambda) return."""
     clip_eps: float = 0.2
@@ -72,48 +72,93 @@ class PPOHparams(HParams):
     """Starting learning rate."""
     anneal_lr: bool = True
     """Whether to anneal the learning rate linearly to 0 at the end of training."""
-    debug: bool = True
+    debug: bool = False
     """Whether to run in debug mode."""
+    log_render: bool = False
+    """Whether to log environment renderings."""
 
 
-class ActorCritic(nn.Module):
-    action_dim: int
-    activation: str = "tanh"
+# class ActorCritic(nn.Module):
+#     action_dim: int
+#     activation: str = "tanh"
 
-    @nn.compact
-    def __call__(self, x):
-        activation = getattr(nn, self.activation)
-        n = self.action_dim
-        logits = nn.Sequential(
-            [
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                activation,
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                activation,
-                nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
-            ]
-        )(x)
-        pi = distrax.Categorical(logits=logits)
+#     @nn.compact
+#     def __call__(self, x):
+#         activation = getattr(nn, self.activation)
+#         n = self.action_dim
+#         logits = nn.Sequential(
+#             [
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
+#             ]
+#         )(x)
+#         pi = distrax.Categorical(logits=logits)
 
-        value = nn.Sequential(
-            [
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                activation,
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                activation,
-                nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-            ]
-        )(x)
+#         value = nn.Sequential(
+#             [
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
+#             ]
+#         )(x)
 
-        return pi, jnp.squeeze(value, axis=-1)
+#         return pi, jnp.squeeze(value, axis=-1)
+
+
+# class ActorCritic(nn.Module):
+#     action_dim: int
+#     activation: str = "tanh"
+#     hidden_size: int = 64
+
+#     @nn.compact
+#     def __call__(self, x):
+#         activation = getattr(nn, self.activation)
+#         n = self.action_dim
+#         logits = nn.Sequential(
+#             [
+#                 nn.Conv(16, (2, 2)),
+#                 activation,
+#                 nn.Conv(32, (2, 2)),
+#                 activation,
+#                 nn.Conv(64, (2, 2)),
+#                 activation,
+#                 jnp.ravel,
+#                 nn.Dense(self.hidden_size),
+#                 activation,
+#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
+#             ]
+#         )(x)
+#         pi = distrax.Categorical(logits=logits)
+
+#         value = nn.Sequential(
+#             [
+#                 nn.Conv(16, (2, 2)),
+#                 activation,
+#                 nn.Conv(32, (2, 2)),
+#                 activation,
+#                 nn.Conv(64, (2, 2)),
+#                 activation,
+#                 jnp.ravel,
+#                 nn.Dense(self.hidden_size),
+#                 activation,
+#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
+#             ]
+#         )(x)
+
+#         return pi, jnp.squeeze(value, axis=-1)
 
 
 class Buffer(NamedTuple):
@@ -125,6 +170,7 @@ class Buffer(NamedTuple):
     obs: jax.Array
     info: Dict[str, jax.Array]
     t: jax.Array
+    state: State
 
 
 class TrainingState(TrainState):
@@ -148,7 +194,7 @@ class PPO(Agent):
             env_state, rng = collection_state
             # SELECT ACTION
             rng, _rng = jax.random.split(rng)
-            pi, value = self.network.apply(train_state.params, env_state.observation)
+            pi, value = train_state.apply_fn(train_state.params, env_state.observation)
             value = jnp.asarray(value)
             action = pi.sample(seed=_rng)
             log_prob = pi.log_prob(action)
@@ -165,6 +211,7 @@ class PPO(Agent):
                 new_env_state.observation,
                 new_env_state.info,
                 env_state.t,
+                state=env_state.state,
             )
             return (new_env_state, rng), transition
 
@@ -192,10 +239,8 @@ class PPO(Agent):
                 transition.value,
                 transition.reward,
             )
-            delta = reward + self.hparams.gamma * next_value * (1 - done) - value
-            gae = (
-                delta + self.hparams.gamma * self.hparams.gae_lambda * (1 - done) * gae
-            )
+            delta = reward + self.env.gamma * next_value * (1 - done) - value
+            gae = delta + self.env.gamma * self.hparams.gae_lambda * (1 - done) * gae
             return (gae, value), gae
 
         _, advantages = jax.lax.scan(
@@ -210,7 +255,9 @@ class PPO(Agent):
     def ppo_loss(self, params, transition_batch, gae, targets):
         # this is already vmapped over the minibatches
         # RERUN NETWORK
-        pi, value = self.network.apply(params, transition_batch.obs)
+        pi, value = jax.vmap(self.network.apply, in_axes=(None, 0))(
+            params, transition_batch.obs
+        )
         log_prob = pi.log_prob(transition_batch.action)
 
         # CALCULATE VALUE LOSS
@@ -283,7 +330,9 @@ class PPO(Agent):
         for _ in range(self.hparams.num_epochs):
             # Re-evaluate experience at every epoch as per
             # https://arxiv.org/abs/2006.05990
-            last_val = jnp.asarray(self.network.apply(train_state.params, last_obs)[1])
+            last_val = jnp.asarray(
+                train_state.apply_fn(train_state.params, last_obs)[1]
+            )
             advantages, targets = self.evaluate_experience(experience, last_val)
 
             # Batching and Shuffling
@@ -320,9 +369,18 @@ class PPO(Agent):
         logs["done_mask"] = experience.done
         logs["returns"] = experience.info["return"]
         logs["lengths"] = experience.t
-        logs["frames"] = train_state.frames
-        logs["update_step"] = train_state.epoch
-        logs["train_step"] = train_state.step
+        logs["iter/frames"] = train_state.frames
+        logs["iter/update_step"] = train_state.epoch
+        logs["iter/train_step"] = train_state.step
+
+        if self.hparams.log_render:
+            b = jax.random.randint(rng, (), 0, self.hparams.num_envs)
+            logs["render/human"] = jax.vmap(rgb)(
+                jax.tree.map(lambda x: x[:, b], experience.state)
+            ).transpose(
+                (0, 3, 1, 2)
+            )  # (T, 3, H, W)
+            # logs["render/agent"] = experience.obs[:, b]  # (T, H, W)
 
         # Debugging mode
         if self.hparams.debug:
@@ -360,7 +418,7 @@ class PPO(Agent):
             self.hparams.num_steps * self.hparams.num_envs
         )
         train_state = TrainingState.create(
-            apply_fn=self.network.apply,
+            apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0)),
             params=network_params,
             tx=tx,
             env_state=env_state,
@@ -371,7 +429,7 @@ class PPO(Agent):
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
         return train_state, logs
 
-    def log(self, logs, inspectable):
+    def log(self, logs, inspectable=None):
         if len(logs) == 0:
             return
         start_time = time.time()
@@ -383,14 +441,19 @@ class PPO(Agent):
         final_returns = returns[mask]  # (K,)
         episode_lengths = lengths[mask]  # (K,)
 
+        # log renders
+        if self.hparams.log_render:
+            render = logs.pop("render")  # (T, 3, H, W)
+            logs[f"render/env"] = wandb.Video(np.array(render), fps=4)
+
         logs["perf/returns"] = jnp.mean(final_returns)
         logs["perf/episode_length"] = jnp.mean(episode_lengths)
         logs["perf/success_rate"] = jnp.mean(final_returns == 1.0)
 
         print(
             (
-                f"Update Step: {logs['update_step']}, "
-                f"Frames: {logs['frames']}, "
+                f"Update Step: {logs['iter/update_step']}, "
+                f"Frames: {logs['iter/frames']}, "
                 f"Returns: {logs['perf/returns']}, "
                 f"Length: {logs['perf/episode_length']}, "
                 f"Success Rate: {logs['perf/success_rate']}, "
@@ -398,12 +461,12 @@ class PPO(Agent):
             )
         )
 
-        logs = {k: v.item() for k, v in logs.items()}
-        wandb.log(logs, step=logs["update_step"])
+        logs = {k: v for k, v in logs.items()}
+        wandb.log(logs, step=logs["iter/update_step"])
 
     def log_on_train_end(self, logs):
         print(jax.tree.map(lambda x: x.shape, logs))
-        len_logs = len(logs["update_step"])
+        len_logs = len(logs["iter/update_step"])
         for step in range(len_logs):
-            step_logs = {k: v[step] for k, v in logs.items()}
-            self.log(step_logs, None)
+            step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
+            self.log(step_logs)

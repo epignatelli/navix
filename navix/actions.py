@@ -159,11 +159,13 @@ def pickup(state: State) -> State:
 
 
 def drop(state: State) -> State:
-    raise NotImplementedError()
+    # raise NotImplementedError()
+    return state
 
 
 def toggle(state: State) -> State:
-    raise NotImplementedError()
+    # raise NotImplementedError()
+    return state
 
 
 def open(state: State) -> State:
@@ -242,5 +244,14 @@ COMPLETE_ACTION_SET = (
     done,
 )
 
+MINIGRID_ACTION_SET = (
+    rotate_ccw,
+    rotate_cw,
+    forward,
+    pickup,
+    drop,
+    toggle,
+    done,
+)
 
-DEFAULT_ACTION_SET = COMPLETE_ACTION_SET
+DEFAULT_ACTION_SET = MINIGRID_ACTION_SET
