@@ -19,11 +19,15 @@
 from typing import Callable
 
 
-ENVS_REGISTRY = {}
+_ENVS_REGISTRY = {}
+
+
+def registry():
+    return _ENVS_REGISTRY
 
 
 def register_env(name: str, ctor: Callable):
-    ENVS_REGISTRY[name] = ctor
+    _ENVS_REGISTRY[name] = ctor
 
 
 def make(name: str, max_steps: int = 100, **kwargs):
@@ -32,7 +36,7 @@ def make(name: str, max_steps: int = 100, **kwargs):
             f"Environment {name} not yet implemented. Please open a feature request!\
             \nhttps://github.com/epignatelli/navix/issues/new?labels=enhancement"
         )
-    ctor = ENVS_REGISTRY[name]
+    ctor = _ENVS_REGISTRY[name]
     return ctor(max_steps=max_steps, **kwargs)
 
 

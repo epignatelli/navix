@@ -1,48 +1,79 @@
-# This implementation of PPO is inspired from:
+# This implementation of PPO is roughly inspired by:
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import time
 
+import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
-import numpy as np
 import optax
 from flax.linen.initializers import constant, orthogonal
-from typing import Callable, Dict, NamedTuple, Tuple
+from typing import Dict, NamedTuple, Tuple
 from flax.training.train_state import TrainState
 import distrax
-import tyro
 import wandb
 from flax import struct
 
-import navix as nx
-from navix import observations
+from navix.agents.agent import Agent, HParams
 from navix.environments import Environment
 from navix.environments.environment import Timestep
 
 
+# THIS DOES NOT WORK!
+# See https://github.com/google/flax/issues/3956
+# class ActorCritic(nn.Module):
+#     actor_encoder: nn.Module
+#     critic_encoder: nn.Module
+#     action_dim: int
+
+#     @nn.compact
+#     def __call__(self, x):
+#         actor_repr = self.actor_encoder(x)
+#         logits = nn.Dense(
+#             self.action_dim,
+#             kernel_init=orthogonal(0.01),
+#             bias_init=constant(0.0),
+#         )(actor_repr)
+#         pi = distrax.Categorical(logits=logits)
+
+#         critic_repr = self.critic_encoder(x)
+#         value = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
+#             critic_repr
+#         )
+#         return pi, jnp.squeeze(value, axis=-1)
+
+
 @dataclass
-class Args:
-    project_name = "navix"
-    env_id: str = "Navix-DoorKey-Random-6x6-v0"
-    seed: int = 0
+class PPOHparams(HParams):
     budget: int = 10_000_000
-    debug: bool = True
-    # ppo hyperparameters
+    """Number of environment frames to train for."""
     num_envs: int = 8
+    """Number of parallel environments to run."""
     num_steps: int = 256
+    """Number of steps to run in each environment per update."""
     num_minibatches: int = 8
-    update_epochs: int = 1
+    """Number of minibatches to split the data into for training."""
+    num_epochs: int = 1
+    """Number of epochs to train for."""
     gamma: float = 0.99
+    """Discount factor."""
     gae_lambda: float = 0.95
+    """Lambda parameter of the TD(lambda) return."""
     clip_eps: float = 0.2
+    """PPO clip parameter."""
     ent_coef: float = 0.01
+    """Entropy coefficient in the total loss."""
     vf_coef: float = 0.5
+    """Value function coefficient in the total loss."""
     max_grad_norm: float = 0.5
+    """Maximum gradient norm for clipping."""
     lr: float = 2.5e-4
-    activation: str = "tanh"
+    """Starting learning rate."""
     anneal_lr: bool = True
+    """Whether to anneal the learning rate linearly to 0 at the end of training."""
+    debug: bool = True
+    """Whether to run in debug mode."""
 
 
 class ActorCritic(nn.Module):
@@ -103,38 +134,28 @@ class TrainingState(TrainState):
     epoch: jax.Array
 
 
-class UpdateState(NamedTuple):
-    train_state: TrainingState
-    traj_batch: Buffer
-    advantages: jax.Array
-    targets: jax.Array
-    rng: jax.Array
-
-
-class PPO(struct.PyTreeNode):
-    hparams: Args = struct.field(pytree_node=False)
+class PPO(Agent):
+    hparams: PPOHparams = struct.field(pytree_node=False)
     network: ActorCritic = struct.field(pytree_node=False)
-    env_step_fn: Callable[[Timestep, jax.Array], Timestep] = struct.field(
-        pytree_node=False
-    )
+    env: Environment
 
-    def collect_experience(self, params, env_state, rng):
+    def collect_experience(
+        self, train_state: TrainingState
+    ) -> Tuple[TrainingState, Buffer]:
         def _env_step(
             collection_state: Tuple[Timestep, jax.Array], _
         ) -> Tuple[Tuple[Timestep, jax.Array], Buffer]:
             env_state, rng = collection_state
             # SELECT ACTION
             rng, _rng = jax.random.split(rng)
-            pi, value = self.network.apply(params, env_state.observation)
+            pi, value = self.network.apply(train_state.params, env_state.observation)
             value = jnp.asarray(value)
             action = pi.sample(seed=_rng)
             log_prob = pi.log_prob(action)
 
             # STEP ENV
             rng, _rng = jax.random.split(rng)
-            new_env_state = jax.vmap(self.env_step_fn, in_axes=(0, 0))(
-                env_state, action
-            )
+            new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
                 new_env_state.is_done(),
                 action,
@@ -149,9 +170,17 @@ class PPO(struct.PyTreeNode):
 
         # collect experience and update env_state
         (env_state, rng), experience = jax.lax.scan(
-            _env_step, (env_state, rng), None, self.hparams.num_steps
+            _env_step,
+            (train_state.env_state, train_state.rng),
+            None,
+            self.hparams.num_steps,
         )
-        return (env_state, rng), experience
+        train_state = train_state.replace(
+            env_state=env_state,
+            rng=rng,
+            frames=train_state.frames + self.hparams.num_steps * self.hparams.num_envs,
+        )
+        return train_state, experience
 
     def evaluate_experience(
         self, experience: Buffer, last_val: jax.Array
@@ -218,7 +247,7 @@ class PPO(struct.PyTreeNode):
         logratio = log_prob - transition_batch.log_prob
         approx_kl = ((ratio - 1) - logratio).mean()
         clipfrac = jnp.mean(jnp.abs(ratio - 1.0) > self.hparams.clip_eps)
-        log = {
+        logs = {
             "loss/total_loss": total_loss,
             "loss/value_loss": value_loss,
             "loss/actor_loss": loss_actor,
@@ -226,7 +255,7 @@ class PPO(struct.PyTreeNode):
             "loss/approx_kl": approx_kl,
             "loss/clipfrac": clipfrac,
         }
-        return total_loss, log
+        return total_loss, logs
 
     def sgd_step(
         self,
@@ -239,28 +268,32 @@ class PPO(struct.PyTreeNode):
         train_state = train_state.apply_gradients(grads=grads)
         return train_state, log
 
-    def update_step(self, update_state: UpdateState) -> Tuple[UpdateState, Dict]:
+    def update(self, train_state: TrainingState, _) -> Tuple[TrainingState, Dict]:
         # unpack state
-        train_state = update_state.train_state
-        traj_batch = update_state.traj_batch
-        advantages = update_state.advantages
-        targets = update_state.targets
-        rng = update_state.rng
+        rng = train_state.rng
         minibatch_size = (
             self.hparams.num_envs
             * self.hparams.num_steps
             // self.hparams.num_minibatches
         )
+        # collect experience
+        train_state, experience = self.collect_experience(train_state)
 
-        for _ in range(self.hparams.update_epochs):
+        last_obs = train_state.env_state.observation
+        for _ in range(self.hparams.num_epochs):
+            # Re-evaluate experience at every epoch as per
+            # https://arxiv.org/abs/2006.05990
+            last_val = jnp.asarray(self.network.apply(train_state.params, last_obs)[1])
+            advantages, targets = self.evaluate_experience(experience, last_val)
+
             # Batching and Shuffling
-            rng, _rng = jax.random.split(rng)
+            rng, rng_1 = jax.random.split(rng)
             batch_size = minibatch_size * self.hparams.num_minibatches
             assert (
                 batch_size == self.hparams.num_steps * self.hparams.num_envs
             ), "batch size must be equal to number of steps * number of envs"
-            permutation = jax.random.permutation(_rng, batch_size)
-            batch = (traj_batch, advantages, targets)
+            permutation = jax.random.permutation(rng_1, batch_size)
+            batch = (experience, advantages, targets)
             batch = jax.tree_util.tree_map(
                 lambda x: x.reshape((batch_size,) + x.shape[2:]), batch
             )
@@ -271,22 +304,76 @@ class PPO(struct.PyTreeNode):
             # One epoch update over all mini-batches
             minibatches = jax.tree_util.tree_map(
                 lambda x: jnp.reshape(
-                    x, [self.hparams.num_minibatches, -1] + list(x.shape[1:])
+                    x, (self.hparams.num_minibatches, -1) + tuple(x.shape[1:])
                 ),
                 shuffled_batch,
             )
             train_state, logs = jax.lax.scan(self.sgd_step, train_state, minibatches)
 
-        update_state = UpdateState(
-            train_state=train_state,
-            traj_batch=traj_batch,
-            advantages=advantages,
-            targets=targets,
+        train_state = train_state.replace(
             rng=rng,
+            epoch=train_state.epoch + self.hparams.num_epochs,
         )
-        return update_state, logs
+        logs = jax.tree.map(lambda x: jnp.mean(x), logs)
 
-    def report_and_log(self, logs, experience):
+        # update logs with returns
+        logs["done_mask"] = experience.done
+        logs["returns"] = experience.info["return"]
+        logs["lengths"] = experience.t
+        logs["frames"] = train_state.frames
+        logs["update_step"] = train_state.epoch
+        logs["train_step"] = train_state.step
+
+        # Debugging mode
+        if self.hparams.debug:
+            jax.debug.callback(self.log, logs, experience)
+
+        return train_state, logs
+
+    def train(self, rng: jax.Array) -> Tuple[TrainingState, Dict]:
+        # INIT NETWORK
+        rng, _rng = jax.random.split(rng)
+        init_x = self.env.observation_space.sample(_rng)
+        network_params = self.network.init(_rng, init_x)
+
+        def linear_schedule(count):
+            frac = (
+                1.0
+                - (count // (self.hparams.num_minibatches * self.hparams.num_epochs))
+                / num_updates
+            )
+            return self.hparams.lr * frac
+
+        lr = linear_schedule if self.hparams.anneal_lr else self.hparams.lr
+        tx = optax.chain(
+            optax.clip_by_global_norm(self.hparams.max_grad_norm),
+            optax.adam(lr, eps=1e-5),
+        )
+
+        # INIT ENV
+        rng, _rng = jax.random.split(rng)
+        reset_rng = jax.random.split(_rng, self.hparams.num_envs)
+        env_state = jax.vmap(self.env.reset)(reset_rng)
+
+        # TRAIN LOOP
+        num_updates = self.hparams.budget // (
+            self.hparams.num_steps * self.hparams.num_envs
+        )
+        train_state = TrainingState.create(
+            apply_fn=self.network.apply,
+            params=network_params,
+            tx=tx,
+            env_state=env_state,
+            rng=_rng,
+            frames=jnp.asarray(0),
+            epoch=jnp.asarray(0),
+        )
+        train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
+        return train_state, logs
+
+    def log(self, logs, inspectable):
+        if len(logs) == 0:
+            return
         start_time = time.time()
         mask = logs.pop("done_mask")  # (T, N)
         returns = logs.pop("returns")  # (T, N)
@@ -314,160 +401,9 @@ class PPO(struct.PyTreeNode):
         logs = {k: v.item() for k, v in logs.items()}
         wandb.log(logs, step=logs["update_step"])
 
-    def report_final_log(self, logs):
+    def log_on_train_end(self, logs):
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["update_step"])
         for step in range(len_logs):
             step_logs = {k: v[step] for k, v in logs.items()}
-            self.report_and_log(step_logs, None)
-
-    def update(self, train_state: TrainingState, _) -> Tuple[TrainingState, Dict]:
-        # collect experience
-        (env_state, rng), experience = self.collect_experience(
-            params=train_state.params,
-            env_state=train_state.env_state,
-            rng=train_state.rng,
-        )
-
-        # evaluate experience
-        last_val = jnp.asarray(
-            self.network.apply(train_state.params, env_state.observation)[1]
-        )
-        advantages, targets = self.evaluate_experience(experience, last_val)
-
-        # update agent
-        update_state = UpdateState(
-            train_state=train_state,
-            traj_batch=experience,
-            advantages=advantages,
-            targets=targets,
-            rng=train_state.rng,
-        )
-        update_state, logs = self.update_step(update_state)
-
-        logs = jax.tree.map(lambda x: jnp.mean(x), logs)
-        train_state = update_state.train_state
-        rng = update_state.rng
-
-        # update logs with returns
-        logs["done_mask"] = experience.done
-        logs["returns"] = experience.info["return"]
-        logs["lengths"] = experience.t
-        logs["frames"] = train_state.frames
-        logs["update_step"] = train_state.epoch
-
-        # Debugging mode
-        if self.hparams.debug:
-            jax.debug.callback(self.report_and_log, logs, experience)
-
-        train_state = train_state.replace(
-            train_state=train_state,
-            env_state=env_state,
-            rng=rng,
-            frames=train_state.frames + self.hparams.num_steps * self.hparams.num_envs,
-            epoch=train_state.epoch + self.hparams.update_epochs,
-        )
-        return train_state, logs
-
-    def train(self, rng: jax.Array, *, args: Args) -> Tuple[TrainingState, Dict]:
-        # INIT NETWORK
-        network = ActorCritic(len(env.action_set), activation=args.activation)
-        rng, _rng = jax.random.split(rng)
-        init_x = env.observation_space.sample(_rng)
-        network_params = network.init(_rng, init_x)
-        linear_schedule = optax.linear_schedule(1.0, 0.0, args.budget)
-        lr = linear_schedule if args.anneal_lr else args.lr
-        tx = optax.chain(
-            optax.clip_by_global_norm(args.max_grad_norm), optax.adam(lr, eps=1e-5)
-        )
-
-        # INIT ENV
-        rng, _rng = jax.random.split(rng)
-        reset_rng = jax.random.split(_rng, args.num_envs)
-        env_state = jax.vmap(env.reset)(reset_rng)
-
-        # TRAIN LOOP
-        num_updates = args.budget // (args.num_steps * args.num_envs)
-        train_state = TrainingState.create(
-            apply_fn=network.apply,
-            params=network_params,
-            tx=tx,
-            env_state=env_state,
-            rng=_rng,
-            frames=jnp.asarray(0),
-            epoch=jnp.asarray(0),
-        )
-        runner_state, logs = jax.lax.scan(agent.update, train_state, None, num_updates)
-        return runner_state, logs
-
-
-class Experiment:
-    def __init__(self, agent: PPO, env: Environment, seed: int):
-        self.agent = agent
-        self.env = env
-        self.seed = seed
-
-    def run(self):
-        rng = jax.random.PRNGKey(self.seed)
-
-        print("Compiling training function...")
-        start_time = time.time()
-        train_fn = (
-            jax.jit(self.agent.train, static_argnames=("args", "agent", "env"))
-            .lower(rng)
-            .compile()
-        )
-        compilation_time = time.time() - start_time
-        print(f"Compilation time cost: {compilation_time}")
-
-        print("Training agent...")
-        start_time = time.time()
-        train_state, logs = train_fn(rng)
-        training_time = time.time() - start_time
-        print(f"Training time cost: {training_time}")
-
-        if not args.debug:
-            print("Logging final results to wandb...")
-            start_time = time.time()
-            self.agent.report_final_log(logs)
-            wandb.log({})
-            logging_time = time.time() - start_time
-            print(f"Logging time cost: {logging_time}")
-
-        print("Training complete")
-        print(f"Compilation time cost: {compilation_time}")
-        print(f"Training time cost: {training_time}")
-        total_time = compilation_time + training_time
-        if not args.debug:
-            print(f"Logging time cost: {logging_time}")
-            total_time += logging_time
-        print(f"Total time cost: {total_time}")
-        return train_state, logs
-
-
-if __name__ == "__main__":
-    args = tyro.cli(Args)
-
-    def FlattenObsWrapper(env: Environment):
-        flatten_obs_fn = lambda x: jnp.ravel(env.observation_fn(x))
-        flatten_obs_shape = (int(np.prod(env.observation_space.shape)),)
-        return env.replace(
-            observation_fn=flatten_obs_fn,
-            observation_space=env.observation_space.replace(shape=flatten_obs_shape),
-        )
-
-    env = nx.make(
-        args.env_id,
-        max_steps=100,
-        observation_fn=observations.symbolic,
-    )
-    env = FlattenObsWrapper(env)
-
-    agent = PPO(
-        hparams=args,
-        network=ActorCritic(len(env.action_set), activation=args.activation),
-        env_step_fn=env.step,
-    )
-
-    experiment = Experiment(agent=agent, env=env, seed=args.seed)
-    train_state, logs = experiment.run()
+            self.log(step_logs, None)
