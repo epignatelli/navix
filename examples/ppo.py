@@ -204,6 +204,7 @@ def make_train(args):
             (env_state, rng), experience = jax.lax.scan(
                 _env_step, (env_state, rng), None, args.num_steps
             )
+            inspect({"experience": experience})
             # update number of elapsed frames
             frames += args.num_steps * args.num_envs
             # -----------------------------------------------------------------
@@ -238,6 +239,11 @@ def make_train(args):
                 network.apply(runner_state.train_state.params, env_state.observation)[1]
             )
             advantages, targets = evaluate_experience(experience, last_val)
+            if args.debug:
+                jax.debug.callback(report_and_log, {}, (advantages, experience.value))
+            inspect({"advantages": advantages})
+            inspect({"targets": targets})
+
             # -----------------------------------------------------------------
 
             # -----------------------------------------------------------------
@@ -400,7 +406,9 @@ def make_train(args):
     return train
 
 
-def report_and_log(logs, experience):
+def report_and_log(logs, insectable):
+    if len(logs) == 0:
+        return
     start_time = time.time()
     mask = logs.pop("done_mask")  # (T, N)
     returns = logs.pop("returns")  # (T, N)
@@ -435,6 +443,18 @@ def report_final_log(logs):
     for step in range(len_logs):
         step_logs = {k: v[step] for k, v in logs.items()}
         report_and_log(step_logs, None)
+
+
+def inspect(var):
+    def bah(x):
+        print(x)
+
+    def save(x):
+        jax.tree_util.tree_map_with_path(
+            lambda path, x: jnp.save(f"/home/uceeepi/repos/navix/inspect_examples_{path}", x), x
+        )
+    jax.debug.callback(bah, var)
+    jax.debug.callback(save, var)
 
 
 if __name__ == "__main__":
