@@ -46,6 +46,46 @@ class ActorCritic(nn.Module):
         return pi, jnp.squeeze(value, axis=-1)
 
 
+# class ActorCritic(nn.Module):
+#     action_dim: int
+#     activation: str = "tanh"
+
+#     @nn.compact
+#     def __call__(self, x):
+#         activation = getattr(nn, self.activation)
+#         n = self.action_dim
+#         logits = nn.Sequential(
+#             [
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
+#             ]
+#         )(x)
+#         pi = distrax.Categorical(logits=logits)
+
+#         value = nn.Sequential(
+#             [
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(
+#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
+#                 ),
+#                 activation,
+#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
+#             ]
+#         )(x)
+
+#         return pi, jnp.squeeze(value, axis=-1)
+
+
 @dataclass
 class PPOHparams(HParams):
     budget: int = 10_000_000
@@ -77,88 +117,6 @@ class PPOHparams(HParams):
     log_render: bool = False
     """Whether to log environment renderings."""
 
-
-# class ActorCritic(nn.Module):
-#     action_dim: int
-#     activation: str = "tanh"
-
-#     @nn.compact
-#     def __call__(self, x):
-#         activation = getattr(nn, self.activation)
-#         n = self.action_dim
-#         logits = nn.Sequential(
-#             [
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-#         pi = distrax.Categorical(logits=logits)
-
-#         value = nn.Sequential(
-#             [
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-
-#         return pi, jnp.squeeze(value, axis=-1)
-
-
-# class ActorCritic(nn.Module):
-#     action_dim: int
-#     activation: str = "tanh"
-#     hidden_size: int = 64
-
-#     @nn.compact
-#     def __call__(self, x):
-#         activation = getattr(nn, self.activation)
-#         n = self.action_dim
-#         logits = nn.Sequential(
-#             [
-#                 nn.Conv(16, (2, 2)),
-#                 activation,
-#                 nn.Conv(32, (2, 2)),
-#                 activation,
-#                 nn.Conv(64, (2, 2)),
-#                 activation,
-#                 jnp.ravel,
-#                 nn.Dense(self.hidden_size),
-#                 activation,
-#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-#         pi = distrax.Categorical(logits=logits)
-
-#         value = nn.Sequential(
-#             [
-#                 nn.Conv(16, (2, 2)),
-#                 activation,
-#                 nn.Conv(32, (2, 2)),
-#                 activation,
-#                 nn.Conv(64, (2, 2)),
-#                 activation,
-#                 jnp.ravel,
-#                 nn.Dense(self.hidden_size),
-#                 activation,
-#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-
-#         return pi, jnp.squeeze(value, axis=-1)
 
 
 class Buffer(NamedTuple):
