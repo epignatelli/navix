@@ -24,13 +24,11 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from navix.entities import Wall
-from navix.spaces import Space
-
 from .rendering.cache import TILE_SIZE, unflatten_patches
-from .components import DISCARD_PILE_IDX, HasColour, Openable
+from .components import DISCARD_PILE_IDX, Directional, HasColour, Openable
 from .states import State
 from .grid import align, idx_from_coordinates, crop, view_cone
+from .entities import EntityIds
 
 
 RADIUS = 3
@@ -77,25 +75,30 @@ def symbolic(state: State) -> Array:
     """Fully observable grid with a symbolic state representation.
     The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
     where X and Y are the coordinates on the grid, and IDX is the id of the object."""
-    # initialise empty observation
-    minus_ones = jnp.zeros(state.grid.shape) - 1
-    obs = jnp.stack([state.grid, minus_ones, minus_ones], axis=-1)
+    # initialise as all floors
+    H, W = state.grid.shape
+    obs = jnp.zeros((H, W, 3), dtype=jnp.uint8)
+    wall_symbol = jnp.array([EntityIds.WALL, 5, 0], dtype=jnp.uint8)
+    floor_symbol = jnp.array([EntityIds.FLOOR, 0, 0], dtype=jnp.uint8)
+    obs = jnp.where(state.grid[..., None] == -1, wall_symbol, floor_symbol)
 
     # place entities
     for entity_class in state.entities:
         entity = state.entities[entity_class]
         tag = entity.tag
-        colour = (
-            entity.colour
-            if isinstance(entity, HasColour)
-            else jnp.zeros(entity.shape) - 1
-        )
-        entity_state = (
-            entity.open + (entity.requires != jnp.zeros(entity.shape) - 1)
-            if isinstance(entity, Openable)
-            else jnp.zeros(entity.shape) - 1
-        )
-        entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1)
+        # colour layer
+        if isinstance(entity, HasColour):
+            colour = entity.colour
+        else:
+            colour = jnp.zeros(entity.shape)
+        # state layer
+        if isinstance(entity, Openable):
+            entity_state = entity.open + (entity.requires != jnp.zeros(entity.shape))
+        elif isinstance(entity, Directional):
+            entity_state = entity.direction
+        else:
+            entity_state = jnp.zeros(entity.shape)
+        entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1, dtype=jnp.uint8)
         obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
     return obs
 
@@ -107,8 +110,23 @@ def symbolic_first_person(state: State) -> Array:
     # get transparency map
     obs = symbolic(state)
 
+    # replace player with pocket to show them what they are carrying
     player = state.get_player()
-    obs = crop(obs, player.position, player.direction, RADIUS)
+    obs = obs.at[tuple(player.position.T)].set(
+        jnp.asarray([EntityIds.FLOOR, 0, 0], dtype=jnp.uint8)
+    )
+
+    # crop to first person view
+    obs = crop(
+        obs,
+        player.position,
+        player.direction,
+        RADIUS,
+        padding_value=255,
+    )
+    # replace padding symbol with walls
+    wall_symbol = jnp.array([EntityIds.WALL, 5, 0], dtype=jnp.uint8)
+    obs = jnp.where(obs == 255, wall_symbol, obs)
     return obs
 
 
