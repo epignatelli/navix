@@ -6,7 +6,8 @@ from flax.training.train_state import TrainState
 
 
 @dataclass
-class HParams: ...
+class HParams:
+    debug: bool = False
 
 
 class Agent(struct.PyTreeNode):

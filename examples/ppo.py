@@ -36,8 +36,7 @@ if __name__ == "__main__":
 
     env = nx.make(
         args.env_id,
-        max_steps=100,
-        observation_fn=observations.symbolic,
+        observation_fn=observations.symbolic_first_person,
         gamma=args.discount,
     )
     env = FlattenObsWrapper(env)
@@ -57,6 +56,5 @@ if __name__ == "__main__":
         env=env,
         env_id=args.env_id,
         seeds=tuple(range(args.seeds_offset, args.seeds_offset + args.n_seeds)),
-        debug=args.ppo_config.debug,
     )
     train_state, logs = experiment.run()

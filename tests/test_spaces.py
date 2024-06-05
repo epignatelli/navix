@@ -8,6 +8,7 @@ from navix.spaces import Continuous, Discrete
 MAX_INT = sys.maxsize
 MIN_INT = -sys.maxsize - 1
 
+
 def test_discrete():
     key = jax.random.PRNGKey(42)
     elements = (5, 0, MAX_INT, MIN_INT)

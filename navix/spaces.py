@@ -36,12 +36,14 @@ class Space(struct.PyTreeNode):
 
 class Discrete(Space):
     @classmethod
-    def create(cls, n_elements: int, shape: Shape = (), dtype=jnp.int32) -> Discrete:
+    def create(
+        cls, n_elements: int | jax.Array, shape: Shape = (), dtype=jnp.int32
+    ) -> Discrete:
         return Discrete(
             shape=shape,
             dtype=dtype,
             minimum=jnp.asarray(0),
-            maximum=jnp.asarray(n_elements - 1),
+            maximum=jnp.asarray(n_elements) - 1,
         )
 
     def sample(self, key: Array) -> Array:

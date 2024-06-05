@@ -17,7 +17,6 @@ class Experiment:
         env: Environment,
         env_id: str = "",
         seeds: Tuple[int, ...] = (0,),
-        debug: bool = False,
     ):
         self.name = name
         self.budget = budget
@@ -25,7 +24,6 @@ class Experiment:
         self.env = env
         self.env_id = env_id
         self.seeds = seeds
-        self.debug = debug
 
     def run(self):
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -42,26 +40,27 @@ class Experiment:
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
 
-        if not self.debug:
+        if not self.agent.hparams.debug:
             print("Logging final results to wandb...")
             start_time = time.time()
-            if len(self.seeds) > 1:
-                for seed in self.seeds:
-                    config = {**vars(self), **asdict(self.agent.hparams)}
-                    config.update(seed=seed)
-                    wandb.init(project=self.name, config=config)
-                    print("Logging results for seed:", seed)
-                    log = jax.tree.map(lambda x: x[seed], logs)
-                    self.agent.log_on_train_end(log)
-                    wandb.finish()
+            for seed in self.seeds:
+                config = {**vars(self), **asdict(self.agent.hparams)}
+                config.update(seed=seed)
+                wandb.init(project=self.name, config=config)
+                print("Logging results for seed:", seed)
+                log = jax.tree.map(lambda x: x[seed], logs)
+                self.agent.log_on_train_end(log)
+                wandb.finish()
             logging_time = time.time() - start_time
             print(f"Logging time cost: {logging_time}")
 
         print("Training complete")
+        total_time = 0
         print(f"Compilation time cost: {compilation_time}")
+        total_time += compilation_time
         print(f"Training time cost: {training_time}")
-        total_time = compilation_time + training_time
-        if not self.debug:
+        total_time += training_time
+        if not self.agent.hparams.debug:
             print(f"Logging time cost: {logging_time}")
             total_time += logging_time
         print(f"Total time cost: {total_time}")

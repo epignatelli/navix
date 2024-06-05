@@ -106,7 +106,7 @@ class Environment(struct.PyTreeNode):
         cls,
         height: int,
         width: int,
-        max_steps: int,
+        max_steps: int | None = None,
         observation_fn: Callable[[State], Array] = observations.symbolic,
         reward_fn: Callable[[State, Array, State], Array] = rewards.DEFAULT_TASK,
         termination_fn: Callable[
@@ -132,6 +132,8 @@ class Environment(struct.PyTreeNode):
             reward_space = Continuous.create(
                 shape=(), minimum=jnp.asarray(-1.0), maximum=jnp.asarray(1.0)
             )
+        if max_steps is None:
+            max_steps = 4 * height * width
         return cls(
             height=height,
             width=width,

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 
 from .environment import Environment, Timestep
-from .room import Room
+from .empty import Room
 from .key_door import KeyDoor
 from .four_rooms import FourRooms
 from .key_corridor import KeyCorridor

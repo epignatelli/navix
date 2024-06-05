@@ -26,11 +26,11 @@ from .models import ActorCritic
 
 @dataclass
 class PPOHparams(HParams):
-    budget: int = 10_000_000
+    budget: int = 1_000_000
     """Number of environment frames to train for."""
     num_envs: int = 16
     """Number of parallel environments to run."""
-    num_steps: int = 256
+    num_steps: int = 128
     """Number of steps to run in each environment per update."""
     num_minibatches: int = 8
     """Number of minibatches to split the data into for training."""
@@ -58,6 +58,8 @@ class PPOHparams(HParams):
     """Whether to normalise the advantages in the PPO loss."""
     clip_value_loss: bool = True
     """Whether to clip the value loss in the PPO loss."""
+    log_frequency: int = 1
+    """How often to log results."""
 
 
 class Buffer(struct.PyTreeNode):
@@ -94,23 +96,21 @@ class PPO(Agent):
             # SELECT ACTION
             rng, _rng = jax.random.split(rng)
             pi, value = train_state.apply_fn(train_state.params, env_state.observation)
-            value = jnp.asarray(value)
             action = pi.sample(seed=_rng)
             log_prob = pi.log_prob(action)
 
             # STEP ENV
-            rng, _rng = jax.random.split(rng)
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
-                done=new_env_state.is_done(),
-                action=action,
-                value=value,
-                reward=new_env_state.reward,
-                log_prob=log_prob,
-                obs=new_env_state.observation,
-                info=new_env_state.info,
-                t=env_state.t,
-                state=env_state.state,
+                done=new_env_state.is_done(),  # done(o_{t+1})
+                action=action,  # a_t
+                value=value,  # v(o_t)
+                reward=new_env_state.reward,  # R(o_t, a_t)
+                log_prob=log_prob,  # log π(a_t|o_t)
+                obs=env_state.observation,  # o_t
+                info=new_env_state.info,  # info(o_{t+1})
+                t=env_state.t,  # t
+                state=env_state.state,  # s_t
             )
             return (new_env_state, rng), transition
 
@@ -131,42 +131,22 @@ class PPO(Agent):
     def evaluate_experience(
         self, experience: Buffer, last_val: jax.Array
     ) -> Tuple[jax.Array, jax.Array]:
-        # value = jnp.concatenate([experience.value, last_val[None]], axis=0)
-        # adv = jax.vmap(
-        #     rlax.truncated_generalized_advantage_estimation,
-        #     in_axes=(1, 1, None, 1), out_axes=1,
-        # )(
-        #     experience.reward,
-        #     (1 - experience.done) * self.env.gamma ** experience.t,
-        #     self.hparams.gae_lambda,
-        #     value,
-        # )
-        # adv = jnp.asarray(adv)
-        # return adv, adv + experience.value
-
-        def _get_advantages(gae_and_next_value, transition):
-            gae, next_value = gae_and_next_value
-            done, value, reward = (
-                transition.done,
-                transition.value,
-                transition.reward,
-            )
-            delta = reward + self.env.gamma * next_value * (1 - done) - value
-            gae = delta + self.env.gamma * self.hparams.gae_lambda * (1 - done) * gae
-            return (gae, value), gae
-
-        _, advantages = jax.lax.scan(
-            _get_advantages,
-            (jnp.zeros_like(last_val), last_val),
-            experience,
-            reverse=True,
-            unroll=16,
+        adv = jax.vmap(
+            rlax.truncated_generalized_advantage_estimation,
+            in_axes=(1, 1, None, 1, None),
+            out_axes=1,
+        )(
+            experience.reward,
+            (1 - experience.done) * self.env.gamma**experience.t,
+            self.hparams.gae_lambda,
+            jnp.concatenate([experience.value, last_val[None]], axis=0),
+            True,
         )
-        return advantages, advantages + experience.value
+        adv = jnp.asarray(adv)
+        return adv, adv + experience.value
 
     def ppo_loss(self, params, transition_batch, gae, targets):
         # this is already vmapped over the minibatches
-        # RERUN NETWORK
         pi, value = jax.vmap(self.network.apply, in_axes=(None, 0))(
             params, transition_batch.obs
         )
@@ -235,7 +215,6 @@ class PPO(Agent):
 
     def update(self, train_state: TrainingState, _) -> Tuple[TrainingState, Dict]:
         # unpack state
-        rng = train_state.rng
         minibatch_size = (
             self.hparams.num_envs
             * self.hparams.num_steps
@@ -245,13 +224,17 @@ class PPO(Agent):
         train_state, experience = self.collect_experience(train_state)
 
         # evaluate experience
-        # TODO(epignatelli): We should re-evaluate experience at every epoch as per
-        # https://arxiv.org/abs/2006.05990
-        last_obs = train_state.env_state.observation
-        last_val = jnp.asarray(train_state.apply_fn(train_state.params, train_state.env_state.observation)[1])
-        advantages, targets = self.evaluate_experience(experience, last_val)
 
+        last_obs = train_state.env_state.observation
+        rng = train_state.rng
         for _ in range(self.hparams.num_epochs):
+            # re-evaluate experience at every epoch as per https://arxiv.org/abs/2006.05990
+            last_val = train_state.apply_fn(train_state.params, last_obs)[1]
+            experience = experience.replace(
+                value=train_state.apply_fn(train_state.params, experience.obs)[1]
+            )
+            advantages, targets = self.evaluate_experience(experience, last_val)
+
             # Batching and Shuffling
             rng, rng_1 = jax.random.split(rng)
             n_samples = minibatch_size * self.hparams.num_minibatches
@@ -308,7 +291,7 @@ class PPO(Agent):
         # INIT NETWORK
         rng, _rng = jax.random.split(rng)
         init_x = self.env.observation_space.sample(_rng)
-        network_params = self.network.init(_rng, init_x)
+        params = self.network.init(_rng, init_x)
 
         def linear_schedule(count):
             frac = (
@@ -335,19 +318,20 @@ class PPO(Agent):
         )
         train_state = TrainingState.create(
             apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0)),
-            params=network_params,
+            params=params,
             tx=tx,
             env_state=env_state,
-            rng=_rng,
-            frames=jnp.asarray(0),
-            epoch=jnp.asarray(0),
+            rng=rng,
+            frames=jnp.asarray(0, dtype=jnp.int32),
+            epoch=jnp.asarray(0, dtype=jnp.int32),
         )
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
         return train_state, logs
 
     def log(self, logs, inspectable=None):
-        if len(logs) == 0:
+        if len(logs) == 0 or logs["iter/update_step"] % self.hparams.log_frequency != 0:
             return
+
         start_time = time.time()
         mask = logs.pop("done_mask")  # (T, N)
         returns = logs.pop("returns")  # (T, N)
