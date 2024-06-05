@@ -1,19 +1,19 @@
 # This implementation of PPO is broadly inspired by:
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
+# which is in turn inspired by:
+# https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
 from dataclasses import dataclass
 import time
 
 import numpy as np
 import jax
 import jax.numpy as jnp
-import flax.linen as nn
 import optax
-from flax.linen.initializers import constant, orthogonal
-from typing import Dict, NamedTuple, Tuple
+from typing import Dict, Tuple
 from flax.training.train_state import TrainState
-import distrax
 import wandb
 from flax import struct
+import rlax
 
 from navix.observations import rgb
 from navix.agents.agent import Agent, HParams
@@ -21,76 +21,14 @@ from navix.environments import Environment
 from navix.environments.environment import Timestep
 from navix.states import State
 
-
-# THIS DOES NOT WORK!
-# See https://github.com/google/flax/issues/3956
-class ActorCritic(nn.Module):
-    actor_encoder: nn.Module
-    critic_encoder: nn.Module
-    action_dim: int
-
-    @nn.compact
-    def __call__(self, x):
-        actor_repr = self.actor_encoder(x)
-        logits = nn.Dense(
-            self.action_dim,
-            kernel_init=orthogonal(0.01),
-            bias_init=constant(0.0),
-        )(actor_repr)
-        pi = distrax.Categorical(logits=logits)
-
-        critic_repr = self.critic_encoder(x)
-        value = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
-            critic_repr
-        )
-        return pi, jnp.squeeze(value, axis=-1)
-
-
-# class ActorCritic(nn.Module):
-#     action_dim: int
-#     activation: str = "tanh"
-
-#     @nn.compact
-#     def __call__(self, x):
-#         activation = getattr(nn, self.activation)
-#         n = self.action_dim
-#         logits = nn.Sequential(
-#             [
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(n, kernel_init=orthogonal(0.01), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-#         pi = distrax.Categorical(logits=logits)
-
-#         value = nn.Sequential(
-#             [
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(
-#                     64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-#                 ),
-#                 activation,
-#                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-#             ]
-#         )(x)
-
-#         return pi, jnp.squeeze(value, axis=-1)
+from .models import ActorCritic
 
 
 @dataclass
 class PPOHparams(HParams):
     budget: int = 10_000_000
     """Number of environment frames to train for."""
-    num_envs: int = 8
+    num_envs: int = 16
     """Number of parallel environments to run."""
     num_steps: int = 256
     """Number of steps to run in each environment per update."""
@@ -116,10 +54,13 @@ class PPOHparams(HParams):
     """Whether to run in debug mode."""
     log_render: bool = False
     """Whether to log environment renderings."""
+    normalise_advantage: bool = True
+    """Whether to normalise the advantages in the PPO loss."""
+    clip_value_loss: bool = True
+    """Whether to clip the value loss in the PPO loss."""
 
 
-
-class Buffer(NamedTuple):
+class Buffer(struct.PyTreeNode):
     done: jax.Array
     action: jax.Array
     value: jax.Array
@@ -161,14 +102,14 @@ class PPO(Agent):
             rng, _rng = jax.random.split(rng)
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
-                new_env_state.is_done(),
-                action,
-                value,
-                new_env_state.reward,
-                log_prob,
-                new_env_state.observation,
-                new_env_state.info,
-                env_state.t,
+                done=new_env_state.is_done(),
+                action=action,
+                value=value,
+                reward=new_env_state.reward,
+                log_prob=log_prob,
+                obs=new_env_state.observation,
+                info=new_env_state.info,
+                t=env_state.t,
                 state=env_state.state,
             )
             return (new_env_state, rng), transition
@@ -190,6 +131,19 @@ class PPO(Agent):
     def evaluate_experience(
         self, experience: Buffer, last_val: jax.Array
     ) -> Tuple[jax.Array, jax.Array]:
+        # value = jnp.concatenate([experience.value, last_val[None]], axis=0)
+        # adv = jax.vmap(
+        #     rlax.truncated_generalized_advantage_estimation,
+        #     in_axes=(1, 1, None, 1), out_axes=1,
+        # )(
+        #     experience.reward,
+        #     (1 - experience.done) * self.env.gamma ** experience.t,
+        #     self.hparams.gae_lambda,
+        #     value,
+        # )
+        # adv = jnp.asarray(adv)
+        # return adv, adv + experience.value
+
         def _get_advantages(gae_and_next_value, transition):
             gae, next_value = gae_and_next_value
             done, value, reward = (
@@ -219,16 +173,22 @@ class PPO(Agent):
         log_prob = pi.log_prob(transition_batch.action)
 
         # CALCULATE VALUE LOSS
-        value_pred_clipped = transition_batch.value + (
-            value - transition_batch.value
-        ).clip(-self.hparams.clip_eps, self.hparams.clip_eps)
-        value_losses = jnp.square(value - targets)
-        value_losses_clipped = jnp.square(value_pred_clipped - targets)
-        value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
+        if self.hparams.clip_value_loss:
+            value_loss = jnp.square(value - targets)
+            value_clipped = transition_batch.value + jnp.clip(
+                value - transition_batch.value,
+                -self.hparams.clip_eps,
+                self.hparams.clip_eps,
+            )
+            value_loss_clipped = 0.5 * jnp.square(value_clipped - targets)
+            value_loss = 0.5 * jnp.maximum(value_loss, value_loss_clipped).mean()
+        else:
+            value_loss = 0.5 * jnp.square(value - targets).mean()
 
         # CALCULATE ACTOR LOSS
         ratio = jnp.exp(log_prob - transition_batch.log_prob)
-        gae = (gae - gae.mean()) / (gae.std() + 1e-8)
+        if self.hparams.normalise_advantage:
+            gae = (gae - gae.mean()) / (gae.std() + 1e-8)
         loss_actor1 = ratio * gae
         loss_actor2 = (
             jnp.clip(
@@ -269,9 +229,9 @@ class PPO(Agent):
     ) -> Tuple[TrainingState, Dict]:
         traj_batch, advantages, targets = minibatch
         grad_fn = jax.value_and_grad(self.ppo_loss, has_aux=True)
-        (_, log), grads = grad_fn(train_state.params, traj_batch, advantages, targets)
+        (_, logs), grads = grad_fn(train_state.params, traj_batch, advantages, targets)
         train_state = train_state.apply_gradients(grads=grads)
-        return train_state, log
+        return train_state, logs
 
     def update(self, train_state: TrainingState, _) -> Tuple[TrainingState, Dict]:
         # unpack state
@@ -284,29 +244,28 @@ class PPO(Agent):
         # collect experience
         train_state, experience = self.collect_experience(train_state)
 
+        # evaluate experience
+        # TODO(epignatelli): We should re-evaluate experience at every epoch as per
+        # https://arxiv.org/abs/2006.05990
         last_obs = train_state.env_state.observation
-        for _ in range(self.hparams.num_epochs):
-            # Re-evaluate experience at every epoch as per
-            # https://arxiv.org/abs/2006.05990
-            last_val = jnp.asarray(
-                train_state.apply_fn(train_state.params, last_obs)[1]
-            )
-            advantages, targets = self.evaluate_experience(experience, last_val)
+        last_val = jnp.asarray(train_state.apply_fn(train_state.params, train_state.env_state.observation)[1])
+        advantages, targets = self.evaluate_experience(experience, last_val)
 
+        for _ in range(self.hparams.num_epochs):
             # Batching and Shuffling
             rng, rng_1 = jax.random.split(rng)
-            batch_size = minibatch_size * self.hparams.num_minibatches
+            n_samples = minibatch_size * self.hparams.num_minibatches
             assert (
-                batch_size == self.hparams.num_steps * self.hparams.num_envs
+                n_samples == self.hparams.num_steps * self.hparams.num_envs
             ), "batch size must be equal to number of steps * number of envs"
-            permutation = jax.random.permutation(rng_1, batch_size)
-            batch = (experience, advantages, targets)
-            batch = jax.tree_util.tree_map(
-                lambda x: x.reshape((batch_size,) + x.shape[2:]), batch
-            )
+            permutation = jax.random.permutation(rng_1, n_samples)
+            samples = (experience, advantages, targets)  # (T, N, ...)
+            samples = jax.tree_util.tree_map(
+                lambda x: x.reshape((n_samples,) + x.shape[2:]), samples
+            )  # (T * N, ...)
             shuffled_batch = jax.tree_util.tree_map(
-                lambda x: jnp.take(x, permutation, axis=0), batch
-            )
+                lambda x: jnp.take(x, permutation, axis=0), samples
+            )  # (T * N, ...)
 
             # One epoch update over all mini-batches
             minibatches = jax.tree_util.tree_map(
@@ -338,7 +297,6 @@ class PPO(Agent):
             ).transpose(
                 (0, 3, 1, 2)
             )  # (T, 3, H, W)
-            # logs["render/agent"] = experience.obs[:, b]  # (T, H, W)
 
         # Debugging mode
         if self.hparams.debug:
@@ -401,8 +359,8 @@ class PPO(Agent):
 
         # log renders
         if self.hparams.log_render:
-            render = logs.pop("render")  # (T, 3, H, W)
-            logs[f"render/env"] = wandb.Video(np.array(render), fps=4)
+            render_human = logs.pop("render/human")  # (T, 3, H, W)
+            logs[f"render/human"] = wandb.Video(np.array(render_human), fps=4)
 
         logs["perf/returns"] = jnp.mean(final_returns)
         logs["perf/episode_length"] = jnp.mean(episode_lengths)
@@ -419,7 +377,6 @@ class PPO(Agent):
             )
         )
 
-        logs = {k: v for k, v in logs.items()}
         wandb.log(logs, step=logs["iter/update_step"])
 
     def log_on_train_end(self, logs):

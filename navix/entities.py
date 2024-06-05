@@ -35,6 +35,26 @@ class Entities(struct.PyTreeNode):
     BOX: str = struct.field(pytree_node=False, default="box")
 
 
+class EntityIds:
+    UNKNOWN: Array = jnp.asarray(0, dtype=jnp.uint8)
+    FLOOR: Array = jnp.asarray(1, dtype=jnp.uint8)
+    WALL: Array = jnp.asarray(2, dtype=jnp.uint8)
+    DOOR: Array = jnp.asarray(4, dtype=jnp.uint8)
+    KEY: Array = jnp.asarray(5, dtype=jnp.uint8)
+    BALL: Array = jnp.asarray(6, dtype=jnp.uint8)
+    BOX: Array = jnp.asarray(7, dtype=jnp.uint8)
+    GOAL: Array = jnp.asarray(8, dtype=jnp.uint8)
+    LAVA: Array = jnp.asarray(9, dtype=jnp.uint8)
+    PLAYER: Array = jnp.asarray(10, dtype=jnp.uint8)
+
+
+class Directions:
+    EAST = jnp.asarray(0)
+    SOUTH = jnp.asarray(1)
+    WEST = jnp.asarray(2)
+    NORTH = jnp.asarray(3)
+
+
 class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
 
@@ -63,7 +83,7 @@ class Entity(Positionable, HasTag, HasSprite):
         raise NotImplementedError()
 
 
-class Wall(Entity):
+class Wall(Entity, HasColour):
     """Walls are entities that cannot be walked through"""
 
     @classmethod
@@ -71,7 +91,8 @@ class Wall(Entity):
         cls,
         position: Array,
     ) -> Wall:
-        return cls(position=position)
+        grey = jnp.asarray(5, dtype=jnp.uint8)
+        return cls(position=position, colour=grey)
 
     @property
     def walkable(self) -> Array:
@@ -88,7 +109,7 @@ class Wall(Entity):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(-1), self.shape)
+        return jnp.broadcast_to(EntityIds.WALL, self.shape)
 
 
 class Player(Entity, Directional, Holder):
@@ -122,10 +143,10 @@ class Player(Entity, Directional, Holder):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(2), self.shape)
+        return jnp.broadcast_to(EntityIds.PLAYER, self.shape)
 
 
-class Goal(Entity, Stochastic):
+class Goal(Entity, HasColour, Stochastic):
     """Goals are entities that can be reached by the player"""
 
     @classmethod
@@ -134,7 +155,8 @@ class Goal(Entity, Stochastic):
         position: Array,
         probability: Array,
     ) -> Goal:
-        return cls(position=position, probability=probability)
+        green = jnp.asarray(1, dtype=jnp.uint8)
+        return cls(position=position, probability=probability, colour=green)
 
     @property
     def walkable(self) -> Array:
@@ -157,7 +179,7 @@ class Goal(Entity, Stochastic):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(3), self.shape)
+        return jnp.broadcast_to(EntityIds.GOAL, self.shape)
 
 
 class Key(Entity, Pickable, HasColour):
@@ -194,7 +216,7 @@ class Key(Entity, Pickable, HasColour):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(4), self.shape)
+        return jnp.broadcast_to(EntityIds.KEY, self.shape)
 
 
 class Door(Entity, Openable, HasColour):
@@ -244,7 +266,7 @@ class Door(Entity, Openable, HasColour):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(5), self.shape)
+        return jnp.broadcast_to(EntityIds.DOOR, self.shape)
 
     @property
     def locked(self) -> Array:
@@ -282,7 +304,7 @@ class Lava(Entity):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(6), self.shape)
+        return jnp.broadcast_to(EntityIds.LAVA, self.shape)
 
 
 class Ball(Entity, HasColour, Stochastic):
@@ -318,7 +340,7 @@ class Ball(Entity, HasColour, Stochastic):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(7), self.shape)
+        return jnp.broadcast_to(EntityIds.BALL, self.shape)
 
 
 class Box(Entity, HasColour, Holder):
@@ -354,4 +376,4 @@ class Box(Entity, HasColour, Holder):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(8), self.shape)
+        return jnp.broadcast_to(EntityIds.BOX, self.shape)

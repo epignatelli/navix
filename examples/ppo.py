@@ -1,10 +1,7 @@
 from dataclasses import dataclass, field
 import tyro
 import numpy as np
-import jax
 import jax.numpy as jnp
-import flax.linen as nn
-from flax.linen.initializers import constant, orthogonal
 import navix as nx
 from navix import observations
 from navix.agents import PPO, PPOHparams, ActorCritic
@@ -17,9 +14,12 @@ from navix.environments.environment import Environment
 @dataclass
 class Args:
     project_name = "navix-examples"
-    env_id: str = "Navix-Empty-Random-5x5-v0"
     seeds_offset: int = 0
     n_seeds: int = 1
+    # env
+    env_id: str = "Navix-Empty-Random-5x5-v0"
+    discount: float = 0.99
+    # ppo
     ppo_config: PPOHparams = field(default_factory=PPOHparams)
 
 
@@ -37,24 +37,14 @@ if __name__ == "__main__":
     env = nx.make(
         args.env_id,
         max_steps=100,
-        observation_fn=observations.symbolic_first_person,
-        # observation_fn=observations.symbolic,
+        observation_fn=observations.symbolic,
+        gamma=args.discount,
     )
     env = FlattenObsWrapper(env)
 
-    encoder = nn.Sequential(
-        [
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
-            nn.tanh,
-            nn.Dense(64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)),
-            nn.tanh,
-        ]
-    )
     agent = PPO(
         hparams=args.ppo_config,
         network=ActorCritic(
-            actor_encoder=encoder.copy(),
-            critic_encoder=encoder.copy(),
             action_dim=len(env.action_set),
         ),
         env=env,

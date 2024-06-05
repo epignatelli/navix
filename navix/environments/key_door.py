@@ -58,7 +58,7 @@ class KeyDoor(Environment):
         # row can be between 1 and height - 2
         door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
         door_pos = jnp.asarray((door_row, door_col))
-        doors = Door(
+        doors = Door.create(
             position=door_pos,
             requires=jnp.asarray(3),
             open=jnp.asarray(False),
@@ -73,7 +73,7 @@ class KeyDoor(Environment):
         wall_pos = jnp.delete(
             wall_pos, door_row - 1, axis=0, assume_unique_indices=True
         )
-        walls = Wall(position=wall_pos)
+        walls = Wall.create(position=wall_pos)
 
         # get rooms
         first_room_mask = mask_by_coordinates(
@@ -96,14 +96,14 @@ class KeyDoor(Environment):
             goal_pos = jnp.asarray([self.height - 2, self.width - 2])
 
         # spawn goal and player
-        player = Player(
+        player = Player.create(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
+        keys = Key.create(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
 
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)

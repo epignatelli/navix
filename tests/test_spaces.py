@@ -1,7 +1,12 @@
+import sys
+
 import jax
 import jax.numpy as jnp
-from navix.spaces import Continuous, Discrete, MAX_INT, MIN_INT
+from navix.spaces import Continuous, Discrete
 
+
+MAX_INT = sys.maxsize
+MIN_INT = -sys.maxsize - 1
 
 def test_discrete():
     key = jax.random.PRNGKey(42)
@@ -11,7 +16,7 @@ def test_discrete():
     for element in elements:
         for shape in shapes:
             for dtype in dtypes:
-                space = Discrete(element, shape, dtype)
+                space = Discrete.create(element, shape, dtype)
                 sample = space.sample(key)
                 print(sample)
                 assert jnp.all(jnp.logical_not(jnp.isnan(sample)))
@@ -29,7 +34,7 @@ def test_continuous():
     ]
     for shape in shapes:
         for minimum, maximum in min_max:
-            space = Continuous(
+            space = Continuous.create(
                 shape=shape, minimum=jnp.asarray(minimum), maximum=jnp.asarray(maximum)
             )
             sample = space.sample(key)

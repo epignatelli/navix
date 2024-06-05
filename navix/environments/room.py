@@ -53,13 +53,13 @@ class Room(Environment):
             goal_pos = jnp.asarray([self.height - 2, self.width - 2])
             player_pos = jnp.asarray([1, 1])
             direction = jnp.asarray(0)
-        player = Player(
+        player = Player.create(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
         )
         # goal
-        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         entities = {
             Entities.PLAYER: player[None],

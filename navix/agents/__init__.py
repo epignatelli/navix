@@ -18,4 +18,5 @@
 # under the License.
 
 
-from .ppo import PPO, PPOHparams as PPOHparams, ActorCritic
+from .ppo import PPO, PPOHparams as PPOHparams
+from .models import MLPEncoder, ConvEncoder, ActorCritic

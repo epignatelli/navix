@@ -3,9 +3,8 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
-from navix.actions import Directions
 from navix.components import EMPTY_POCKET_ID, DISCARD_PILE_COORDS
-from navix.entities import Entities, Entity
+from navix.entities import Entities, Entity, Directions
 from navix.states import State
 from navix.rendering.registry import PALETTE
 

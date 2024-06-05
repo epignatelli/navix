@@ -22,19 +22,11 @@ from typing import Tuple
 import jax
 from jax import Array
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
 from .entities import Entities
 from .states import EventsManager, State
 from .components import DISCARD_PILE_COORDS
 from .grid import translate, rotate, positions_equal
-
-
-class Directions:
-    EAST = jnp.asarray(0)
-    SOUTH = jnp.asarray(1)
-    WEST = jnp.asarray(2)
-    NORTH = jnp.asarray(3)
 
 
 def _rotate(state: State, spin: int) -> State:

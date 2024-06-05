@@ -31,8 +31,8 @@ import jax.numpy as jnp
 SPRITES_DIR = os.path.normpath(
     os.path.join(__file__, "..", "..", "..", "assets", "sprites")
 )
-MIN_TILE__SIZE = 8
-TILE_SIZE = 16
+MIN_TILE_SIZE = 8
+TILE_SIZE = MIN_TILE_SIZE
 
 
 def load_sprite(name: str) -> Array:
@@ -50,12 +50,12 @@ def load_sprite(name: str) -> Array:
 
 
 class PALETTE:
-    RED: Array = jnp.asarray(0)
-    GREEN: Array = jnp.asarray(1)
-    BLUE: Array = jnp.asarray(2)
-    PURPLE: Array = jnp.asarray(3)
-    YELLOW: Array = jnp.asarray(4)
-    GREY: Array = jnp.asarray(5)
+    RED: Array = jnp.asarray(0, dtype=jnp.uint8)
+    GREEN: Array = jnp.asarray(1, dtype=jnp.uint8)
+    BLUE: Array = jnp.asarray(2, dtype=jnp.uint8)
+    PURPLE: Array = jnp.asarray(3, dtype=jnp.uint8)
+    YELLOW: Array = jnp.asarray(4, dtype=jnp.uint8)
+    GREY: Array = jnp.asarray(5, dtype=jnp.uint8)
 
     @classmethod
     def as_string(cls):

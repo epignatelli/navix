@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
-from navix.actions import Directions
+from navix.entities import Directions
 from navix.states import State
 from navix.components import EMPTY_POCKET_ID
 
