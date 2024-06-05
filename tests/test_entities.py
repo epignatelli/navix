@@ -18,11 +18,11 @@ def test_indexing():
 
 def test_get_sprites():
     # batched entity with batch size 1
-    entity = Goal(position=jnp.ones((1, 2)), probability=jnp.ones((1,)))
+    entity = Goal.create(position=jnp.ones((1, 2)), probability=jnp.ones((1,)))
     assert entity.sprite.shape == (1, TILE_SIZE, TILE_SIZE, 3)
 
     # batched entity with batch size > 1
-    entity = Goal(position=jnp.ones((5, 2)), probability=jnp.ones((5,)))
+    entity = Goal.create(position=jnp.ones((5, 2)), probability=jnp.ones((5,)))
     assert entity.sprite.shape == (5, TILE_SIZE, TILE_SIZE, 3)
 
 

@@ -46,14 +46,14 @@ class DistShift(Environment):
         # goal and player
         player_pos = jnp.asarray([1, 1])
         direction = jnp.asarray(0)
-        player = Player(
+        player = Player.create(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
         )
         # goal
         goal_pos = jnp.asarray([1, self.width - 2])
-        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # lava
         last_row = 5 if self.split_lava else 2
@@ -88,7 +88,7 @@ class DistShift(Environment):
 
 register_env(
     "Navix-DistShift1-v0",
-    lambda *args, **kwargs: DistShift(
+    lambda *args, **kwargs: DistShift.create(
         height=7,
         width=9,
         split_lava=False,
@@ -101,7 +101,7 @@ register_env(
 )
 register_env(
     "Navix-DistShift2-v0",
-    lambda *args, **kwargs: DistShift(
+    lambda *args, **kwargs: DistShift.create(
         height=7,
         width=9,
         split_lava=True,

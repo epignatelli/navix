@@ -18,11 +18,11 @@ def test_navigation():
     players = Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = Goal(
+    goals = Goal.create(
         position=jnp.asarray([(1, 1), (1, 1)]), probability=jnp.asarray([0.0, 0.0])
     )
-    keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
-    doors = Door(
+    keys = Key.create(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
+    doors = Door.create(
         position=jnp.asarray([(1, 5), (1, 6)]),
         requires=jnp.asarray((0, 0)),
         open=jnp.asarray((False, True)),

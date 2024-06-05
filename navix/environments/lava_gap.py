@@ -53,12 +53,12 @@ class LavaGap(Environment):
         # player
         player_pos = jnp.asarray([1, 1])
         player_dir = jnp.asarray(0)
-        player = Player(
+        player = Player.create(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
         # goal
         goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # lava positions
         gap_row = jax.random.randint(k1, (), 1, self.height - 1)  # col
@@ -69,7 +69,7 @@ class LavaGap(Environment):
         lava_pos = jnp.stack((lava_row, lava_cols), axis=1)
         # remove lava where the door is
         lava_pos = jnp.delete(lava_pos, gap_row - 1, axis=0, assume_unique_indices=True)
-        lavas = Lava(position=lava_pos)
+        lavas = Lava.create(position=lava_pos)
 
         entities = {
             "player": player[None],
@@ -95,7 +95,7 @@ class LavaGap(Environment):
 
 register_env(
     "Navix-DoorKey-S5-v0",
-    lambda *args, **kwargs: LavaGap(
+    lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
         height=5,
@@ -107,7 +107,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-S6-v0",
-    lambda *args, **kwargs: LavaGap(
+    lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
         height=6,
@@ -119,7 +119,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-S7-v0",
-    lambda *args, **kwargs: LavaGap(
+    lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
         height=7,

@@ -52,12 +52,12 @@ class Crossings(Environment):
         # player
         player_pos = jnp.asarray([1, 1])
         player_dir = jnp.asarray(0)
-        player = Player(
+        player = Player.create(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
         # goal
         goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         entities = {
             "player": player[None],
@@ -140,7 +140,7 @@ register_env(
 )
 register_env(
     "Navix-Crossings-S9N2-v0",
-    lambda *args, **kwargs: Crossings(
+    lambda *args, **kwargs: Crossings.create(
         height=9,
         width=9,
         n_crossings=2,
@@ -153,7 +153,7 @@ register_env(
 )
 register_env(
     "Navix-Crossings-S9N3-v0",
-    lambda *args, **kwargs: Crossings(
+    lambda *args, **kwargs: Crossings.create(
         height=9,
         width=9,
         n_crossings=3,
@@ -166,7 +166,7 @@ register_env(
 )
 register_env(
     "Navix-Crossings-S11N5-v0",
-    lambda *args, **kwargs: Crossings(
+    lambda *args, **kwargs: Crossings.create(
         height=11,
         width=11,
         n_crossings=5,

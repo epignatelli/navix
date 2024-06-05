@@ -56,7 +56,7 @@ class DynamicObstacles(Environment):
             player_pos = jnp.asarray([1, 1])
             direction = jnp.asarray(0)
         # player
-        player = Player(
+        player = Player.create(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
@@ -100,7 +100,7 @@ class DynamicObstacles(Environment):
 
 register_env(
     "Navix-Dynamic-Obstacles-5x5-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=5,
         width=5,
         n_obstacles=2,
@@ -114,7 +114,7 @@ register_env(
 )
 register_env(
     "Navix-Dynamic-Obstacles-5x5-Random-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=5,
         width=5,
         n_obstacles=2,
@@ -128,7 +128,7 @@ register_env(
 )
 register_env(
     "Navix-Dynamic-Obstacles-6x6-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=6,
         width=6,
         n_obstacles=3,
@@ -142,7 +142,7 @@ register_env(
 )
 register_env(
     "Navix-Dynamic-Obstacles-6x6-Random-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=6,
         width=6,
         n_obstacles=3,
@@ -156,7 +156,7 @@ register_env(
 )
 register_env(
     "Navix-Dynamic-Obstacles-8x8-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=8,
         width=8,
         n_obstacles=4,
@@ -170,7 +170,7 @@ register_env(
 )
 register_env(
     "Navix-Dynamic-Obstacles-16x16-v0",
-    lambda *args, **kwargs: DynamicObstacles(
+    lambda *args, **kwargs: DynamicObstacles.create(
         height=16,
         width=16,
         n_obstacles=8,

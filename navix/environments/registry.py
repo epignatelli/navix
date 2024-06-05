@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from typing import Callable
+import difflib
 
 
 _ENVS_REGISTRY = {}
@@ -31,11 +32,16 @@ def register_env(name: str, ctor: Callable):
 
 
 def make(name: str, max_steps: int = 100, **kwargs):
-    if name in NotImplementedEnvs:
-        raise NotImplementedError(
-            f"Environment {name} not yet implemented. Please open a feature request!\
-            \nhttps://github.com/epignatelli/navix/issues/new?labels=enhancement"
-        )
+    if name not in registry():
+        closest = difflib.get_close_matches(name, registry().keys())
+        msg = f"Environment {name} not yet implemented."
+        if closest:
+            msg += (
+                f"Did you mean one of these? {closest}\n"
+                + "If not, please open a feature request!"
+                + "\nhttps://github.com/epignatelli/navix/issues/new?labels=enhancement"
+            )
+        raise NotImplementedError(msg)
     ctor = _ENVS_REGISTRY[name]
     return ctor(max_steps=max_steps, **kwargs)
 

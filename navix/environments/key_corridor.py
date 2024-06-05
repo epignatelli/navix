@@ -148,7 +148,7 @@ class KeyCorridor(Environment):
 
 register_env(
     "Navix-KeyCorridorS3R1-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=3,
@@ -160,7 +160,7 @@ register_env(
 )
 register_env(
     "Navix-KeyCorridorS3R2-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=5,
@@ -172,7 +172,7 @@ register_env(
 )
 register_env(
     "Navix-KeyCorridorS3R3-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=7,
@@ -184,7 +184,7 @@ register_env(
 )
 register_env(
     "Navix-KeyCorridorS4R3-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=10,
@@ -196,7 +196,7 @@ register_env(
 )
 register_env(
     "Navix-KeyCorridorS5R3-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=13,
@@ -208,7 +208,7 @@ register_env(
 )
 register_env(
     "Navix-KeyCorridorS6R3-v0",
-    lambda *args, **kwargs: KeyCorridor(
+    lambda *args, **kwargs: KeyCorridor.create(
         *args,
         **kwargs,
         height=16,

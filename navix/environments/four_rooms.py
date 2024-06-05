@@ -68,12 +68,12 @@ class FourRooms(Environment):
         wall_pos_hor = horizontal_wall(grid, 9, openings)
 
         walls_pos = jnp.concatenate([wall_pos_vert, wall_pos_hor])
-        walls = Wall(position=walls_pos)
+        walls = Wall.create(position=walls_pos)
 
         # player
         player_pos, goal_pos = random_positions(k1, grid, n=2, exclude=walls_pos)
         direction = random_directions(k2, n=1)
-        player = Player(
+        player = Player.create(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,

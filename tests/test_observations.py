@@ -18,7 +18,7 @@ def test_rgb():
     players = Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
+    goals = Goal.create(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
     keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
@@ -105,7 +105,7 @@ def test_categorical_first_person():
     players = Player(
         position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
     )
-    goals = Goal(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
+    goals = Goal.create(position=jnp.asarray((4, 4)), probability=jnp.asarray(1.0))
     keys = Key(position=jnp.asarray((2, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
     doors = Door(
         position=jnp.asarray([(1, 5), (1, 6)]),
