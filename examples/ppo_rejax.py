@@ -1,4 +1,7 @@
-from typing import Type
+from dataclasses import dataclass
+from typing import Any, Dict, Type
+
+import tyro
 import jax
 import jax.experimental
 import jax.numpy as jnp
@@ -11,26 +14,29 @@ from navix import observations
 from navix.environments.wrappers import ToGymnax
 
 
-CONFIG = {
-    "agent_kwargs": {"activation": "relu"},
-    "total_timesteps": 4_000_000,
-    "eval_freq": 100_000,
-    "num_envs": 16,
-    "num_steps": 128,
-    "num_epochs": 1,
-    "num_minibatches": 8,
-    "learning_rate": 0.00025,
-    "max_grad_norm": 0.5,
-    "gamma": 0.99,
-    "gae_lambda": 0.95,
-    "clip_eps": 0.2,
-    "vf_coef": 0.5,
-    "ent_coef": 0.01,
-}
+@dataclass
+class Args:
+    agent_kwargs: Dict[str, Any] = {"activation": "relu"}
+    total_timesteps: int = 4_000_000
+    eval_freq: int = 100_000
+    num_envs: int = 16
+    num_steps: int = 128
+    num_epochs: int = 1
+    num_minibatches: int = 8
+    learning_rate: float = 0.00025
+    max_grad_norm: float = 0.5
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+    clip_eps: float = 0.2
+    vf_coef: float = 0.5
+    ent_coef: float = 0.01
 
 
 if __name__ == "__main__":
-    wandb.init(project="navix-examples-rejax", config=CONFIG)
+    args = tyro.cli(Args)
+    config = vars(args)
+    
+    wandb.init(project="navix-examples-rejax", config=config)
 
     env = nx.make(
         "Navix-Empty-Random-5x5-v0", observation_fn=observations.symbolic, gamma=0.99
@@ -41,7 +47,7 @@ if __name__ == "__main__":
     algo = get_algo("ppo")
     agent_cls: Type[PPO] = algo[0]
     config_cls: Type[PPOConfig] = algo[1]
-    config = config_cls.create(env=env, **CONFIG)
+    config = config_cls.create(env=env, **config)
     eval_callback = config.eval_callback
 
     def wandb_callback(config, train_state, rng):
