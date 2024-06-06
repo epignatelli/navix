@@ -16,3 +16,5 @@ chex
 flax
 # experiments
 tyro
+# logging
+wandb
