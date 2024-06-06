@@ -79,7 +79,7 @@ class FourRooms(Environment):
             pocket=EMPTY_POCKET_ID,
         )
         # goal
-        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         entities = {
             Entities.PLAYER: player[None],
@@ -112,7 +112,7 @@ register_env(
         width=19,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),        
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
