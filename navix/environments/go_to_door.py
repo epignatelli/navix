@@ -26,6 +26,8 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from navix import observations
+
 from .. import rewards, terminations
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Door, Player
@@ -39,7 +41,7 @@ from .registry import register_env
 class GoToDoor(Environment):
     split_lava: bool = struct.field(pytree_node=False, default=False)
 
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # map
         grid = jnp.zeros((self.height, self.width), dtype=jnp.int32)
 
@@ -106,7 +108,7 @@ class GoToDoor(Environment):
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(0, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -116,33 +118,36 @@ class GoToDoor(Environment):
 
 register_env(
     "Navix-GoToDoor-5x5-v0",
-    lambda *args, **kwargs: GoToDoor(
+    lambda *args, **kwargs: GoToDoor.create(
         height=5,
         width=5,
-        reward_fn=rewards.on_door_done,
-        termination_fn=terminations.on_door_done,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_door_done),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_door_done),
         *args,
         **kwargs,
     ),
 )
 register_env(
     "Navix-GoToDoor-6x6-v0",
-    lambda *args, **kwargs: GoToDoor(
+    lambda *args, **kwargs: GoToDoor.create(
         height=6,
         width=6,
-        reward_fn=rewards.on_door_done,
-        termination_fn=terminations.on_door_done,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_door_done),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_door_done),
         *args,
         **kwargs,
     ),
 )
 register_env(
     "Navix-GoToDoor-8x8-v0",
-    lambda *args, **kwargs: GoToDoor(
+    lambda *args, **kwargs: GoToDoor.create(
         height=8,
         width=8,
-        reward_fn=rewards.on_door_done,
-        termination_fn=terminations.on_door_done,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_door_done),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_door_done),
         *args,
         **kwargs,
     ),

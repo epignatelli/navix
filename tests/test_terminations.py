@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 
 import navix as nx
-from navix.actions import Directions
+from navix.entities import Directions
 from navix.states import State
 from navix.components import EMPTY_POCKET_ID
 
@@ -13,7 +13,7 @@ def test_on_navigation_completion():
     players = nx.entities.Player(
         position=jnp.asarray((1, 1)), direction=Directions.EAST, pocket=EMPTY_POCKET_ID
     )
-    goals = nx.entities.Goal(position=jnp.asarray((1, 2)), probability=jnp.asarray(1))
+    goals = nx.entities.Goal.create(position=jnp.asarray((1, 2)), probability=jnp.asarray(1))
     entities = {
         nx.entities.Entities.PLAYER: players[None],
         nx.entities.Entities.GOAL: goals[None],

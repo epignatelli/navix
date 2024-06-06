@@ -26,6 +26,8 @@ import jax.numpy as jnp
 from jax import Array
 import jax.tree_util as jtu
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..environments import Environment
@@ -37,7 +39,7 @@ from .registry import register_env
 
 
 class KeyCorridor(Environment):
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)
         room_size = (self.width - 3) // 3
@@ -136,7 +138,7 @@ class KeyCorridor(Environment):
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(-1, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -146,25 +148,73 @@ class KeyCorridor(Environment):
 
 register_env(
     "Navix-KeyCorridorS3R1-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=3, width=7),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=3,
+        width=7,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-KeyCorridorS3R2-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=5, width=7),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=5,
+        width=7,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-KeyCorridorS3R3-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=7, width=7),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=7,
+        width=7,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-KeyCorridorS4R3-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=10, width=10),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=10,
+        width=10,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-KeyCorridorS5R3-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=13, width=13),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=13,
+        width=13,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )
 register_env(
     "Navix-KeyCorridorS6R3-v0",
-    lambda *args, **kwargs: KeyCorridor(*args, **kwargs, height=16, width=16),
+    lambda *args, **kwargs: KeyCorridor.create(
+        *args,
+        **kwargs,
+        height=16,
+        width=16,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+    ),
 )

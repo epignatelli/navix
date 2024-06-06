@@ -24,6 +24,7 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from .. import rewards, observations, terminations
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..rendering.registry import PALETTE
@@ -35,10 +36,10 @@ from ..grid import mask_by_coordinates, room, random_positions, random_direction
 from .registry import register_env
 
 
-class KeyDoor(Environment):
+class DoorKey(Environment):
     random_start: bool = struct.field(pytree_node=False, default=False)
 
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (
             self.height > 3
@@ -57,7 +58,7 @@ class KeyDoor(Environment):
         # row can be between 1 and height - 2
         door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
         door_pos = jnp.asarray((door_row, door_col))
-        doors = Door(
+        doors = Door.create(
             position=door_pos,
             requires=jnp.asarray(3),
             open=jnp.asarray(False),
@@ -72,7 +73,7 @@ class KeyDoor(Environment):
         wall_pos = jnp.delete(
             wall_pos, door_row - 1, axis=0, assume_unique_indices=True
         )
-        walls = Wall(position=wall_pos)
+        walls = Wall.create(position=wall_pos)
 
         # get rooms
         first_room_mask = mask_by_coordinates(
@@ -95,14 +96,14 @@ class KeyDoor(Environment):
             goal_pos = jnp.asarray([self.height - 2, self.width - 2])
 
         # spawn goal and player
-        player = Player(
+        player = Player.create(
             position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
         )
-        goals = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # spawn key
         key_pos = random_positions(k2, first_room, exclude=player_pos)
-        keys = Key(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
+        keys = Key.create(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
 
         # remove the wall beneath the door
         grid = grid.at[tuple(door_pos)].set(0)
@@ -123,7 +124,7 @@ class KeyDoor(Environment):
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(-1, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -133,49 +134,105 @@ class KeyDoor(Environment):
 
 register_env(
     "Navix-DoorKey-5x5-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=5, width=5, random_start=False
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=5,
+        width=5,
+        random_start=False,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-6x6-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=6, width=6, random_start=False
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=6,
+        width=6,
+        random_start=False,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-8x8-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=8, width=8, random_start=False
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=8,
+        width=8,
+        random_start=False,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-16x16-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=16, width=16, random_start=False
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=16,
+        width=16,
+        random_start=False,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-Random-5x5-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=5, width=5, random_start=True
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=5,
+        width=5,
+        random_start=True,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-Random-6x6-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=6, width=6, random_start=True
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=6,
+        width=6,
+        random_start=True,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-Random-8x8-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=8, width=8, random_start=True
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=8,
+        width=8,
+        random_start=True,
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DoorKey-Random-16x16-v0",
-    lambda *args, **kwargs: KeyDoor(
-        *args, **kwargs, height=16, width=16, random_start=True
+    lambda *args, **kwargs: DoorKey.create(
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        height=16,
+        width=16,
+        random_start=True,
+        *args,
+        **kwargs,
     ),
 )

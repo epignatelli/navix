@@ -35,33 +35,28 @@ class Entities(struct.PyTreeNode):
     BOX: str = struct.field(pytree_node=False, default="box")
 
 
+class EntityIds:
+    UNKNOWN: Array = jnp.asarray(0, dtype=jnp.uint8)
+    FLOOR: Array = jnp.asarray(1, dtype=jnp.uint8)
+    WALL: Array = jnp.asarray(2, dtype=jnp.uint8)
+    DOOR: Array = jnp.asarray(4, dtype=jnp.uint8)
+    KEY: Array = jnp.asarray(5, dtype=jnp.uint8)
+    BALL: Array = jnp.asarray(6, dtype=jnp.uint8)
+    BOX: Array = jnp.asarray(7, dtype=jnp.uint8)
+    GOAL: Array = jnp.asarray(8, dtype=jnp.uint8)
+    LAVA: Array = jnp.asarray(9, dtype=jnp.uint8)
+    PLAYER: Array = jnp.asarray(10, dtype=jnp.uint8)
+
+
+class Directions:
+    EAST = jnp.asarray(0)
+    SOUTH = jnp.asarray(1)
+    WEST = jnp.asarray(2)
+    NORTH = jnp.asarray(3)
+
+
 class Entity(Positionable, HasTag, HasSprite):
     """Entities are components that can be placed in the environment"""
-
-    # def __post_init__(self) -> None:
-    #     if not config.ARRAY_CHECKS_ENABLED:
-    #         return
-    #     # Check that all fields have the same batch size
-    #     fields = self.__dataclass_fields__
-    #     batch_size = self.shape[0:]
-    #     for path, leaf in jax.tree_util.tree_leaves_with_path(self):
-    #         name = path[0].name
-    #         default_ndim = len(fields[name].metadata["shape"])
-    #         prefix = int(default_ndim != leaf.ndim)
-    #         leaf_batch_size = leaf.shape[:prefix]
-    #         assert (
-    #             leaf_batch_size == batch_size
-    #         ), f"Expected {name} to have batch size {batch_size}, got {leaf_batch_size} instead"
-
-    # def check_ndim(self, batched: bool = False) -> None:
-    #     if not config.ARRAY_CHECKS_ENABLED:
-    #         return
-    #     for field in dataclasses.fields(self):
-    #         value = getattr(self, field.name)
-    #         default_ndim = len(field.metadata["shape"])
-    #         assert (
-    #             value.ndim == default_ndim + batched
-    #         ), f"Expected {field.name} to have ndim {default_ndim - batched}, got {value.ndim} instead"
 
     def __getitem__(self: T, idx) -> T:
         return jax.tree_util.tree_map(lambda x: x[idx], self)
@@ -88,7 +83,7 @@ class Entity(Positionable, HasTag, HasSprite):
         raise NotImplementedError()
 
 
-class Wall(Entity):
+class Wall(Entity, HasColour):
     """Walls are entities that cannot be walked through"""
 
     @classmethod
@@ -96,7 +91,9 @@ class Wall(Entity):
         cls,
         position: Array,
     ) -> Wall:
-        return cls(position=position)
+        shape = position.shape[:-1]
+        grey = jnp.ones(shape, dtype=jnp.uint8) * 5
+        return cls(position=position, colour=grey)
 
     @property
     def walkable(self) -> Array:
@@ -113,7 +110,7 @@ class Wall(Entity):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(0), self.shape)
+        return jnp.broadcast_to(EntityIds.WALL, self.shape)
 
 
 class Player(Entity, Directional, Holder):
@@ -147,10 +144,10 @@ class Player(Entity, Directional, Holder):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(2), self.shape)
+        return jnp.broadcast_to(EntityIds.PLAYER, self.shape)
 
 
-class Goal(Entity, Stochastic):
+class Goal(Entity, HasColour, Stochastic):
     """Goals are entities that can be reached by the player"""
 
     @classmethod
@@ -159,7 +156,9 @@ class Goal(Entity, Stochastic):
         position: Array,
         probability: Array,
     ) -> Goal:
-        return cls(position=position, probability=probability)
+        shape = position.shape[:-1]
+        green = jnp.ones(shape, dtype=jnp.uint8)
+        return cls(position=position, probability=probability, colour=green)
 
     @property
     def walkable(self) -> Array:
@@ -182,7 +181,7 @@ class Goal(Entity, Stochastic):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(3), self.shape)
+        return jnp.broadcast_to(EntityIds.GOAL, self.shape)
 
 
 class Key(Entity, Pickable, HasColour):
@@ -196,6 +195,7 @@ class Key(Entity, Pickable, HasColour):
         colour: Array,
         id: Array,
     ) -> Key:
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(position=position, id=id, colour=colour)
 
     @property
@@ -219,7 +219,7 @@ class Key(Entity, Pickable, HasColour):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(4), self.shape)
+        return jnp.broadcast_to(EntityIds.KEY, self.shape)
 
 
 class Door(Entity, Openable, HasColour):
@@ -239,6 +239,7 @@ class Door(Entity, Openable, HasColour):
         colour: Array,
         open: Array,
     ) -> Door:
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(
             position=position,
             requires=requires,
@@ -269,7 +270,7 @@ class Door(Entity, Openable, HasColour):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(5), self.shape)
+        return jnp.broadcast_to(EntityIds.DOOR, self.shape)
 
     @property
     def locked(self) -> Array:
@@ -307,7 +308,7 @@ class Lava(Entity):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(6), self.shape)
+        return jnp.broadcast_to(EntityIds.LAVA, self.shape)
 
 
 class Ball(Entity, HasColour, Stochastic):
@@ -343,7 +344,7 @@ class Ball(Entity, HasColour, Stochastic):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(7), self.shape)
+        return jnp.broadcast_to(EntityIds.BALL, self.shape)
 
 
 class Box(Entity, HasColour, Holder):
@@ -379,4 +380,4 @@ class Box(Entity, HasColour, Holder):
 
     @property
     def tag(self) -> Array:
-        return jnp.broadcast_to(jnp.asarray(8), self.shape)
+        return jnp.broadcast_to(EntityIds.BOX, self.shape)

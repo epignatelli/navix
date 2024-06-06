@@ -185,15 +185,25 @@ def horizontal_wall(
     return positions
 
 
-def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
+def crop(
+    grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 0
+) -> Array:
     input_shape = grid.shape
+    # assert radius % 2, "Radius must be an odd number"
+    # mid = jnp.asarray([g // 2 for g in grid.shape[:2]])
+    # translated = jnp.roll(grid, mid - origin, axis=(0, 1))
+
+    # # crop such that the agent is in the centre of the grid
+    # cropped = translated.at[: 2 * radius + 1, : 2 * radius + 1].get(
+    #     fill_value=padding_value
+    # )
 
     # pad with radius
     padding = [(radius, radius), (radius, radius)]
     for _ in range(len(input_shape) - 2):
         padding.append((0, 0))
 
-    padded = jnp.pad(grid, padding, constant_values=0)
+    padded = jnp.pad(grid, padding, constant_values=padding_value)
 
     # translate the grid such that the agent is `radius` away from the top and left edges
     translated = jnp.roll(padded, -jnp.asarray(origin), axis=(0, 1))
@@ -213,7 +223,7 @@ def crop(grid: Array, origin: Array, direction: Array, radius: int) -> Array:
         cropped,
     )
 
-    cropped = rotated[: radius + 1]
+    cropped = rotated.at[: radius + 1].get(fill_value=padding_value)
     return jnp.asarray(cropped, dtype=grid.dtype)
 
 

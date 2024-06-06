@@ -14,41 +14,37 @@
 
 
 from __future__ import annotations
-from typing import Any, Sequence, Union
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
-
 from jax import Array
-from jax.core import ShapedArray
+from flax import struct
 
-Shape = Sequence[Union[int, Any]]
-
-
-MIN_INT = jax.numpy.iinfo(jnp.int16).min
-MAX_INT = jax.numpy.iinfo(jnp.int16).max
-MIN_INT_ARR = jnp.asarray(MIN_INT)
-MAX_INT_ARR = jnp.asarray(MAX_INT)
+Shape = Tuple[int, ...]
 
 
-class Space(ShapedArray):
-    minimum: Array = MIN_INT_ARR
-    maximum: Array = MAX_INT_ARR
-
-    def __repr__(self):
-        return "{}, min={}, max={})".format(
-            super().__repr__()[:-1], self.minimum, self.maximum
-        )
+class Space(struct.PyTreeNode):
+    shape: Shape = struct.field(pytree_node=False)
+    dtype: jnp.dtype = struct.field(pytree_node=False)
+    minimum: Array
+    maximum: Array
 
     def sample(self, key: Array) -> Array:
         raise NotImplementedError()
 
 
 class Discrete(Space):
-    def __init__(self, n_elements: int = MAX_INT, shape: Shape = (), dtype=jnp.int32):
-        super().__init__(shape, dtype)
-        self.minimum = jnp.asarray(0)
-        self.maximum = jnp.asarray(n_elements - 1)
+    @classmethod
+    def create(
+        cls, n_elements: int | jax.Array, shape: Shape = (), dtype=jnp.int32
+    ) -> Discrete:
+        return Discrete(
+            shape=shape,
+            dtype=dtype,
+            minimum=jnp.asarray(0),
+            maximum=jnp.asarray(n_elements) - 1,
+        )
 
     def sample(self, key: Array) -> Array:
         item = jax.random.randint(key, self.shape, self.minimum, self.maximum)
@@ -57,16 +53,17 @@ class Discrete(Space):
 
 
 class Continuous(Space):
-    def __init__(self, shape: Shape = (), minimum=MIN_INT_ARR, maximum=MAX_INT_ARR):
-        super().__init__(shape, jnp.float32)
-        self.minimum = minimum
-        self.maximum = maximum
+    @classmethod
+    def create(
+        cls, shape: Shape, minimum: Array, maximum: Array, dtype=jnp.float32
+    ) -> Continuous:
+        return Continuous(shape=shape, dtype=dtype, minimum=minimum, maximum=maximum)
 
     def sample(self, key: Array) -> Array:
         assert jnp.issubdtype(self.dtype, jnp.floating)
         # see: https://github.com/google/jax/issues/14003
         lower = jnp.nan_to_num(self.minimum)
-        upper = upper = jnp.nan_to_num(self.maximum)
+        upper = jnp.nan_to_num(self.maximum)
         return jax.random.uniform(
             key, self.shape, minval=lower, maxval=upper, dtype=self.dtype
         )

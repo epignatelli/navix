@@ -25,6 +25,8 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
+from navix import observations, rewards, terminations
+
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Goal, Lava, Player
 from ..states import State
@@ -37,21 +39,21 @@ from .registry import register_env
 class DistShift(Environment):
     split_lava: bool = struct.field(pytree_node=False, default=False)
 
-    def reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # map
         grid = room(height=self.height, width=self.width)
 
         # goal and player
         player_pos = jnp.asarray([1, 1])
         direction = jnp.asarray(0)
-        player = Player(
+        player = Player.create(
             position=player_pos,
             direction=direction,
             pocket=EMPTY_POCKET_ID,
         )
         # goal
         goal_pos = jnp.asarray([1, self.width - 2])
-        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # lava
         last_row = 5 if self.split_lava else 2
@@ -76,7 +78,7 @@ class DistShift(Environment):
 
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
-            observation=self.observation(state),
+            observation=self.observation_fn(state),
             action=jnp.asarray(0, dtype=jnp.int32),
             reward=jnp.asarray(0.0, dtype=jnp.float32),
             step_type=jnp.asarray(0, dtype=jnp.int32),
@@ -86,13 +88,27 @@ class DistShift(Environment):
 
 register_env(
     "Navix-DistShift1-v0",
-    lambda *args, **kwargs: DistShift(
-        height=7, width=9, split_lava=False, *args, **kwargs
+    lambda *args, **kwargs: DistShift.create(
+        height=7,
+        width=9,
+        split_lava=False,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-DistShift2-v0",
-    lambda *args, **kwargs: DistShift(
-        height=7, width=9, split_lava=True, *args, **kwargs
+    lambda *args, **kwargs: DistShift.create(
+        height=7,
+        width=9,
+        split_lava=True,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),        
+        *args,
+        **kwargs,
     ),
 )

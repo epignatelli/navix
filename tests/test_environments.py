@@ -5,9 +5,9 @@ import navix as nx
 
 def test_room():
     def f():
-        env = nx.environments.Room(height=3, width=3, max_steps=8)
+        env = nx.environments.Room.create(height=3, width=3, max_steps=8)
         key = jax.random.PRNGKey(4)
-        reset = jax.jit(env.reset)
+        reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
         # these are optimal actios for navigation + action_cost
@@ -35,29 +35,29 @@ def test_room():
 
 def test_keydoor():
     def f():
-        env = nx.environments.KeyDoor(height=5, width=10, max_steps=8)
+        env = nx.environments.DoorKey.create(height=5, width=10, max_steps=8)
         key = jax.random.PRNGKey(1)
-        reset = jax.jit(env.reset)
+        reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
         #  these are optimal actions for navigation + action_cost
         actions = (
-            2,  # rotate_ccw
-            3,  # forward
-            3,  # forward
-            3,  # forward
-            2,  # rotate_ccw
-            7,  # pick-up
-            2,  # rotate_ccw
-            2,  # rotate_ccw
-            3,  # forward
-            3,  # forward
+            0,  # rotate_ccw
+            2,  # forward
+            2,  # forward
+            2,  # forward
+            0,  # rotate_ccw
+            3,  # pick-up
+            0,  # rotate_ccw
+            0,  # rotate_ccw
+            2,  # forward
+            2,  # forward
             1,  # rotate_cw
-            3,  # forward
-            2,  # rotate_ccw
-            8,  # open
-            3,  # forward
-            3,  # forward
+            2,  # forward
+            0,  # rotate_ccw
+            5,  # open
+            2,  # forward
+            2,  # forward
         )
         print(timestep)
         for action in actions:
@@ -72,10 +72,10 @@ def test_keydoor():
 
 
 def test_keydoor2():
-    env = nx.environments.KeyDoor(5, 7, 100, observation_fn=nx.observations.rgb)
+    env = nx.environments.DoorKey.create(5, 7, 100, observation_fn=nx.observations.rgb)
 
     key = jax.random.PRNGKey(1)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
     return
 
 

@@ -18,7 +18,7 @@ def test_observation():
             height=10, width=5, max_steps=100, observation_fn=nx.observations.none
         )
         key = jax.random.PRNGKey(seed)
-        timestep = env.reset(key)
+        timestep = env._reset(key)
 
         actions = jax.random.randint(key, (100,), 0, 6)
         timestep = jax.lax.scan(lambda c, x: (env.step(c, x), ()), timestep, actions)[0]

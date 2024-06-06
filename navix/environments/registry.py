@@ -16,43 +16,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
 from typing import Callable
-
-from jax import Array
-
-from ..states import State
+import difflib
 
 
-ENVS_REGISTRY = {}
+_ENVS_REGISTRY = {}
+
+
+def registry():
+    return _ENVS_REGISTRY
 
 
 def register_env(name: str, ctor: Callable):
-    ENVS_REGISTRY[name] = ctor
+    _ENVS_REGISTRY[name] = ctor
 
 
-def make(
-    name: str,
-    max_steps: int,
-    observation_fn: Callable[[State], Array],
-    reward_fn: Callable[[State, Array, State], Array],
-    termination_fn: Callable[[State, Array, State], Array],
-    **kwargs,
-):
-    if name in NotImplementedEnvs:
-        raise NotImplementedError(
-            f"Environment {name} not yet implemented. Please open a feature request!\
-            \nhttps://github.com/epignatelli/naxiv"
-        )
-    ctor = ENVS_REGISTRY[name]
-    return ctor(
-        max_steps=max_steps,
-        observation_fn=observation_fn,
-        reward_fn=reward_fn,
-        termination_fn=termination_fn,
-        **kwargs,
-    )
+def make(name: str, max_steps: int = 100, **kwargs):
+    if name not in registry():
+        closest = difflib.get_close_matches(name, registry().keys())
+        msg = f"Environment {name} not yet implemented."
+        if closest:
+            msg += (
+                f"Did you mean one of these? {closest}\n"
+                + "If not, please open a feature request!"
+                + "\nhttps://github.com/epignatelli/navix/issues/new?labels=enhancement"
+            )
+        raise NotImplementedError(msg)
+    ctor = _ENVS_REGISTRY[name]
+    return ctor(max_steps=max_steps, **kwargs)
 
 
 NotImplementedEnvs = [
@@ -61,25 +52,9 @@ NotImplementedEnvs = [
     "MiniGrid-LavaCrossingS9N2-v0",
     "MiniGrid-LavaCrossingS9N3-v0",
     "MiniGrid-LavaCrossingS11N5-v0",
-    "MiniGrid-SimpleCrossingS9N1-v0",
-    "MiniGrid-SimpleCrossingS9N2-v0",
-    "MiniGrid-SimpleCrossingS9N3-v0",
-    "MiniGrid-SimpleCrossingS11N5-v0",
-    "MiniGrid-DistShift1-v0",
-    "MiniGrid-DistShift2-v0",
-    "MiniGrid-Dynamic-Obstacles-5x5-v0",
-    "MiniGrid-Dynamic-Obstacles-Random-5x5-v0",
-    "MiniGrid-Dynamic-Obstacles-6x6-v0",
-    "MiniGrid-Dynamic-Obstacles-Random-6x6-v0",
-    "MiniGrid-Dynamic-Obstacles-8x8-v0",
-    "MiniGrid-Dynamic-Obstacles-16x16-v0",
     "MiniGrid-Fetch-5x5-N2-v0",
     "MiniGrid-Fetch-6x6-N2-v0",
     "MiniGrid-Fetch-8x8-N3-v0",
-    "MiniGrid-FourRooms-v0",
-    "MiniGrid-GoToDoor-5x5-v0",
-    "MiniGrid-GoToDoor-6x6-v0",
-    "MiniGrid-GoToDoor-8x8-v0",
     "MiniGrid-GoToObject-6x6-N2-v0",
     "MiniGrid-GoToObject-8x8-N2-v0",
     "MiniGrid-LockedRoom-v0",

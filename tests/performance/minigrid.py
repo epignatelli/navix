@@ -19,7 +19,7 @@ def profile_navix_scan(seed):
         height=10, width=5, max_steps=100, observation_fn=nx.observations.categorical
     )
     key = jax.random.PRNGKey(4)
-    timestep = env.reset(key)
+    timestep = env._reset(key)
     actions = jax.random.randint(key, (N_TIMESTEPS,), 0, 6)
 
     timestep = jax.lax.scan(

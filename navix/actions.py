@@ -22,19 +22,11 @@ from typing import Tuple
 import jax
 from jax import Array
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
-from .entities import Entities
+from .entities import Entities, Player
 from .states import EventsManager, State
-from .components import DISCARD_PILE_COORDS
+from .components import DISCARD_PILE_COORDS, Pickable
 from .grid import translate, rotate, positions_equal
-
-
-class Directions:
-    EAST = jnp.asarray(0)
-    SOUTH = jnp.asarray(1)
-    WEST = jnp.asarray(2)
-    NORTH = jnp.asarray(3)
 
 
 def _rotate(state: State, spin: int) -> State:
@@ -159,11 +151,27 @@ def pickup(state: State) -> State:
 
 
 def drop(state: State) -> State:
-    raise NotImplementedError()
+    """Replaces the position in front of the player with the item in the pocket."""
+    player = state.get_player(idx=0)
+
+    position_in_front = translate(player.position, player.direction)
+
+    has_item = player.pocket != -1
+    can_drop, events = _can_walk_there(state, position_in_front)
+    can_drop = jnp.logical_and(can_drop, has_item)
+
+    for k in state.entities:
+        entity = state.entities[k]
+        if isinstance(entity, Pickable):
+            cond = jnp.logical_and(can_drop, entity.position == DISCARD_PILE_COORDS)
+            position = jnp.where(cond, position_in_front, entity.position)
+            entity = entity.replace(position=position)
+            state.set_entity(k, entity)
+    return state
 
 
 def toggle(state: State) -> State:
-    raise NotImplementedError()
+    return open(state)
 
 
 def open(state: State) -> State:
@@ -242,5 +250,14 @@ COMPLETE_ACTION_SET = (
     done,
 )
 
+MINIGRID_ACTION_SET = (
+    rotate_ccw,
+    rotate_cw,
+    forward,
+    pickup,
+    drop,
+    toggle,
+    done,
+)
 
-DEFAULT_ACTION_SET = COMPLETE_ACTION_SET
+DEFAULT_ACTION_SET = MINIGRID_ACTION_SET
