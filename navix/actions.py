@@ -23,9 +23,9 @@ import jax
 from jax import Array
 import jax.numpy as jnp
 
-from .entities import Entities
+from .entities import Entities, Player
 from .states import EventsManager, State
-from .components import DISCARD_PILE_COORDS
+from .components import DISCARD_PILE_COORDS, Pickable
 from .grid import translate, rotate, positions_equal
 
 
@@ -151,13 +151,27 @@ def pickup(state: State) -> State:
 
 
 def drop(state: State) -> State:
-    # raise NotImplementedError()
+    """Replaces the position in front of the player with the item in the pocket."""
+    player = state.get_player(idx=0)
+
+    position_in_front = translate(player.position, player.direction)
+
+    has_item = player.pocket != -1
+    can_drop, events = _can_walk_there(state, position_in_front)
+    can_drop = jnp.logical_and(can_drop, has_item)
+
+    for k in state.entities:
+        entity = state.entities[k]
+        if isinstance(entity, Pickable):
+            cond = jnp.logical_and(can_drop, entity.position == DISCARD_PILE_COORDS)
+            position = entity.position.at[cond].set(position_in_front)
+            entity = entity.replace(position=position)
+            state.set_entity(k, entity)
     return state
 
 
 def toggle(state: State) -> State:
-    # raise NotImplementedError()
-    return state
+    return open(state)
 
 
 def open(state: State) -> State:

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from .environment import Environment, Timestep
 from .empty import Room
-from .key_door import KeyDoor
+from .door_key import DoorKey
 from .four_rooms import FourRooms
 from .key_corridor import KeyCorridor
 from .lava_gap import LavaGap

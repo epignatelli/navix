@@ -36,7 +36,7 @@ from ..grid import mask_by_coordinates, room, random_positions, random_direction
 from .registry import register_env
 
 
-class KeyDoor(Environment):
+class DoorKey(Environment):
     random_start: bool = struct.field(pytree_node=False, default=False)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
@@ -134,7 +134,7 @@ class KeyDoor(Environment):
 
 register_env(
     "Navix-DoorKey-5x5-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -147,7 +147,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-6x6-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -160,7 +160,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-8x8-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -173,7 +173,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-16x16-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -186,7 +186,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-Random-5x5-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -199,7 +199,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-Random-6x6-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -212,7 +212,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-Random-8x8-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -225,7 +225,7 @@ register_env(
 )
 register_env(
     "Navix-DoorKey-Random-16x16-v0",
-    lambda *args, **kwargs: KeyDoor.create(
+    lambda *args, **kwargs: DoorKey.create(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),

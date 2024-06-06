@@ -91,7 +91,8 @@ class Wall(Entity, HasColour):
         cls,
         position: Array,
     ) -> Wall:
-        grey = jnp.asarray(5, dtype=jnp.uint8)
+        shape = position.shape[:-1]
+        grey = jnp.ones(shape, dtype=jnp.uint8) * 5
         return cls(position=position, colour=grey)
 
     @property
@@ -155,7 +156,8 @@ class Goal(Entity, HasColour, Stochastic):
         position: Array,
         probability: Array,
     ) -> Goal:
-        green = jnp.asarray(1, dtype=jnp.uint8)
+        shape = position.shape[:-1]
+        green = jnp.ones(shape, dtype=jnp.uint8)
         return cls(position=position, probability=probability, colour=green)
 
     @property
@@ -193,6 +195,7 @@ class Key(Entity, Pickable, HasColour):
         colour: Array,
         id: Array,
     ) -> Key:
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(position=position, id=id, colour=colour)
 
     @property
@@ -236,6 +239,7 @@ class Door(Entity, Openable, HasColour):
         colour: Array,
         open: Array,
     ) -> Door:
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(
             position=position,
             requires=requires,

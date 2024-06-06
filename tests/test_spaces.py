@@ -5,8 +5,8 @@ import jax.numpy as jnp
 from navix.spaces import Continuous, Discrete
 
 
-MAX_INT = sys.maxsize
-MIN_INT = -sys.maxsize - 1
+MAX_INT = 100_000_000
+MIN_INT = -100_000_000
 
 
 def test_discrete():
