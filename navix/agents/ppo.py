@@ -3,16 +3,17 @@
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
 from dataclasses import dataclass
-import time
+from functools import partial
+from typing import Callable, Dict, Tuple
 
-import numpy as np
+import distrax
 import jax
 import jax.numpy as jnp
+from jax import Array
 import optax
-from typing import Dict, Tuple
 from flax.training.train_state import TrainState
-import wandb
 from flax import struct
+from flax.linen import FrozenDict as Params
 import rlax
 
 from navix.observations import rgb
@@ -65,7 +66,6 @@ class PPOHparams(HParams):
 class Buffer(struct.PyTreeNode):
     done: jax.Array
     action: jax.Array
-    value: jax.Array
     reward: jax.Array
     log_prob: jax.Array
     obs: jax.Array
@@ -79,6 +79,10 @@ class TrainingState(TrainState):
     rng: jax.Array
     frames: jax.Array
     epoch: jax.Array
+    policy: Callable[[Params, Array], distrax.Distribution] = struct.field(
+        pytree_node=False
+    )
+    value_fn: Callable[[Params, Array], Array] = struct.field(pytree_node=False)
 
 
 class PPO(Agent):
@@ -95,16 +99,15 @@ class PPO(Agent):
             env_state, rng = collection_state
             # SELECT ACTION
             rng, _rng = jax.random.split(rng)
-            pi, value = train_state.apply_fn(train_state.params, env_state.observation)
-            action = pi.sample(seed=_rng)
-            log_prob = pi.log_prob(action)
+            pi = train_state.policy(train_state.params, env_state.observation)
+            action = jnp.asarray(pi.sample(seed=_rng))
+            log_prob = jnp.asarray(pi.log_prob(action))
 
             # STEP ENV
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
                 done=new_env_state.is_done(),  # done(o_{t+1})
                 action=action,  # a_t
-                value=value,  # v(o_t)
                 reward=new_env_state.reward,  # R(o_t, a_t)
                 log_prob=log_prob,  # log π(a_t|o_t)
                 obs=env_state.observation,  # o_t
@@ -129,23 +132,36 @@ class PPO(Agent):
         return train_state, experience
 
     def evaluate_experience(
-        self, experience: Buffer, last_val: jax.Array
-    ) -> Tuple[jax.Array, jax.Array]:
+        self, train_state: TrainingState, experience: Buffer, last_val: jax.Array
+    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+        values = jnp.asarray(
+            jax.vmap(train_state.value_fn, in_axes=(None, 0))(
+                train_state.params, experience.obs
+            )
+        )  # (1:T, N)
         adv = jax.vmap(
             rlax.truncated_generalized_advantage_estimation,
             in_axes=(1, 1, None, 1, None),
             out_axes=1,
         )(
-            experience.reward,
-            (1 - experience.done) * self.env.gamma**experience.t,
-            self.hparams.gae_lambda,
-            jnp.concatenate([experience.value, last_val[None]], axis=0),
+            experience.reward,  # (1:T, N)
+            (1 - experience.done) * self.env.gamma**experience.t,  # (1:T, N)
+            self.hparams.gae_lambda,  # ()
+            jnp.concatenate([values, last_val[None]], axis=0),  # (0:T, N)
             True,
         )
-        adv = jnp.asarray(adv)
-        return adv, adv + experience.value
+        adv = jnp.asarray(adv)  # (0:T, N)
+        targets = adv + values
+        return values, adv, targets
 
-    def ppo_loss(self, params, transition_batch, gae, targets):
+    def ppo_loss(
+        self,
+        params: Params,
+        transition_batch: Buffer,
+        gae: Array,
+        targets: Array,
+        values_old: Array,
+    ):
         # this is already vmapped over the minibatches
         pi, value = jax.vmap(self.network.apply, in_axes=(None, 0))(
             params, transition_batch.obs
@@ -155,8 +171,8 @@ class PPO(Agent):
         # CALCULATE VALUE LOSS
         if self.hparams.clip_value_loss:
             value_loss = jnp.square(value - targets)
-            value_clipped = transition_batch.value + jnp.clip(
-                value - transition_batch.value,
+            value_clipped = values_old + jnp.clip(
+                value - values_old,
                 -self.hparams.clip_eps,
                 self.hparams.clip_eps,
             )
@@ -205,11 +221,13 @@ class PPO(Agent):
     def sgd_step(
         self,
         train_state: TrainingState,
-        minibatch: Tuple[Buffer, jax.Array, jax.Array],
+        minibatch: Tuple[Buffer, jax.Array, jax.Array, jax.Array],
     ) -> Tuple[TrainingState, Dict]:
-        traj_batch, advantages, targets = minibatch
+        traj_batch, advantages, targets, values_old = minibatch
         grad_fn = jax.value_and_grad(self.ppo_loss, has_aux=True)
-        (_, logs), grads = grad_fn(train_state.params, traj_batch, advantages, targets)
+        (_, logs), grads = grad_fn(
+            train_state.params, traj_batch, advantages, targets, values_old
+        )
         train_state = train_state.apply_gradients(grads=grads)
         return train_state, logs
 
@@ -223,26 +241,24 @@ class PPO(Agent):
         # collect experience
         train_state, experience = self.collect_experience(train_state)
 
-        # evaluate experience
-
-        last_obs = train_state.env_state.observation
-        rng = train_state.rng
         for _ in range(self.hparams.num_epochs):
             # re-evaluate experience at every epoch as per https://arxiv.org/abs/2006.05990
-            last_val = train_state.apply_fn(train_state.params, last_obs)[1]
-            experience = experience.replace(
-                value=train_state.apply_fn(train_state.params, experience.obs)[1]
+            last_val = train_state.value_fn(
+                train_state.params, train_state.env_state.observation
+            )  # boostrap
+            values, advantages, targets = self.evaluate_experience(
+                train_state, experience, last_val
             )
-            advantages, targets = self.evaluate_experience(experience, last_val)
 
             # Batching and Shuffling
-            rng, rng_1 = jax.random.split(rng)
+            rng, rng_1 = jax.random.split(train_state.rng)
+            train_state = train_state.replace(rng=rng)
             n_samples = minibatch_size * self.hparams.num_minibatches
             assert (
                 n_samples == self.hparams.num_steps * self.hparams.num_envs
             ), "batch size must be equal to number of steps * number of envs"
             permutation = jax.random.permutation(rng_1, n_samples)
-            samples = (experience, advantages, targets)  # (T, N, ...)
+            samples = (experience, advantages, targets, values)  # (T, N, ...)
             samples = jax.tree_util.tree_map(
                 lambda x: x.reshape((n_samples,) + x.shape[2:]), samples
             )  # (T * N, ...)
@@ -324,48 +340,12 @@ class PPO(Agent):
             rng=rng,
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
+            policy=jax.vmap(
+                partial(self.network.apply, method="policy"), in_axes=(None, 0)
+            ),
+            value_fn=jax.vmap(
+                partial(self.network.apply, method="value"), in_axes=(None, 0)
+            ),
         )
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
         return train_state, logs
-
-    def log(self, logs, inspectable=None):
-        if len(logs) == 0 or logs["iter/update_step"] % self.hparams.log_frequency != 0:
-            return
-
-        start_time = time.time()
-        mask = logs.pop("done_mask")  # (T, N)
-        returns = logs.pop("returns")  # (T, N)
-        lengths = logs.pop("lengths")  # (T, N)
-
-        # mask out incomplete episodes
-        final_returns = returns[mask]  # (K,)
-        episode_lengths = lengths[mask]  # (K,)
-
-        # log renders
-        if self.hparams.log_render:
-            render_human = logs.pop("render/human")  # (T, 3, H, W)
-            logs[f"render/human"] = wandb.Video(np.array(render_human), fps=4)
-
-        logs["perf/returns"] = jnp.mean(final_returns)
-        logs["perf/episode_length"] = jnp.mean(episode_lengths)
-        logs["perf/success_rate"] = jnp.mean(final_returns == 1.0)
-
-        print(
-            (
-                f"Update Step: {logs['iter/update_step']}, "
-                f"Frames: {logs['iter/frames']}, "
-                f"Returns: {logs['perf/returns']}, "
-                f"Length: {logs['perf/episode_length']}, "
-                f"Success Rate: {logs['perf/success_rate']}, "
-                f"Logging time cost: {time.time() - start_time}"
-            )
-        )
-
-        wandb.log(logs, step=logs["iter/update_step"])
-
-    def log_on_train_end(self, logs):
-        print(jax.tree.map(lambda x: x.shape, logs))
-        len_logs = len(logs["iter/update_step"])
-        for step in range(len_logs):
-            step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
-            self.log(step_logs)

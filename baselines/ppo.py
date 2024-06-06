@@ -1,8 +1,7 @@
-from dataclasses import asdict, dataclass
-import time
+from dataclasses import dataclass
+from typing import Tuple
 import wandb
 
-import jax
 import numpy as np
 import jax.numpy as jnp
 import flax.linen as nn
@@ -25,19 +24,17 @@ def FlattenObsWrapper(env: Environment):
 @dataclass
 class Args:
     project_name = "navix-baselines"
-    budget: int = 10_000_000
-    seeds_offset: int = 0
-    n_seeds: int = 10
+    seeds_range: Tuple[int, int, int] = (0, 10, 1)
+    ppo: PPOHparams = PPOHparams()
 
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
 
-    ppo_hparams = PPOHparams(budget=args.budget)
     # create environments
     for env_id in nx.registry():
         # init logging
-        config = {**vars(args), **asdict(ppo_hparams)}
+        config = {**vars(args), **{"observations": "symbolic"}, **{"algo": "ppo"}}
         wandb.init(project=args.project_name, config=config)
 
         # init environment
@@ -57,41 +54,15 @@ if __name__ == "__main__":
             ]
         )
         agent = PPO(
-            hparams=ppo_hparams,
+            hparams=args.ppo,
             network=ActorCritic(action_dim=len(env.action_set)),
             env=env,
         )
-
-        # train agent
-        seeds = range(args.seeds_offset, args.seeds_offset + args.n_seeds)
-        rngs = jnp.asarray([jax.random.PRNGKey(seed) for seed in seeds])
-        train_fn = jax.vmap(agent.train)
-
-        print("Compiling training function...")
-        start_time = time.time()
-        train_fn = jax.jit(train_fn).lower(rngs).compile()
-        compilation_time = time.time() - start_time
-        print(f"Compilation time cost: {compilation_time}")
-
-        print("Training agent...")
-        start_time = time.time()
-        train_state, logs = train_fn(rngs)
-        training_time = time.time() - start_time
-        print(f"Training time cost: {training_time}")
-
-        print("Logging final results to wandb...")
-        start_time = time.time()
-        # transpose logs tree
-        logs = jax.tree_map(lambda *args: jnp.stack(args), *logs)
-        for log in logs:
-            agent.log_on_train_end(log)
-        logging_time = time.time() - start_time
-        print(f"Logging time cost: {logging_time}")
-
-        print("Training complete")
-        print(f"Compilation time cost: {compilation_time}")
-        print(f"Training time cost: {training_time}")
-        total_time = compilation_time + training_time
-        print(f"Logging time cost: {logging_time}")
-        total_time += logging_time
-        print(f"Total time cost: {total_time}")
+        experiment = nx.Experiment(
+            name=args.project_name,
+            agent=agent,
+            env=env,
+            env_id=env_id,
+            seeds=tuple(range(*args.seeds_range)),
+        )
+        experiment.run()

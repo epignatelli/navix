@@ -1,3 +1,4 @@
+from jax import Array
 import jax.numpy as jnp
 import distrax
 import flax.linen as nn
@@ -44,18 +45,32 @@ class ActorCritic(nn.Module):
     actor_encoder: nn.Module = MLPEncoder()
     critic_encoder: nn.Module = MLPEncoder()
 
-    @nn.compact
-    def __call__(self, x):
-        actor_repr = self.actor_encoder(x)
-        logits = nn.Dense(
-            self.action_dim,
-            kernel_init=orthogonal(0.01),
-            bias_init=constant(0.0),
-        )(actor_repr)
-        pi = distrax.Categorical(logits=logits)
-
-        critic_repr = self.critic_encoder(x)
-        value = nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))(
-            critic_repr
+    def setup(self):
+        self.actor = nn.Sequential(
+            [
+                self.actor_encoder,
+                nn.Dense(
+                    self.action_dim,
+                    kernel_init=orthogonal(0.01),
+                    bias_init=constant(0.0),
+                ),
+                # lambda x: distrax.Categorical(logits=x),
+            ]
         )
-        return pi, jnp.squeeze(value, axis=-1)
+
+        self.critic = nn.Sequential(
+            [
+                self.critic_encoder,
+                nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
+                # lambda x: jnp.squeeze(x, axis=-1),
+            ]
+        )
+
+    def __call__(self, x):
+        return distrax.Categorical(self.actor(x)), jnp.squeeze(self.critic(x), -1)
+
+    def policy(self, x: Array) -> distrax.Distribution:
+        return distrax.Categorical(logits=self.actor(x))
+    
+    def value(self, x: Array) -> Array:
+        return jnp.squeeze(self.critic(x), -1)
