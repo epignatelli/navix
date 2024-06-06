@@ -164,7 +164,7 @@ def drop(state: State) -> State:
         entity = state.entities[k]
         if isinstance(entity, Pickable):
             cond = jnp.logical_and(can_drop, entity.position == DISCARD_PILE_COORDS)
-            position = entity.position.at[cond].set(position_in_front)
+            position = jnp.where(cond, position_in_front, entity.position)
             entity = entity.replace(position=position)
             state.set_entity(k, entity)
     return state
