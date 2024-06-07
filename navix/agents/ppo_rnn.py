@@ -22,7 +22,7 @@ from navix.environments import Environment
 from navix.environments.environment import Timestep
 from navix.states import State
 
-from .models import ActorCriticRNN
+from .models import ActorCriticRNN, RNNState
 
 
 @dataclass
@@ -63,7 +63,11 @@ class PPOHparams(HParams):
     """How often to log results."""
 
 
+HiddenState = Tuple[RNNState, RNNState]
+
+
 class Buffer(struct.PyTreeNode):
+    carry: Tuple[RNNState, RNNState]
     done: jax.Array
     action: jax.Array
     reward: jax.Array
@@ -79,13 +83,16 @@ class TrainingState(TrainState):
     rng: jax.Array
     frames: jax.Array
     epoch: jax.Array
-    policy: Callable[[Params, Array], distrax.Distribution] = struct.field(
-        pytree_node=False
-    )
-    value_fn: Callable[[Params, Array], Array] = struct.field(pytree_node=False)
+    carry: HiddenState
+    policy: Callable[
+        [Params, HiddenState, Array, Array], Tuple[HiddenState, distrax.Distribution]
+    ] = struct.field(pytree_node=False)
+    value_fn: Callable[
+        [Params, HiddenState, Array, Array], Tuple[HiddenState, Array]
+    ] = struct.field(pytree_node=False)
 
 
-class PPO(Agent):
+class PPORNN(Agent):
     hparams: PPOHparams = struct.field(pytree_node=False)
     network: ActorCriticRNN = struct.field(pytree_node=False)
     env: Environment
@@ -94,18 +101,21 @@ class PPO(Agent):
         self, train_state: TrainingState
     ) -> Tuple[TrainingState, Buffer]:
         def _env_step(
-            collection_state: Tuple[Timestep, jax.Array], _
-        ) -> Tuple[Tuple[Timestep, jax.Array], Buffer]:
-            env_state, rng = collection_state
+            collection_state: Tuple[Timestep, jax.Array, HiddenState], _
+        ) -> Tuple[Tuple[Timestep, jax.Array, HiddenState], Buffer]:
+            env_state, rng, carry = collection_state
             # SELECT ACTION
             rng, _rng = jax.random.split(rng)
-            pi = train_state.policy(train_state.params, env_state.observation)
+            carry, pi = train_state.policy(
+                train_state.params, carry, env_state.observation, env_state.is_done()
+            )
             action = jnp.asarray(pi.sample(seed=_rng))
             log_prob = jnp.asarray(pi.log_prob(action))
 
             # STEP ENV
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
+                carry=carry,  # rnn state
                 done=new_env_state.is_done(),  # done(o_{t+1})
                 action=action,  # a_t
                 reward=new_env_state.reward,  # R(o_t, a_t)
@@ -115,16 +125,17 @@ class PPO(Agent):
                 t=env_state.t,  # t
                 state=env_state.state,  # s_t
             )
-            return (new_env_state, rng), transition
+            return (new_env_state, rng, carry), transition
 
         # collect experience and update env_state
-        (env_state, rng), experience = jax.lax.scan(
+        (env_state, rng, carry), experience = jax.lax.scan(
             _env_step,
-            (train_state.env_state, train_state.rng),
+            (train_state.env_state, train_state.rng, train_state.carry),
             None,
             self.hparams.num_steps,
         )
         train_state = train_state.replace(
+            carry=carry,
             env_state=env_state,
             rng=rng,
             frames=train_state.frames + self.hparams.num_steps * self.hparams.num_envs,
@@ -133,10 +144,10 @@ class PPO(Agent):
 
     def evaluate_experience(
         self, train_state: TrainingState, experience: Buffer, last_val: jax.Array
-    ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-        values = jnp.asarray(
-            jax.vmap(train_state.value_fn, in_axes=(None, 0))(
-                train_state.params, experience.obs
+    ) -> Tuple[jax.Array, jax.Array, jax.Array, HiddenState]:
+        carry, values = jnp.asarray(
+            jax.vmap(train_state.value_fn, in_axes=(None, 0, 0))(
+                train_state.params, experience.carry, experience.obs, experience.done
             )
         )  # (1:T, N)
         adv = jax.vmap(
@@ -152,7 +163,7 @@ class PPO(Agent):
         )
         adv = jnp.asarray(adv)  # (0:T, N)
         targets = adv + values
-        return values, adv, targets
+        return values, adv, targets, carry
 
     def ppo_loss(
         self,
@@ -161,10 +172,11 @@ class PPO(Agent):
         gae: Array,
         targets: Array,
         values_old: Array,
+        carry: HiddenState,
     ):
         # this is already vmapped over the minibatches
         pi, value = jax.vmap(self.network.apply, in_axes=(None, 0))(
-            params, transition_batch.obs
+            params, carry, transition_batch.obs
         )
         log_prob = pi.log_prob(transition_batch.action)
 
@@ -221,12 +233,12 @@ class PPO(Agent):
     def sgd_step(
         self,
         train_state: TrainingState,
-        minibatch: Tuple[Buffer, jax.Array, jax.Array, jax.Array],
+        minibatch: Tuple[Buffer, jax.Array, jax.Array, jax.Array, HiddenState],
     ) -> Tuple[TrainingState, Dict]:
-        traj_batch, advantages, targets, values_old = minibatch
+        traj_batch, advantages, targets, values_old, carry = minibatch
         grad_fn = jax.value_and_grad(self.ppo_loss, has_aux=True)
         (_, logs), grads = grad_fn(
-            train_state.params, traj_batch, advantages, targets, values_old
+            train_state.params, traj_batch, advantages, targets, values_old, carry
         )
         train_state = train_state.apply_gradients(grads=grads)
         return train_state, logs
@@ -243,11 +255,16 @@ class PPO(Agent):
 
         for _ in range(self.hparams.num_epochs):
             # re-evaluate experience at every epoch as per https://arxiv.org/abs/2006.05990
-            last_val = train_state.value_fn(
-                train_state.params, train_state.env_state.observation
+            _, last_val = train_state.value_fn(
+                train_state.params,
+                train_state.carry,
+                train_state.env_state.observation,
+                experience.done,
             )  # boostrap
-            values, advantages, targets = self.evaluate_experience(
-                train_state, experience, last_val
+            values, advantages, targets, carry = self.evaluate_experience(
+                train_state,
+                experience,
+                last_val,
             )
 
             # Batching and Shuffling
@@ -258,7 +275,7 @@ class PPO(Agent):
                 n_samples == self.hparams.num_steps * self.hparams.num_envs
             ), "batch size must be equal to number of steps * number of envs"
             permutation = jax.random.permutation(rng_1, n_samples)
-            samples = (experience, advantages, targets, values)  # (T, N, ...)
+            samples = (experience, advantages, targets, values, carry)  # (T, N, ...)
             samples = jax.tree_util.tree_map(
                 lambda x: x.reshape((n_samples,) + x.shape[2:]), samples
             )  # (T * N, ...)
@@ -306,8 +323,9 @@ class PPO(Agent):
     def train(self, rng: jax.Array) -> Tuple[TrainingState, Dict]:
         # INIT NETWORK
         rng, _rng = jax.random.split(rng)
-        init_x = self.env.observation_space.sample(_rng)
-        params = self.network.init(_rng, init_x)
+        obs = self.env.observation_space.sample(_rng)
+        carry = self.network.initialize_carry(_rng, obs.shape)
+        params = self.network.init(_rng, carry, obs, jnp.zeros(obs.shape[0]))
 
         def linear_schedule(count):
             frac = (
@@ -333,6 +351,7 @@ class PPO(Agent):
             self.hparams.num_steps * self.hparams.num_envs
         )
         train_state = TrainingState.create(
+            carry=carry,
             apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0)),
             params=params,
             tx=tx,

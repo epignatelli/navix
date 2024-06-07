@@ -19,4 +19,5 @@
 
 
 from .ppo import PPO, PPOHparams as PPOHparams
-from .models import MLPEncoder, ConvEncoder, ActorCritic
+from .ppo_rnn import PPORNN
+from .models import MLPEncoder, ConvEncoder, ActorCritic, ActorCriticRNN

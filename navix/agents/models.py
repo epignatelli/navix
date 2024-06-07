@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 from typing import Tuple
 from jax import Array
@@ -8,25 +10,23 @@ import flax.linen as nn
 from flax.linen.initializers import constant, orthogonal
 
 
-RNNState = tuple
+RNNState = Tuple[Array, Array]
+ACHiddenState = Tuple[RNNState, RNNState]
 
 
-class DenseRNN(nn.Dense, nn.RNNCellBase):
-    """A linear module that returns an empty RNN state,
-    which makes it behave like an RNN layer."""
+class RNNWrapper(nn.RNNCellBase):
+    module: nn.Module
 
     @nn.compact
-    def __call__(self, carry: RNNState, x: Array) -> Tuple[RNNState, Array]:
-        return (), super().__call__(x)
+    def __call__(self, carry, x):
+        return self.module(x)
 
-    @nn.nowrap
-    def initialize_carry(
-        self, rng: Array, input_shape: Tuple[int, ...]
-    ) -> Tuple[Array, Array]:
+    def initialize_carry(self, rng, input_shape):
         return (jnp.asarray(()), jnp.asarray(()))
 
     @property
     def num_feature_axes(self) -> int:
+        """Returns the number of feature axes of the RNN cell."""
         return 1
 
 
@@ -79,7 +79,6 @@ class ActorCritic(nn.Module):
                     kernel_init=orthogonal(0.01),
                     bias_init=constant(0.0),
                 ),
-                # lambda x: distrax.Categorical(logits=x),
             ]
         )
 
@@ -87,7 +86,6 @@ class ActorCritic(nn.Module):
             [
                 self.critic_encoder,
                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-                # lambda x: jnp.squeeze(x, axis=-1),
             ]
         )
 
@@ -105,25 +103,53 @@ class ActorCriticRNN(nn.Module):
     action_dim: int
     actor_encoder: nn.Module = MLPEncoder()
     critic_encoder: nn.Module = MLPEncoder()
-    hidden_size: int = 64
     recurrent: bool = False
+    episodic_reset: bool = True
+    embedding_size: int = 64
 
     def setup(self):
         if self.recurrent:
-            self.core_actor = nn.LSTMCell(self.hidden_size)
-            self.core_critic = nn.LSTMCell(self.hidden_size)
+            actor_mlp = nn.LSTMCell(self.embedding_size)
+            critic_mlp = nn.LSTMCell(self.embedding_size)
         else:
-            self.core_actor = DenseRNN(self.hidden_size)
-            self.core_critic = DenseRNN(self.hidden_size)
+            actor_mlp = RNNWrapper(nn.Dense(self.embedding_size))
+            critic_mlp = RNNWrapper(nn.Dense(self.embedding_size))
 
-        self.actor_head = nn.Dense(
-            self.action_dim,
-            kernel_init=orthogonal(0.01),
-            bias_init=constant(0.0),
+        self.actor = nn.Sequential(
+            [
+                RNNWrapper(self.actor_encoder),
+                actor_mlp,
+                RNNWrapper(
+                    nn.Dense(
+                        self.action_dim,
+                        kernel_init=orthogonal(0.01),
+                        bias_init=constant(0.0),
+                    )
+                ),
+            ]
         )
-        self.critic_head = nn.Dense(
-            1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)
+        self.critic = nn.Sequential(
+            [
+                RNNWrapper(self.critic_encoder),
+                critic_mlp,
+                RNNWrapper(
+                    nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0))
+                ),
+            ]
         )
+
+    def initialize_carry(
+        self, rng: Array, input_shape: Tuple[int, ...]
+    ) -> ACHiddenState:
+        if self.recurrent:
+            batch_dims = input_shape[:-1]
+            mem_shape = batch_dims + (self.embedding_size,)
+            carry_each = tuple(jnp.zeros((2,) + mem_shape, self.param_dtype))
+            carry = (carry_each, carry_each)
+        else:
+            carry_each = (jnp.asarray(()), jnp.asarray(()))
+            carry = (carry_each, carry_each)
+        return carry
 
     @functools.partial(
         nn.scan,
@@ -133,41 +159,29 @@ class ActorCriticRNN(nn.Module):
         split_rngs={"params": False},
     )
     def __call__(
-        self, x: Array, carry: Tuple[RNNState, RNNState], done=None
-    ) -> Tuple[RNNState, Tuple[distrax.Distribution, Array]]:
-        if done is None:
-            done = jnp.zeros(x.shape[0], dtype=jnp.bool_)
+        self, carry: ACHiddenState, x: Array, done: Array
+    ) -> Tuple[ACHiddenState, Tuple[distrax.Distribution, Array]]:
+        if self.episodic_reset:
+            carry = jax.tree.map(lambda x: jnp.where(done, 0.0, x), carry)
 
-        # TODO(epignatelli): Implement reset
-
-        carry_actor, pi = self.policy(carry, x)
-        carry_critic, v = self.value(carry, x)
-        return (carry_actor, carry_critic), (pi, v)
-
-    @nn.nowrap
-    def initialize_carry(
-        self, rng: Array, input_shape: Tuple[int, ...]
-    ) -> Tuple[RNNState, RNNState]:
-        carry_actor = self.core_actor.initialize_carry(rng, input_shape)
-        carry_critic = self.core_critic.initialize_carry(rng, input_shape)
-        return (carry_actor, carry_critic)
+        carry, pi = self.policy(carry, x, done)
+        carry, v = self.value(carry, x, done)
+        return carry, (pi, v)
 
     def policy(
-        self, carry: Tuple[RNNState, RNNState], x: Array
-    ) -> Tuple[RNNState, distrax.Distribution]:
+        self, carry: ACHiddenState, x: Array, done: Array
+    ) -> Tuple[ACHiddenState, distrax.Distribution]:
         carry_actor, carry_critic = carry
-        actor_embed = self.actor_encoder(x)
-        carry_actor, actor_embed = self.core_actor(carry_actor, actor_embed)
-        logits = self.actor_head(actor_embed)
-        carry = (carry_actor, carry_critic)
-        return carry, distrax.Categorical(logits=logits)
+        if self.episodic_reset:
+            carry_actor = jax.tree.map(lambda x: jnp.where(done, 0.0, x), carry_actor)
+        carry_actor, logits = self.actor(carry, x)
+        return (carry_actor, carry_critic), distrax.Categorical(logits=logits)
 
     def value(
-        self, carry: Tuple[RNNState, RNNState], x: Array
-    ) -> Tuple[RNNState, Array]:
+        self, carry: ACHiddenState, x: Array, done: Array
+    ) -> Tuple[ACHiddenState, Array]:
         carry_actor, carry_critic = carry
-        critic_embed = self.critic_encoder(x)
-        carry_critic, critic_embed = self.core_critic(carry_critic, critic_embed)
-        value = self.critic_head(critic_embed)
-        carry = (carry_actor, carry_critic)
-        return carry, jnp.squeeze(value, axis=-1)
+        if self.episodic_reset:
+            carry_critic = jax.tree.map(lambda x: jnp.where(done, 0.0, x), carry_critic)
+        carry_critic, value = self.critic(carry, x)
+        return (carry_actor, carry_critic), jnp.squeeze(value, -1)
