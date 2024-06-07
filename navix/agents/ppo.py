@@ -22,7 +22,7 @@ from navix.environments import Environment
 from navix.environments.environment import Timestep
 from navix.states import State
 
-from .models import ActorCriticRNN
+from .models import ActorCritic
 
 
 @dataclass
@@ -87,7 +87,7 @@ class TrainingState(TrainState):
 
 class PPO(Agent):
     hparams: PPOHparams = struct.field(pytree_node=False)
-    network: ActorCriticRNN = struct.field(pytree_node=False)
+    network: ActorCritic = struct.field(pytree_node=False)
     env: Environment
 
     def collect_experience(

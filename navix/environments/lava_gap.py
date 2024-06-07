@@ -94,7 +94,7 @@ class LavaGap(Environment):
 
 
 register_env(
-    "Navix-DoorKey-S5-v0",
+    "Navix-LavaGap-S5-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
@@ -106,7 +106,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-DoorKey-S6-v0",
+    "Navix-LavaGap-S6-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
@@ -118,7 +118,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-DoorKey-S7-v0",
+    "Navix-LavaGap-S7-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,

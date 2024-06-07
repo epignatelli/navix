@@ -38,26 +38,17 @@ if __name__ == "__main__":
         wandb.init(project=args.project_name, config=config)
 
         # init environment
-        env = FlattenObsWrapper(nx.make(env_id))
+        env = nx.make(env_id)
+        env = FlattenObsWrapper(env)
 
         # create agent
-        network = nn.Sequential(
-            [
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                nn.tanh,
-                nn.Dense(
-                    64, kernel_init=orthogonal(np.sqrt(2)), bias_init=constant(0.0)
-                ),
-                nn.tanh,
-            ]
-        )
         agent = PPO(
             hparams=args.ppo,
             network=ActorCritic(action_dim=len(env.action_set)),
             env=env,
         )
+
+        # run experiment
         experiment = nx.Experiment(
             name=args.project_name,
             agent=agent,
