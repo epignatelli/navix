@@ -1,8 +1,7 @@
-from dataclasses import dataclass, field, replace
-import copy
+from dataclasses import dataclass, field
+from typing import Dict
 
 import distrax
-import jax
 import tyro
 import numpy as np
 import jax.numpy as jnp
@@ -16,6 +15,7 @@ from navix.environments.environment import Environment
 class Args:
     project_name = "navix-debug"
     population_size: int = 10
+    seed: int = 0
     # env
     env_id: str = "Navix-DoorKey-Random-6x6-v0"
     discount: float = 0.99
@@ -28,8 +28,8 @@ class CategoricalUniform(distrax.Categorical):
         self.domain = jnp.asarray(domain)
         super().__init__(logits=jnp.zeros(len(domain)), dtype=dtype)
 
-    def sample(self, rng):
-        samples = super().sample(seed=rng, sample_shape=())
+    def sample(self, *, seed, sample_shape=()):
+        samples = super().sample(seed=seed, sample_shape=sample_shape)
         return self.domain[samples]
 
     def sample_n(self, rng, n):
@@ -55,30 +55,25 @@ if __name__ == "__main__":
     )
     env = FlattenObsWrapper(env)
 
-    hparams_distr = {
-        "n_steps": CategoricalUniform((128, 256)),
-        "n_epochs": CategoricalUniform((1, 3)),
-        "clip_ratio": CategoricalUniform((0.1, 0.2)),
-        "entropy_coef": CategoricalUniform((0.001, 0.01, 0.1)),
-        "learning_rate": CategoricalUniform((1e-4, 2.5e-4)),
+    # static hparams
+    ppo_config = args.ppo_config.replace(anneal_lr=False)
+
+    hparams_distr: Dict[str, distrax.Distribution] = {
+        "num_steps": CategoricalUniform((128, 256)),
+        "num_epochs": CategoricalUniform((1, 3)),
+        "clip_eps": CategoricalUniform((0.1, 0.2)),
+        "ent_coef": CategoricalUniform((0.001, 0.01, 0.1)),
+        "lr": CategoricalUniform((1e-4, 2.5e-4)),
         "gae_lambda": CategoricalUniform((0.7, 0.95, 0.99)),
     }
 
-    agents = []
-    for seed in range(args.population_size):
-        print(f"Seed: {seed}")
-        print("Hparams:")
-        hparams = copy.deepcopy(args.ppo_config)
-        key = jax.random.PRNGKey(seed)
-        for k, distr in hparams_distr.items():
-            hparams = replace(hparams, k=distr.sample(key).item())
-        agent = PPO(
-            hparams=hparams,
-            network=ActorCritic(
-                action_dim=len(env.action_set),
-            ),
-            env=env,
-        )
-        agents.append(agent)
+    base_hparams = args.ppo_config
+    experiment = nx.Experiment(
+        name=args.project_name,
+        agent=PPO(base_hparams, ActorCritic(len(env.action_set)), env),
+        env=env,
+        env_id=args.env_id,
+        seeds=(args.seed,),
+    )
 
-    
+    experiment.run_hparam_search(hparams_distr, args.population_size)

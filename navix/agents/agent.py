@@ -10,11 +10,12 @@ from flax import struct
 from flax.training.train_state import TrainState
 
 
-@dataclass
-class HParams:
-    debug: bool = False
-    log_frequency: int = 1
-    log_render: bool = False
+class HParams(struct.PyTreeNode):
+    debug: bool = struct.field(pytree_node=False, default=False)
+    """Whether to run in debug mode."""
+    log_frequency: int = struct.field(pytree_node=False, default=1)
+    """How often to log results."""
+    log_render: bool = struct.field(pytree_node=False, default=False)
 
 
 class Agent(struct.PyTreeNode):
