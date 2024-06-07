@@ -63,7 +63,7 @@ class DynamicObstacles(Environment):
         )
         # goal
         goal_pos = jnp.asarray([self.height - 2, self.width - 2])
-        goal = Goal(position=goal_pos, probability=jnp.asarray(1.0))
+        goal = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # balls
         exclude = jnp.stack([player_pos, goal_pos])

@@ -51,7 +51,6 @@ if __name__ == "__main__":
 
     experiment = nx.Experiment(
         name=args.project_name,
-        budget=1_000_000,
         agent=agent,
         env=env,
         env_id=args.env_id,

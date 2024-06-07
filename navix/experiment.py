@@ -1,9 +1,11 @@
 from dataclasses import asdict
 import time
 from typing import Tuple
+
 import jax
 import jax.numpy as jnp
 import wandb
+import wandb.util
 from navix.agents.agent import Agent
 from navix.environments.environment import Environment
 
@@ -12,20 +14,20 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        budget: int,
         agent: Agent,
         env: Environment,
         env_id: str = "",
         seeds: Tuple[int, ...] = (0,),
     ):
         self.name = name
-        self.budget = budget
         self.agent = agent
         self.env = env
         self.env_id = env_id
         self.seeds = seeds
 
     def run(self):
+        print("Running experiment with the following configuration:")
+        print(vars(self))
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
 
         print("Compiling training function...")
