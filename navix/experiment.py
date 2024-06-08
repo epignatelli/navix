@@ -1,7 +1,8 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace, fields
 import time
-from typing import Tuple
+from typing import Dict, Tuple
 
+import distrax
 import jax
 import jax.numpy as jnp
 import wandb
@@ -67,3 +68,76 @@ class Experiment:
             total_time += logging_time
         print(f"Total time cost: {total_time}")
         return train_state, logs
+
+    def run_hparam_search(
+        self, hparams_distr: Dict[str, distrax.Distribution], pop_size: int
+    ):
+        hparams_fields = fields(self.agent.hparams)
+        for k in hparams_distr:
+            member = list(filter(lambda x: x.name == k, hparams_fields))
+            if (
+                len(member) > 0
+                and "pytree_node" in member[0].metadata
+                and member[0].metadata["pytree_node"] == False
+            ):
+                raise ValueError(
+                    f"Hyperparameter {k} is not a traceable pytree node. "
+                    + f"Set pytree_node=True for {k} to include it into the hparam search."
+                )
+
+        search_set = []
+        for seed in range(pop_size):
+            hparams = self.agent.hparams
+            key = jax.random.PRNGKey(seed)
+            for k, distr in hparams_distr.items():
+                hparams = replace(hparams, **{k: distr.sample(seed=key)})
+            print("Hparams:", hparams)
+            search_set.append(hparams)
+        # transpose search set
+        len_search_set = len(search_set)
+        search_set = jax.tree.map(lambda *x: jnp.stack(x), *search_set)
+
+        rngs = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
+
+        def search(hparam_set_sample):
+            agent = self.agent.replace(hparams=hparam_set_sample)
+            return jax.vmap(agent.train)(rngs)
+
+        print("Running hyperparameter search with the following configuration:")
+        print(search_set)
+
+        print("Compiling search function...")
+        start_time = time.time()
+        search_fn = jax.jit(jax.vmap(search)).lower(search_set).compile()
+        compilation_time = time.time() - start_time
+        print(f"Compilation time cost: {compilation_time}")
+
+        print("Searching for optimal hyperparameters...")
+        start_time = time.time()
+        train_states, logs = search_fn(search_set)
+        search_time = time.time() - start_time
+        print(f"Search time cost: {search_time}")
+
+        print("Logging final results to wandb...")
+        start_time = time.time()
+        # average over seeds
+        for i in range(len_search_set):
+            print("Logging results for hparam set:", search_set)
+            hparams = jax.tree_map(lambda x: x[i], search_set)
+            config = {**vars(self), **asdict(hparams)}
+            wandb.init(project=self.name, config=config)
+            log = jax.tree_map(lambda x: jnp.mean(x[i], axis=0), logs)
+            self.agent.log_on_train_end(log)
+            wandb.finish()
+        logging_time = time.time() - start_time
+
+        print("Hyperparameter search complete")
+        total_time = 0
+        print(f"Compilation time cost: {compilation_time}")
+        total_time += compilation_time
+        print(f"Search time cost: {search_time}")
+        total_time += search_time
+        print(f"Logging time cost: {logging_time}")
+        total_time += logging_time
+        print(f"Total time cost: {total_time}")
+        return train_states, logs

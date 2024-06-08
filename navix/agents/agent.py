@@ -10,11 +10,12 @@ from flax import struct
 from flax.training.train_state import TrainState
 
 
-@dataclass
-class HParams:
-    debug: bool = False
-    log_frequency: int = 1
-    log_render: bool = False
+class HParams(struct.PyTreeNode):
+    debug: bool = struct.field(pytree_node=False, default=False)
+    """Whether to run in debug mode."""
+    log_frequency: int = struct.field(pytree_node=False, default=1)
+    """How often to log results."""
+    log_render: bool = struct.field(pytree_node=False, default=False)
 
 
 class Agent(struct.PyTreeNode):
@@ -29,6 +30,7 @@ class Agent(struct.PyTreeNode):
 
         start_time = time.time()
         msg = f"Update Step: {logs['iter/update_step']}, Frames: {logs['iter/frames']}"
+        step = jnp.asarray(logs["iter/update_step"], dtype=jnp.int32)
 
         # log renders
         if self.hparams.log_render:
@@ -36,7 +38,7 @@ class Agent(struct.PyTreeNode):
             logs[f"render/human"] = wandb.Video(np.array(render_human), fps=4)
 
         if "done_mask" in logs:
-            mask = logs.pop("done_mask")  # (T, N)
+            mask = jnp.asarray(logs.pop("done_mask"), dtype=jnp.bool)  # (T, N)
             # log episode length
             if "lengths" in logs:
                 lengths: jax.Array = logs.pop("lengths")  # (T, N)
@@ -53,7 +55,7 @@ class Agent(struct.PyTreeNode):
                 msg += f", Returns: {logs['perf/returns']}, Success Rate: {logs['perf/success_rate']}"
 
         msg += f", Logging time cost: {time.time() - start_time}"
-        wandb.log(logs, step=logs["iter/update_step"])
+        wandb.log(logs, step=step)
 
     def log_on_train_end(self, logs):
         print(jax.tree.map(lambda x: x.shape, logs))

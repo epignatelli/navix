@@ -2,7 +2,6 @@
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
-from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Dict, Tuple
 
@@ -25,17 +24,16 @@ from navix.states import State
 from .models import ActorCritic
 
 
-@dataclass
 class PPOHparams(HParams):
-    budget: int = 1_000_000
+    budget: int = struct.field(pytree_node=False, default=1_000_000)
     """Number of environment frames to train for."""
-    num_envs: int = 16
+    num_envs: int = struct.field(pytree_node=False, default=16)
     """Number of parallel environments to run."""
-    num_steps: int = 128
+    num_steps: int = struct.field(pytree_node=False, default=128)
     """Number of steps to run in each environment per update."""
-    num_minibatches: int = 8
+    num_minibatches: int = struct.field(pytree_node=False, default=8)
     """Number of minibatches to split the data into for training."""
-    num_epochs: int = 1
+    num_epochs: int = struct.field(pytree_node=False, default=1)
     """Number of epochs to train for."""
     gae_lambda: float = 0.95
     """Lambda parameter of the TD(lambda) return."""
@@ -49,18 +47,12 @@ class PPOHparams(HParams):
     """Maximum gradient norm for clipping."""
     lr: float = 2.5e-4
     """Starting learning rate."""
-    anneal_lr: bool = True
+    anneal_lr: bool = struct.field(pytree_node=False, default=True)
     """Whether to anneal the learning rate linearly to 0 at the end of training."""
-    debug: bool = False
-    """Whether to run in debug mode."""
-    log_render: bool = False
-    """Whether to log environment renderings."""
-    normalise_advantage: bool = True
+    normalise_advantage: bool = struct.field(pytree_node=False, default=True)
     """Whether to normalise the advantages in the PPO loss."""
-    clip_value_loss: bool = True
+    clip_value_loss: bool = struct.field(pytree_node=False, default=True)
     """Whether to clip the value loss in the PPO loss."""
-    log_frequency: int = 1
-    """How often to log results."""
 
 
 class Buffer(struct.PyTreeNode):
@@ -86,7 +78,7 @@ class TrainingState(TrainState):
 
 
 class PPO(Agent):
-    hparams: PPOHparams = struct.field(pytree_node=False)
+    hparams: PPOHparams
     network: ActorCritic = struct.field(pytree_node=False)
     env: Environment
 
@@ -325,6 +317,12 @@ class PPO(Agent):
 
         # INIT ENV
         rng, _rng = jax.random.split(rng)
+        _, reset_rng = jax.lax.scan(
+            lambda x, _: (jax.random.split(x)[1], jax.random.split(x)[1]),
+            _rng,
+            None,
+            self.hparams.num_envs,
+        )
         reset_rng = jax.random.split(_rng, self.hparams.num_envs)
         env_state = jax.vmap(self.env.reset)(reset_rng)
 
