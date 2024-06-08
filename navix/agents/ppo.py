@@ -2,7 +2,6 @@
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
-from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Dict, Tuple
 
@@ -30,13 +29,11 @@ class PPOHparams(HParams):
     """Number of environment frames to train for."""
     num_envs: int = struct.field(pytree_node=False, default=16)
     """Number of parallel environments to run."""
-    num_steps: int = 128
+    num_steps: int = struct.field(pytree_node=False, default=128)
     """Number of steps to run in each environment per update."""
-    num_minibatches: int = 8
+    num_minibatches: int = struct.field(pytree_node=False, default=8)
     """Number of minibatches to split the data into for training."""
-    # minibatch_size: int = struct.field(pytree_node=False, default=128)
-    # """Number of samples in each minibatch."""
-    num_epochs: int = 1
+    num_epochs: int = struct.field(pytree_node=False, default=1)
     """Number of epochs to train for."""
     gae_lambda: float = 0.95
     """Lambda parameter of the TD(lambda) return."""

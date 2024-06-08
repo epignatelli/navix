@@ -59,12 +59,11 @@ if __name__ == "__main__":
     ppo_config = args.ppo_config.replace(anneal_lr=False)
 
     hparams_distr: Dict[str, distrax.Distribution] = {
-        "num_steps": CategoricalUniform((128, 256)),
-        "num_epochs": CategoricalUniform((1, 3)),
+        "gae_lambda": CategoricalUniform((0.7, 0.95, 0.99)),
         "clip_eps": CategoricalUniform((0.1, 0.2)),
         "ent_coef": CategoricalUniform((0.001, 0.01, 0.1)),
-        "lr": CategoricalUniform((1e-4, 2.5e-4)),
-        "gae_lambda": CategoricalUniform((0.7, 0.95, 0.99)),
+        "vf_coef": CategoricalUniform((0.1, 0.5, 0.9)),
+        "lr": CategoricalUniform((1e-3, 2.5e-4, 1e-4, 1e-5)),
     }
 
     base_hparams = args.ppo_config

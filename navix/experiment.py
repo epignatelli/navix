@@ -94,6 +94,7 @@ class Experiment:
             print("Hparams:", hparams)
             search_set.append(hparams)
         # transpose search set
+        len_search_set = len(search_set)
         search_set = jax.tree.map(lambda *x: jnp.stack(x), *search_set)
 
         rngs = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -107,7 +108,7 @@ class Experiment:
 
         print("Compiling search function...")
         start_time = time.time()
-        search_fn = jax.jit(jax.jit(search)).lower(search_set).compile()
+        search_fn = jax.jit(jax.vmap(search)).lower(search_set).compile()
         compilation_time = time.time() - start_time
         print(f"Compilation time cost: {compilation_time}")
 
@@ -120,12 +121,12 @@ class Experiment:
         print("Logging final results to wandb...")
         start_time = time.time()
         # average over seeds
-        logs = jax.tree_map(lambda x: x.mean(axis=1), logs)
-        for i in range(len(search_set)):
-            config = {**vars(self), **asdict(search_set)}
-            wandb.init(project=self.name, config=config)
+        for i in range(len_search_set):
             print("Logging results for hparam set:", search_set)
-            log = jax.tree_map(lambda x: x[i], logs)
+            hparams = jax.tree_map(lambda x: x[i], search_set)
+            config = {**vars(self), **asdict(hparams)}
+            wandb.init(project=self.name, config=config)
+            log = jax.tree_map(lambda x: jnp.mean(x[i], axis=0), logs)
             self.agent.log_on_train_end(log)
             wandb.finish()
         logging_time = time.time() - start_time
