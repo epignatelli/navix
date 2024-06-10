@@ -4,7 +4,7 @@
 [![CD](https://github.com/epignatelli/navix/actions/workflows/CD.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CD.yml)
 ![PyPI version](https://img.shields.io/pypi/v/navix?label=PyPI&color=%230099ab)
 
-**[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
+**[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[The JAX ecosystem](#jax-ecosystem-for-rl)** | **[Contribute](#join-us)** | **[Cite](#cite)**
 
 ## What is NAVIX?
 NAVIX is a JAX-powered reimplementation of [minigrid](https://github.com/Farama-Foundation/Minigrid). Experiments that took <ins>**1 week**</ins>, now take <ins>**15 minutes**</ins>.   
@@ -154,13 +154,15 @@ NAVIX is not alone and part of an ecosystem of JAX-powered modules for RL. Check
 
 NAVIX is actively developed. If you'd like to contribute to this open-source project, we welcome your involvement! Start a discussion or open a pull request.
 
+Please, consider starring the project if you like NAVIX!
+
 ## Cite
 If you use `navix` please cite it as:
 
 ```bibtex
 @misc{pignatelli2023navix,
   author = {Pignatelli, Eduardo},
-  title = {Navix: Accelerated gridworld navigation with JAX},
+  title = {Navix: Scaling gridworld navigation with JAX},
   year = {2023},
   publisher = {GitHub},
   journal = {GitHub repository},
