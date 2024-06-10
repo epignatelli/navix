@@ -1,6 +1,5 @@
 # NAVIX: minigrid in JAX
 
-[![Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public.](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![CI](https://github.com/epignatelli/navix/actions/workflows/CI.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CI.yml)
 [![CD](https://github.com/epignatelli/navix/actions/workflows/CD.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CD.yml)
 ![PyPI version](https://img.shields.io/pypi/v/navix?label=PyPI&color=%230099ab)
@@ -8,9 +7,11 @@
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[Cite](#cite)**
 
 ## What is NAVIX?
-NAVIX is a JAX-powered reimplementation of [minigrid](https://github.com/Farama-Foundation/Minigrid). Key features:
-- Performance Boost: NAVIX offers a **~>1000x** speed increase compared to the original Minigrid, enabling faster experimentation and scaling. You can see a preliminary performance comparison [here](docs/performance.py).
-- XLA Compilation: Leverage the power of XLA to optimize NAVIX computations for your hardware (CPU, GPU, TPU).
+NAVIX is a JAX-powered reimplementation of [minigrid](https://github.com/Farama-Foundation/Minigrid). Experiments that took <ins>**1 week**</ins>, now take <ins>**15 minutes**</ins>.   
+
+Key features:
+- Performance Boost: NAVIX offers <ins>**over 1000x**</ins> speed increase compared to the original Minigrid implementation, enabling faster experimentation and scaling. You can see a preliminary performance comparison [here](docs/performance.py), and a full benchmarking at [here](benchmarks/).
+- XLA Compilation: Leverage the power of XLA to optimize NAVIX computations for many accelerators. NAVIX can run on CPU, GPU, and TPU.
 - Autograd Support: Differentiate through environment transitions, opening up new possibilities such as learned world models.
 
 The library is in active development, and we are working on adding more environments and features.
@@ -32,6 +33,7 @@ pip install git+https://github.com/epignatelli/navix
 ```
 
 ## Examples
+You can view a full set of examples [here](examples/) (more coming), but here are the most common use cases.
 
 ### Compiling a collection step
 ```python
@@ -128,6 +130,25 @@ params = model.init(key, timestep.observation)
 
 gradients = grad(loss)(params, timestep)
 ```
+
+## JAX ecosystem for RL
+NAVIX is not alone and part of an ecosystem of JAX-powered modules for RL. Check out the following projects:
+- Environments:
+  - [Gymnax](https://github.com/RobertTLange/gymnax): a broad range of RL environments
+  - [Brax](https://github.com/google/brax): a physics engine for robotics experiments
+  - [EnvPool](https://github.com/sail-sg/envpool): a set of various batched environments
+  - [Craftax](https://github.com/MichaelTMatthews/Craftax): a JAX reimplementation of the game of [Crafter](https://github.com/danijar/crafter)
+  - [Jumanji](https://github.com/instadeepai/jumanji): another set of diverse environments
+  - [PGX](https://github.com/sotetsuk/pgx): board games commonly used for RL, such as backgammon, chess, shogi, and go
+  - [JAX-MARL](https://github.com/FLAIROx/JaxMARL): multi-agent RL environments in JAX
+  - [Xland-Minigrid](https://github.com/corl-team/xland-minigrid/): a set of JAX-reimplemented grid-world environments
+  - [Minimax](https://github.com/facebookresearch/minimax):  a JAX library for RL autocurricula with 120x faster baselines
+- Agents:
+  - [PureJaxRl](https://github.com/luchris429/purejaxrl): proposing fullly-jitten training routines
+  - [Rejax](https://github.com/keraJLi/rejax): a suite of diverse agents, among which, DDPG, DQN, PPO, SAC, TD3
+  - [Stoix](https://github.com/EdanToledo/Stoix): useful implementations of popular single-agent RL algorithms in JAX
+  - [JAX-CORL](https://github.com/nissymori/JAX-CORL): lean single-file implementations of offline RL algorithms with solid performance reports
+  
 
 ## Join Us!
 
