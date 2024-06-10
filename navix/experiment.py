@@ -19,14 +19,16 @@ class Experiment:
         env: Environment,
         env_id: str = "",
         seeds: Tuple[int, ...] = (0,),
+        group: str = "",
     ):
         self.name = name
         self.agent = agent
         self.env = env
         self.env_id = env_id
         self.seeds = seeds
+        self.group = group
 
-    def run(self):
+    def run(self, do_log: bool = True):
         print("Running experiment with the following configuration:")
         print(vars(self))
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -43,13 +45,13 @@ class Experiment:
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
 
-        if not self.agent.hparams.debug:
+        if not self.agent.hparams.debug and do_log:
             print("Logging final results to wandb...")
             start_time = time.time()
             for seed in self.seeds:
                 config = {**vars(self), **asdict(self.agent.hparams)}
                 config.update(seed=seed)
-                wandb.init(project=self.name, config=config)
+                wandb.init(project=self.name, config=config, group=self.group)
                 print("Logging results for seed:", seed)
                 log = jax.tree.map(lambda x: x[seed], logs)
                 self.agent.log_on_train_end(log)
@@ -125,7 +127,7 @@ class Experiment:
             print("Logging results for hparam set:", search_set)
             hparams = jax.tree_map(lambda x: x[i], search_set)
             config = {**vars(self), **asdict(hparams)}
-            wandb.init(project=self.name, config=config)
+            wandb.init(project=self.name, config=config, group=self.group)
             log = jax.tree_map(lambda x: jnp.mean(x[i], axis=0), logs)
             self.agent.log_on_train_end(log)
             wandb.finish()
