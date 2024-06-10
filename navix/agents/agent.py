@@ -25,12 +25,12 @@ class Agent(struct.PyTreeNode):
         raise NotImplementedError
 
     def log(self, logs, inspectable=None):
-        if len(logs) == 0 or logs["iter/update_step"] % self.hparams.log_frequency != 0:
+        if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:
             return
 
         start_time = time.time()
-        msg = f"Update Step: {logs['iter/update_step']}, Frames: {logs['iter/frames']}"
-        step = jnp.asarray(logs["iter/update_step"], dtype=jnp.int32)
+        msg = f"Update Step: {logs['iter/updates']}, Frames: {logs['iter/frames']}"
+        step = jnp.asarray(logs["iter/updates"], dtype=jnp.int32)
 
         # log renders
         if self.hparams.log_render:
@@ -59,7 +59,7 @@ class Agent(struct.PyTreeNode):
 
     def log_on_train_end(self, logs):
         print(jax.tree.map(lambda x: x.shape, logs))
-        len_logs = len(logs["iter/update_step"])
+        len_logs = len(logs["iter/updates"])
         for step in range(len_logs):
             step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
             self.log(step_logs)

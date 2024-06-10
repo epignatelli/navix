@@ -1,5 +1,5 @@
-import functools
-from typing import Tuple
+from functools import partial
+from typing import Callable, Sequence, Tuple
 from jax import Array
 import jax
 import jax.numpy as jnp

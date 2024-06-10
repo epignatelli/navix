@@ -3,6 +3,7 @@
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
 from functools import partial
+import time
 from typing import Callable, Dict, Tuple
 
 import distrax
@@ -273,13 +274,17 @@ class PPO(Agent):
         )
         logs = jax.tree.map(lambda x: jnp.mean(x), logs)
 
+        learning_rate = train_state.opt_state[1].hyperparams["learning_rate"]  # type: ignore
+
         # update logs with returns
         logs["done_mask"] = experience.done
         logs["returns"] = experience.info["return"]
         logs["lengths"] = experience.t
+
         logs["iter/frames"] = train_state.frames
-        logs["iter/update_step"] = train_state.epoch
-        logs["iter/train_step"] = train_state.step
+        logs["iter/epochs"] = train_state.epoch
+        logs["iter/updates"] = train_state.step
+        logs["iter/learning_rate"] = learning_rate
 
         if self.hparams.log_render:
             b = jax.random.randint(rng, (), 0, self.hparams.num_envs)
@@ -312,7 +317,7 @@ class PPO(Agent):
         lr = linear_schedule if self.hparams.anneal_lr else self.hparams.lr
         tx = optax.chain(
             optax.clip_by_global_norm(self.hparams.max_grad_norm),
-            optax.adam(lr, eps=1e-5),
+            optax.inject_hyperparams(optax.adam)(learning_rate=lr, eps=1e-5),
         )
 
         # INIT ENV
@@ -345,5 +350,9 @@ class PPO(Agent):
                 partial(self.network.apply, method="value"), in_axes=(None, 0)
             ),
         )
+        start_time = time.time()
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
+        elapsed = time.time() - start_time
+        logs["iter/fps"] = jnp.asarray([train_state.frames / elapsed] * num_updates)
+
         return train_state, logs
