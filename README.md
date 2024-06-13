@@ -1,5 +1,5 @@
 <div align="center">
-<img width=200px src="https://github.com/epignatelli/navix/assets/26899347/bcbc34b6-f5a1-490e-8f82-d139abad3ecb" alt="logo"></img>
+<img width=150px src="https://github.com/epignatelli/navix/assets/26899347/4168c100-f0e6-4bae-9680-2c1a82bba8a4" alt="logo"></img>
 
 # NAVIX: minigrid in JAX
 [![CI](https://github.com/epignatelli/navix/actions/workflows/CI.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CI.yml)
