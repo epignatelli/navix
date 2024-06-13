@@ -1,10 +1,16 @@
-# NAVIX: minigrid in JAX
+<div align="center">
+<img width=150px src="https://github.com/epignatelli/navix/assets/26899347/4168c100-f0e6-4bae-9680-2c1a82bba8a4" alt="logo"></img>
 
+# NAVIX: minigrid in JAX
 [![CI](https://github.com/epignatelli/navix/actions/workflows/CI.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CI.yml)
 [![CD](https://github.com/epignatelli/navix/actions/workflows/CD.yml/badge.svg)](https://github.com/epignatelli/navix/actions/workflows/CD.yml)
 ![PyPI version](https://img.shields.io/pypi/v/navix?label=PyPI&color=%230099ab)
 
 **[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[The JAX ecosystem](#jax-ecosystem-for-rl)** | **[Contribute](#join-us)** | **[Cite](#cite)**
+
+</div>
+
+
 
 ## What is NAVIX?
 NAVIX is a JAX-powered reimplementation of [minigrid](https://github.com/Farama-Foundation/Minigrid). Experiments that took <ins>**1 week**</ins>, now take <ins>**15 minutes**</ins>.   
