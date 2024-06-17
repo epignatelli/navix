@@ -1,6 +1,6 @@
 from dataclasses import asdict, replace, fields
 import time
-from typing import Dict, Tuple
+from typing import Dict, Sequence, Tuple
 
 import distrax
 import jax
@@ -43,6 +43,8 @@ class Experiment:
         start_time = time.time()
         train_state, logs = train_fn(rng)
         training_time = time.time() - start_time
+        logs["bench/compilation_time"] = [compilation_time]
+        logs["bench/training_time"] = [training_time]
         print(f"Training time cost: {training_time}")
 
         if not self.agent.hparams.debug and do_log:
@@ -57,6 +59,7 @@ class Experiment:
                 self.agent.log_on_train_end(log)
                 wandb.finish()
             logging_time = time.time() - start_time
+            logs["bench/logging_time"] = [logging_time]
             print(f"Logging time cost: {logging_time}")
 
         print("Training complete")
@@ -65,7 +68,7 @@ class Experiment:
         total_time += compilation_time
         print(f"Training time cost: {training_time}")
         total_time += training_time
-        if not self.agent.hparams.debug:
+        if not self.agent.hparams.debug and do_log:
             print(f"Logging time cost: {logging_time}")
             total_time += logging_time
         print(f"Total time cost: {total_time}")

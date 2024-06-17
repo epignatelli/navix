@@ -4,8 +4,6 @@ import wandb
 
 import numpy as np
 import jax.numpy as jnp
-import flax.linen as nn
-from flax.linen.initializers import constant, orthogonal
 import tyro
 import navix as nx
 from navix.environments.environment import Environment
@@ -32,6 +30,7 @@ if __name__ == "__main__":
     args = tyro.cli(Args)
 
     # create environments
+    print("Scoring environments:", list(nx.registry().keys()))
     for env_id in nx.registry():
         # init logging
         config = {**vars(args), **{"observations": "symbolic"}, **{"algo": "ppo"}}

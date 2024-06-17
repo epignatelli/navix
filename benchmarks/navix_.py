@@ -10,9 +10,6 @@ from navix import observations
 from navix.agents import PPO, PPOHparams, ActorCritic
 from navix.environments.environment import Environment
 
-# set persistent compilation cache directory
-# jax.config.update("jax_compilation_cache_dir", "/tmp/jax-cache/")
-
 
 @dataclass
 class Args:
@@ -24,6 +21,7 @@ class Args:
     discount: float = 0.99
     # ppo
     ppo_config: PPOHparams = field(default_factory=PPOHparams)
+    do_log: bool = False
 
 
 if __name__ == "__main__":
@@ -68,8 +66,9 @@ if __name__ == "__main__":
     # average over seeds
     logs_avg = jax.tree.map(lambda x: x.mean(axis=0), logs)
     config = {**vars(experiment), **asdict(agent.hparams)}
-    wandb.init(project=experiment.name, config=config, group=experiment.group)
-    agent.log_on_train_end(logs_avg)
-    wandb.finish()
+    if args.do_log:
+        wandb.init(project=experiment.name, config=config, group=experiment.group)
+        agent.log_on_train_end(logs_avg)
+        wandb.finish()
     logging_time = time.time() - start_time
     print(f"Logging time cost: {logging_time}")

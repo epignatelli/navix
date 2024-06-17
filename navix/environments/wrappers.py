@@ -1,5 +1,7 @@
 from typing import Any, Dict, Tuple
+import numpy as np
 import jax
+import jax.numpy as jnp
 from jax import Array
 from flax import struct
 from gymnax.environments.environment import (
@@ -62,3 +64,12 @@ class ToGymnax(GymnaxEnv):
             timestep.is_done(),
             timestep.info,
         )
+
+
+def FlattenObsWrapper(env: Environment):
+    flatten_obs_fn = lambda x: jnp.ravel(env.observation_fn(x))
+    flatten_obs_shape = (int(np.prod(env.observation_space.shape)),)
+    return env.replace(
+        observation_fn=flatten_obs_fn,
+        observation_space=env.observation_space.replace(shape=flatten_obs_shape),
+    )
