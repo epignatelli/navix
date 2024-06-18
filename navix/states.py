@@ -99,9 +99,7 @@ class EventsManager(struct.PyTreeNode):
             )
         )
 
-    def record_ball_hit(self, ball: Ball, position: Array) -> EventsManager:
-        idx = jnp.where(ball.position == position, size=1)[0][0]
-        ball = ball[idx]
+    def record_ball_hit(self, ball: Ball) -> EventsManager:
         return self.replace(
             ball_hit=Event(
                 position=ball.position,

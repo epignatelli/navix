@@ -47,36 +47,42 @@ def stochastic_transition(
 
 
 def update_balls(state: State) -> State:
-    def update_one(position, key):
+    def update_one(ball: Ball, key: Array) -> Tuple[Array, EventsManager]:
         direction = jax.random.randint(key, (), minval=0, maxval=4)
-        new_position = translate(position, direction)
-        can_move, events = _can_spawn_there(state, new_position)
-        return jnp.where(can_move, new_position, position), events
+        new_position = translate(ball.position, direction)
+        new_ball = ball.replace(position=new_position)
+        can_move, events = _can_spawn_there(state, new_ball)
+        return jnp.where(can_move, new_ball.position, ball.position), events
 
     if Entities.BALL in state.entities:
         balls: Ball = state.entities[Entities.BALL]  # type: ignore
         keys = jax.random.split(state.key, len(balls.position) + 1)
-        new_position, events = jax.jit(jax.vmap(update_one))(balls.position, keys[1:])
-        # update structs
+        new_position, new_events = jax.jit(jax.vmap(update_one))(balls, keys[1:])
+        events: EventsManager
+        # update balls
         balls = balls.replace(position=new_position)
         state = state.set_balls(balls)
-        events = jtu.tree_map(lambda x: jnp.any(x), events)
+        # update events
+        idx = jnp.where(new_events.ball_hit.happened, size=1)[0][0]  # scalar
+        ball_hits = jax.tree.map(lambda x: x[idx], new_events.ball_hit)
+        events = state.events.replace(ball_hit=ball_hits)
         state = state.replace(key=keys[0], events=events)
     return state
 
 
-def _can_spawn_there(state: State, position: Array) -> Tuple[Array, EventsManager]:
+def _can_spawn_there(state: State, ball: Ball) -> Tuple[Array, EventsManager]:
     # according to the grid
-    walkable = jnp.equal(state.grid[tuple(position)], 0)
+    walkable = jnp.equal(state.grid[tuple(ball.position)], 0)
 
     # according to entities
     events = state.events
+    entities = state.entities
     for k in state.entities:
-        obstructs = positions_equal(state.entities[k].position, position)
+        obstructs = positions_equal(entities[k].position, ball.position)[0]
         if k == Entities.PLAYER:
             events = jax.lax.cond(
-                jnp.any(obstructs),
-                lambda x: x.record_ball_hit(state.entities[k], position),
+                obstructs,
+                lambda x: x.record_ball_hit(ball),
                 lambda x: x,
                 events,
             )
