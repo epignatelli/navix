@@ -60,7 +60,7 @@ def update_balls(state: State) -> State:
         # update structs
         balls = balls.replace(position=new_position)
         state = state.set_balls(balls)
-        events = jtu.tree_map(lambda x: jnp.any(x), events)
+        events = jtu.tree_map(lambda x: jnp.asarray(jnp.any(x), dtype=x.dtype), events)
         state = state.replace(key=keys[0], events=events)
     return state
 
@@ -73,7 +73,9 @@ def _can_spawn_there(state: State, position: Array) -> Tuple[Array, EventsManage
     events = state.events
     for k in state.entities:
         obstructs = positions_equal(state.entities[k].position, position)
-        if k == Entities.PLAYER:
+        # this is unbatched, so it's going to be only one-ball analysis
+        if k == Entities.BALL:
+            # if a ball wants to move where a player is, but it can't, we record a hit
             events = jax.lax.cond(
                 jnp.any(obstructs),
                 lambda x: x.record_ball_hit(state.entities[k], position),

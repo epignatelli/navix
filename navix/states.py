@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Tuple
 
 from jax import Array
 import jax.numpy as jnp
@@ -32,24 +32,44 @@ from .rendering.cache import RenderingCache
 from .entities import Entity, Entities, Goal, Wall, Ball, Lava, Key, Door, Box, Player
 
 
+POSITION_UNSET = jnp.asarray([-1, -1], dtype=jnp.int32)
 COLOUR_UNSET = jnp.asarray(-1, dtype=jnp.uint8)
 
 
+# class EventType:
+#     NONE: Array = jnp.asarray(-1, dtype=jnp.int32)
+#     REACH: Array = jnp.asarray(0, dtype=jnp.int32)
+#     HIT: Array = jnp.asarray(1, dtype=jnp.int32)
+#     FALL: Array = jnp.asarray(2, dtype=jnp.int32)
+#     PICKUP: Array = jnp.asarray(3, dtype=jnp.int32)
+#     OPEN: Array = jnp.asarray(4, dtype=jnp.int32)
+#     UNLOCK: Array = jnp.asarray(5, dtype=jnp.int32)
+
+
 class EventType:
-    NONE: Array = jnp.asarray(-1, dtype=jnp.int32)
-    REACH: Array = jnp.asarray(0, dtype=jnp.int32)
-    HIT: Array = jnp.asarray(1, dtype=jnp.int32)
-    FALL: Array = jnp.asarray(2, dtype=jnp.int32)
-    PICKUP: Array = jnp.asarray(3, dtype=jnp.int32)
-    OPEN: Array = jnp.asarray(4, dtype=jnp.int32)
-    UNLOCK: Array = jnp.asarray(5, dtype=jnp.int32)
+    NONE: str = "NONE"
+    REACH: str = "REACH"
+    HIT: str = "HIT"
+    FALL: str = "FALL"
+    PICKUP: str = "PICKUP"
+    OPEN: str = "OPEN"
+    UNLOCK: str = "UNLOCK"
 
 
 class Event(Positionable, HasColour):
-    position: Array = jnp.asarray([-1, -1], dtype=jnp.int32)
+    position: Array = POSITION_UNSET
     colour: Array = COLOUR_UNSET
     happened: Array = jnp.asarray(False, dtype=jnp.bool_)
-    event_type: Array = EventType.NONE
+    # event_type: Array = EventType.NONE
+
+    @classmethod
+    def empty_like(cls, entity: Entity) -> Event:
+        return cls(
+            position=jnp.broadcast_to(POSITION_UNSET, entity.shape),
+            colour=jnp.broadcast_to(COLOUR_UNSET, entity.shape),
+            happened=jnp.broadcast_to(False, entity.shape),
+            # event_type=event_type,
+        )
 
     def __eq__(self, other: Event) -> Array:
         return jnp.logical_and(
@@ -62,136 +82,228 @@ class Event(Positionable, HasColour):
 
 
 class EventsManager(struct.PyTreeNode):
-    goal_reached: Event = Event()
-    ball_hit: Event = Event()
-    wall_hit: Event = Event()
-    lava_fall: Event = Event()
-    key_pickup: Event = Event()
-    door_opening: Event = Event()
-    door_unlock: Event = Event()
-    ball_pickup: Event = Event()
+    events: Dict[Tuple[str, str], Event] = struct.field(default_factory=dict)
+    # goal_reached: Event = Event()
+    # ball_hit: Event = Event()
+    # wall_hit: Event = Event()
+    # lava_fall: Event = Event()
+    # key_pickup: Event = Event()
+    # door_opening: Event = Event()
+    # door_unlock: Event = Event()
+    # ball_pickup: Event = Event()
 
-    def record_walk_into(self, entity: Entity, position: Array) -> EventsManager:
-        if isinstance(entity, Goal):
-            return self.record_goal_reached(entity, position)
-        elif isinstance(entity, Wall):
-            return self.record_wall_hit(entity, position)
-        elif isinstance(entity, Lava):
-            return self.record_lava_fall(entity, position)
-        return self
+    @classmethod
+    def create(cls, entities: Dict[str, Entity]) -> EventsManager:
+        events = {}
 
-    def record_pickup(self, entity: Entity, position: Array) -> EventsManager:
-        if isinstance(entity, Key):
-            return self.record_key_pickup(entity, position)
-        elif isinstance(entity, Ball):
-            return self.record_ball_pickup(entity, position)
-        return self
+        if Entities.GOAL in entities:
+            goal_reached = Event.empty_like(entities[Entities.GOAL])
+            events[Entities.GOAL, EventType.REACH] = goal_reached
 
-    def record_goal_reached(self, goal: Goal, position: Array) -> EventsManager:
-        idx = jnp.where(goal.position == position, size=1)[0][0]
-        goal = goal[idx]
-        return self.replace(
-            goal_reached=Event(
-                position=position,
-                colour=COLOUR_UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.REACH,
-            )
+        if Entities.BALL in entities:
+            ball_hit = Event.empty_like(entities[Entities.BALL])
+            ball_pickup = Event.empty_like(entities[Entities.BALL])
+            events[Entities.BALL, EventType.HIT] = ball_hit
+            events[Entities.BALL, EventType.PICKUP] = ball_pickup
+
+        if Entities.WALL in entities:
+            wall_hit = Event.empty_like(entities[Entities.WALL])
+            events[Entities.WALL, EventType.HIT] = wall_hit
+
+        if Entities.LAVA in entities:
+            lava_fall = Event.empty_like(entities[Entities.LAVA])
+            events[Entities.LAVA, EventType.FALL] = lava_fall
+
+        if Entities.KEY in entities:
+            key_pickup = Event.empty_like(entities[Entities.KEY])
+            events[Entities.KEY, EventType.PICKUP] = key_pickup
+
+        if Entities.DOOR in entities:
+            door_opening = Event.empty_like(entities[Entities.DOOR])
+            door_unlock = Event.empty_like(entities[Entities.DOOR])
+            events[Entities.DOOR, EventType.OPEN] = door_opening
+            events[Entities.DOOR, EventType.UNLOCK] = door_unlock
+
+        # wall hit due to grid
+        grid_hit = Event(
+            position=POSITION_UNSET,
+            colour=COLOUR_UNSET,
+            happened=jnp.asarray(False, dtype=jnp.bool_),
         )
+        events["grid", EventType.HIT] = grid_hit
+
+        return cls(events)
+
+    def record_goal_reached(self, goals: Goal, position: Array) -> EventsManager:
+        assert (
+            Entities.GOAL,
+            EventType.REACH,
+        ) in self.events, f"No subscription to event ({Entities.GOAL, EventType.REACH})"
+
+        goal_reached = self.events[Entities.GOAL, EventType.REACH]
+        cond = jnp.array_equal(goals.position, position)
+        new_pos = jnp.where(cond, goals.position, goal_reached.position)
+        new_col = jnp.where(cond, goals.colour, goal_reached.colour)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), goal_reached.happened
+        )
+        self.events[Entities.GOAL, EventType.REACH] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
+        )
+        return self
 
     def record_ball_hit(self, ball: Ball, position: Array) -> EventsManager:
-        idx = jnp.where(ball.position == position, size=1)[0][0]
-        ball = ball[idx]
-        return self.replace(
-            ball_hit=Event(
-                position=ball.position,
-                colour=ball.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
+        assert (
+            Entities.BALL,
+            EventType.HIT,
+        ) in self.events, f"No subscription to event ({Entities.BALL, EventType.HIT})"
+
+        ball_hit = self.events[Entities.BALL, EventType.HIT]
+        cond = jnp.array_equal(ball.position, position)
+        new_pos = jnp.where(cond, ball.position, ball_hit.position)
+        new_col = jnp.where(cond, ball.colour, ball_hit.colour)
+        new_hap = jnp.where(cond, jnp.asarray(True, dtype=jnp.bool_), ball_hit.happened)
+        self.events[Entities.BALL, EventType.HIT] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
         )
+        return self
 
     def record_wall_hit(self, wall: Wall, position: Array) -> EventsManager:
-        idx = jnp.where(wall.position == position, size=1)[0][0]
-        wall = wall[idx]
-        return self.replace(
-            wall_hit=Event(
-                position=wall.position,
-                colour=COLOUR_UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
-        )
+        assert (
+            Entities.WALL,
+            EventType.HIT,
+        ) in self.events, f"No subscription to event ({Entities.WALL, EventType.HIT})"
 
-    def record_grid_hit(self, position: Array) -> EventsManager:
-        return self.replace(
-            wall_hit=Event(
-                position=position,
-                colour=COLOUR_UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
+        wall_hit = self.events[Entities.WALL, EventType.HIT]
+        cond = jnp.array_equal(wall.position, position)
+        new_pos = jnp.where(cond, wall.position, wall_hit.position)
+        new_col = jnp.where(cond, wall.colour, wall_hit.colour)
+        new_hap = jnp.where(cond, jnp.asarray(True, dtype=jnp.bool_), wall_hit.happened)
+        self.events[Entities.WALL, EventType.HIT] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
         )
+        return self
 
     def record_lava_fall(self, lava: Lava, position: Array) -> EventsManager:
-        idx = jnp.where(lava.position == position, size=1)[0][0]
-        lava = lava[idx]
-        return self.replace(
-            lava_fall=Event(
-                position=lava.position,
-                colour=COLOUR_UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.FALL,
-            )
+        assert (
+            Entities.LAVA,
+            EventType.FALL,
+        ) in self.events, f"No subscription to event ({Entities.LAVA, EventType.FALL})"
+
+        lava_fall = self.events[Entities.LAVA, EventType.FALL]
+        cond = jnp.array_equal(lava.position, position)
+        new_pos = jnp.where(cond, lava.position, lava_fall.position)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), lava_fall.happened
         )
+        self.events[Entities.LAVA, EventType.FALL] = Event(
+            position=new_pos,
+            colour=lava_fall.colour,
+            happened=new_hap,
+        )
+        return self
 
     def record_key_pickup(self, key: Key, position: Array) -> EventsManager:
-        idx = jnp.where(key.position == position, size=1)[0][0]
-        key = key[idx]
-        return self.replace(
-            key_pickup=Event(
-                position=key.position,
-                colour=key.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.PICKUP,
-            )
+        assert (
+            Entities.KEY,
+            EventType.PICKUP,
+        ) in self.events, f"No subscription to event ({Entities.KEY, EventType.PICKUP})"
+
+        key_pickup = self.events[Entities.KEY, EventType.PICKUP]
+        cond = jnp.array_equal(key.position, position)
+        new_pos = jnp.where(cond, key.position, key_pickup.position)
+        new_col = jnp.where(cond, key.colour, key_pickup.colour)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), key_pickup.happened
         )
+        self.events[Entities.KEY, EventType.PICKUP] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
+        )
+        return self
 
     def record_door_opening(self, door: Door, position: Array) -> EventsManager:
-        idx = jnp.where(door.position == position, size=1)[0][0]
-        door = door[idx]
-        return self.replace(
-            door_opening=Event(
-                position=door.position,
-                colour=door.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.OPEN,
-            )
+        assert (
+            Entities.DOOR,
+            EventType.OPEN,
+        ) in self.events, f"No subscription to event ({Entities.DOOR, EventType.OPEN})"
+
+        door_opening = self.events[Entities.DOOR, EventType.OPEN]
+        cond = jnp.array_equal(door.position, position)
+        new_pos = jnp.where(cond, door.position, door_opening.position)
+        new_col = jnp.where(cond, door.colour, door_opening.colour)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), door_opening.happened
         )
+        self.events[Entities.DOOR, EventType.OPEN] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
+        )
+        return self
 
     def record_door_unlock(self, door: Door, position: Array) -> EventsManager:
-        idx = jnp.where(door.position == position, size=1)[0][0]
-        door = door[idx]
-        return self.replace(
-            door_opening=Event(
-                position=door.position,
-                colour=door.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.UNLOCK,
-            )
+        assert (
+            Entities.DOOR,
+            EventType.UNLOCK,
+        ) in self.events, (
+            f"No subscription to event ({Entities.DOOR, EventType.UNLOCK})"
         )
 
-    def record_ball_pickup(self, ball: Ball, position: Array) -> EventsManager:
-        idx = jnp.where(ball.position == position, size=1)[0][0]
-        ball = ball[idx]
-        return self.replace(
-            ball_pickup=Event(
-                position=ball.position,
-                colour=ball.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.PICKUP,
-            )
+        door_unlock = self.events[Entities.DOOR, EventType.UNLOCK]
+        cond = jnp.array_equal(door.position, position)
+        new_pos = jnp.where(cond, door.position, door_unlock.position)
+        new_col = jnp.where(cond, door.colour, door_unlock.colour)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), door_unlock.happened
         )
+        self.events[Entities.DOOR, EventType.UNLOCK] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
+        )
+        return self
+
+    def record_ball_pickup(self, ball: Ball, position: Array) -> EventsManager:
+        assert (
+            Entities.BALL,
+            EventType.PICKUP,
+        ) in self.events, (
+            f"No subscription to event ({Entities.BALL, EventType.PICKUP})"
+        )
+
+        ball_pickup = self.events[Entities.BALL, EventType.PICKUP]
+        cond = jnp.array_equal(ball.position, position)
+        new_pos = jnp.where(cond, ball.position, ball_pickup.position)
+        new_col = jnp.where(cond, ball.colour, ball_pickup.colour)
+        new_hap = jnp.where(
+            cond, jnp.asarray(True, dtype=jnp.bool_), ball_pickup.happened
+        )
+        self.events[Entities.BALL, EventType.PICKUP] = Event(
+            position=new_pos,
+            colour=new_col,
+            happened=new_hap,
+        )
+        return self
+
+    def record_grid_hit(self, position: Array) -> EventsManager:
+        assert (
+            "grid",
+            EventType.HIT,
+        ) in self.events, f"No subscription to event (grid, EventType.HIT)"
+        self.events["grid", EventType.HIT] = Event(
+            position=position,
+            colour=COLOUR_UNSET,
+            happened=jnp.asarray(True, dtype=jnp.bool_),
+        )
+        return self
 
 
 class State(struct.PyTreeNode):

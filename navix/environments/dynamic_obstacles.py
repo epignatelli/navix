@@ -70,7 +70,7 @@ class DynamicObstacles(Environment):
         ball_pos = random_positions(k3, grid, n=self.n_obstacles, exclude=exclude)
         balls = Ball.create(
             position=ball_pos,
-            colour=PALETTE.BLUE,
+            colour=jnp.tile(PALETTE.BLUE, (self.n_obstacles,)),
             probability=jnp.ones(self.n_obstacles),
         )
 
