@@ -56,6 +56,7 @@ class PALETTE:
     PURPLE: Array = jnp.asarray(3, dtype=jnp.uint8)
     YELLOW: Array = jnp.asarray(4, dtype=jnp.uint8)
     GREY: Array = jnp.asarray(5, dtype=jnp.uint8)
+    UNSET: Array = jnp.asarray(255, dtype=jnp.uint8)
 
     @classmethod
     def as_string(cls):

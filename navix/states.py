@@ -29,10 +29,8 @@ from .components import (
     HasColour,
 )
 from .rendering.cache import RenderingCache
+from .rendering.registry import PALETTE
 from .entities import Entity, Entities, Goal, Wall, Ball, Lava, Key, Door, Box, Player
-
-
-COLOUR_UNSET = jnp.asarray(-1, dtype=jnp.uint8)
 
 
 class EventType:
@@ -47,7 +45,7 @@ class EventType:
 
 class Event(Positionable, HasColour):
     position: Array = jnp.asarray([-1, -1], dtype=jnp.int32)
-    colour: Array = COLOUR_UNSET
+    colour: Array = PALETTE.UNSET
     happened: Array = jnp.asarray(False, dtype=jnp.bool_)
     event_type: Array = EventType.NONE
 
@@ -93,7 +91,7 @@ class EventsManager(struct.PyTreeNode):
         return self.replace(
             goal_reached=Event(
                 position=position,
-                colour=COLOUR_UNSET,
+                colour=PALETTE.UNSET,
                 happened=jnp.asarray(True, dtype=jnp.bool_),
                 event_type=EventType.REACH,
             )
@@ -115,7 +113,7 @@ class EventsManager(struct.PyTreeNode):
         return self.replace(
             wall_hit=Event(
                 position=wall.position,
-                colour=COLOUR_UNSET,
+                colour=PALETTE.UNSET,
                 happened=jnp.asarray(True, dtype=jnp.bool_),
                 event_type=EventType.HIT,
             )
@@ -125,7 +123,7 @@ class EventsManager(struct.PyTreeNode):
         return self.replace(
             wall_hit=Event(
                 position=position,
-                colour=COLOUR_UNSET,
+                colour=PALETTE.UNSET,
                 happened=jnp.asarray(True, dtype=jnp.bool_),
                 event_type=EventType.HIT,
             )
@@ -137,7 +135,7 @@ class EventsManager(struct.PyTreeNode):
         return self.replace(
             lava_fall=Event(
                 position=lava.position,
-                colour=COLOUR_UNSET,
+                colour=PALETTE.UNSET,
                 happened=jnp.asarray(True, dtype=jnp.bool_),
                 event_type=EventType.FALL,
             )
