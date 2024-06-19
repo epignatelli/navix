@@ -70,7 +70,7 @@ class DynamicObstacles(Environment):
         ball_pos = random_positions(k3, grid, n=self.n_obstacles, exclude=exclude)
         balls = Ball.create(
             position=ball_pos,
-            colour=PALETTE.BLUE,
+            colour=jnp.tile(PALETTE.BLUE, (self.n_obstacles,)),
             probability=jnp.ones(self.n_obstacles),
         )
 
@@ -107,7 +107,6 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
@@ -121,7 +120,6 @@ register_env(
         random_start=True,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
@@ -135,7 +133,6 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
@@ -149,7 +146,6 @@ register_env(
         random_start=True,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
@@ -163,7 +159,6 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
@@ -177,7 +172,6 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
         *args,
         **kwargs,
     ),
