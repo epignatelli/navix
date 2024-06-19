@@ -58,11 +58,11 @@ def update_balls(state: State) -> State:
         balls: Ball = state.entities[Entities.BALL]  # type: ignore
         keys = jax.random.split(state.key, len(balls.position) + 1)
         new_position, new_events = jax.jit(jax.vmap(update_one))(balls, keys[1:])
-        events: EventsManager
         # update balls
         balls = balls.replace(position=new_position)
         state = state.set_balls(balls)
         # update events
+        # take only the first happened event (even if happened already)
         idx = jnp.where(new_events.ball_hit.happened, size=1)[0][0]  # scalar
         ball_hits = jax.tree.map(lambda x: x[idx], new_events.ball_hit)
         events = state.events.replace(ball_hit=ball_hits)
