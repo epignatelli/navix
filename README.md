@@ -7,7 +7,7 @@
 ![PyPI version](https://img.shields.io/pypi/v/navix?label=PyPI&color=%230099ab)
 <!-- [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg?style=flat)](https://arxiv.org/abs/1234.56789) -->
 
-**[Quickstart](#what-is-navix)** | **[Installation](#installation)** | **[Examples](#examples)** | **[The JAX ecosystem](#jax-ecosystem-for-rl)** | **[Contribute](#join-us)** | **[Cite](#cite)**
+**[Quickstart](#what-is-navix)** | **[Install](#installation)** | **[Examples](#examples)** | **[Docs](https://navix.readthedocs.io)** | **[The JAX ecosystem](#jax-ecosystem-for-rl)** | **[Contribute](#join-us)** | **[Cite](#cite)**
 
 </div>
 
