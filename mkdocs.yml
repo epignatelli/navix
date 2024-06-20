@@ -1,0 +1,122 @@
+site_name: NAVIX
+site_author: Eduardo Pignatelli
+site_description: A reimplementation of MiniGrid in JAX
+site_url: https://epignatelli/navix
+
+# GitHub
+repo_name: epignatelli/navix
+repo_url: https://github.com/epignatelli/navix
+use_directory_urls: false
+# mkdocstrings
+watch:
+  - navix
+
+nav:
+  - Home:
+      - Welcome: home/index.md
+      - Environments: home/environments.md
+  - Quickstart:
+      - "Getting started": examples/getting_started.ipynb
+      - "PPO": examples/ppo.ipynb
+      - "Customizing envs": examples/customisation.ipynb
+  - Install: install/index.md
+  - Becnhmarks: benchmarks/index.md
+  - API:
+      - api/index.md
+  - Changelog: changelog/index.md
+
+# Customization
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/epignatelli/navix
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/navix/
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/edupignatelli
+    - icon: fontawesome/brands/google-scholar
+      link: https://github.com/epignatelli/navix
+
+extra_css:
+  - assets/stylesheets/extra.css
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
+
+extra_javascript:
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
+  - https://unpkg.com/mermaid/dist/mermaid.min.js
+
+theme:
+  name: "material"
+  logo: assets/images/navix_logo.png
+
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.instant
+    - navigation.footer
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.path
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    - toc.integrate
+
+  palette:
+    - scheme: default
+      primary: yellow
+      accent: red
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+    - scheme: slate
+      primary: yellow
+      accent: red
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - mkdocs-jupyter
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          rendering:
+            show_source: false
+      # custom_templates: templates
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - toc:
+      toc_depth: 5
+  - pymdownx.highlight
+  - pymdownx.snippets:
+      check_paths: true
+  - admonition
+  - attr_list
+  - footnotes
+  - pymdownx.details # For collapsible admonitions
+  - pymdownx.superfences
+
+  # - changelog/index.md
+  # - customization.md
+  # - insiders/changelog/*
+  # - setup/extensions/*-
+
+copyright: Copyright &copy; 2023 - 2024 NAVIX Authors
