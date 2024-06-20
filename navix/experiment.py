@@ -65,7 +65,7 @@ class Experiment:
         total_time += compilation_time
         print(f"Training time cost: {training_time}")
         total_time += training_time
-        if not self.agent.hparams.debug:
+        if not self.agent.hparams.debug and do_log:
             print(f"Logging time cost: {logging_time}")
             total_time += logging_time
         print(f"Total time cost: {total_time}")
