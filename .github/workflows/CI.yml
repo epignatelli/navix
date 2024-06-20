@@ -84,3 +84,27 @@ jobs:
             exit 1
           fi
           echo "Tag $NAVIX_VERSION will be the deployed version."
+
+
+  Changelog:
+    runs-on: ubuntu-latest
+    name: Generate and Commit Changelog
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Generate Changelog
+      uses: smichard/conventional_changelog@2.0.0
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Set Git User Info
+    #   run: |
+    #     git config user.email 'actions@github.com'
+
+    - name: Commit Changelog
+      run: |
+        git add CHANGELOG.md
+        git commit -m "docs: :robot: changelog file generated" || echo "No changes to commit"
+        git push
