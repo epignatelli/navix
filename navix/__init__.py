@@ -37,3 +37,4 @@ from . import (
 
 from .environments.registry import make, register_env, registry
 from .experiment import Experiment
+from .environments.environment import Environment, Timestep, StepType

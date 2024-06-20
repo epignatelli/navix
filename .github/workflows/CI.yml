@@ -62,3 +62,25 @@ jobs:
           issue: ${{ github.event.pull_request.number }}
           message: ${{ env.MESSAGE }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+  Check-next-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - name: Get version from file
+        run: |
+          VERSION_FILE="navix/_version.py"
+          NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
+          echo "Current version is:"
+          echo "$NAVIX_VERSION"
+          echo "NAVIX_VERSION=$NAVIX_VERSION" >> $GITHUB_ENV
+      - name: Check that git tag does not exist
+        run: |
+          NAVIX_VERSION=${{ env.NAVIX_VERSION }}
+          git fetch --tags
+          if  [ $(git tag -l "$NAVIX_VERSION") ]; then
+            echo "Tag $NAVIX_VERSION already exists. Please update the version in navix/_version.py file."
+            exit 1
+          fi
+          echo "Tag $NAVIX_VERSION will be the deployed version."
