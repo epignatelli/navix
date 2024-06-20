@@ -1,3 +1,23 @@
+@font-face {
+    font-family: 'Sage';
+    src: url('../fonts/sage-bold.woff2') format('woff');
+}
+
+@font-face {
+    font-family: 'Sherpa';
+    src: url('../fonts/sherpa.woff2') format('woff');
+}
+
+/* h1 {
+    font-family: 'Sage', sans-serif !important;
+    font-size: 44px !important;
+    color: #000 !important;
+}
+
+:root {
+    --md-text-font: "Sherpa";
+} */
+
 .md-header__button.md-logo {
     margin-bottom: 0;
     padding-bottom: 0;
@@ -6,6 +26,14 @@
 .md-header__button.md-logo img,
 .md-header__button.md-logo svg {
     height: 3rem !important;
+}
+
+.no-bottom-margin {
+    margin-bottom: 0 !important;
+}
+
+.maiusc {
+    text-transform: uppercase;
 }
 
 .center {
