@@ -50,6 +50,10 @@ class Discrete(Space):
         item = jax.random.randint(key, self.shape, self.minimum, self.maximum)
         # randint cannot draw jnp.uint, so we cast it later
         return jnp.asarray(item, dtype=self.dtype)
+    
+    @property
+    def n(self) -> Array:
+        return self.maximum + 1
 
 
 class Continuous(Space):
