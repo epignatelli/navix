@@ -13,7 +13,7 @@ watch:
 
 nav:
   - Home:
-      - Welcome: home/index.md
+      - Welcome: index.md
       - Environments: home/environments.md
   - Quickstart:
       - "Getting started": examples/getting_started.ipynb
@@ -23,7 +23,7 @@ nav:
   - Becnhmarks: benchmarks/index.md
   - API:
       - api/index.md
-  - Changelog: changelog/index.md
+  - Changelog: changelog.md
 
 # Customization
 extra:
@@ -49,6 +49,7 @@ extra_javascript:
 theme:
   name: "material"
   logo: assets/images/navix_logo.png
+  font: "Sherpa"
 
   features:
     - announce.dismiss
