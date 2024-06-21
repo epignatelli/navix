@@ -96,8 +96,15 @@ plugins:
         python:
           options:
             docstring_style: google
-          rendering:
+            show_bases: true
             show_source: false
+            heading_level: 3
+            show_root_full_path: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature: true
+            show_signature_annotations: false
+            signature_crossrefs: false
   - search
   - gen-files:
       scripts:

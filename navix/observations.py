@@ -35,10 +35,28 @@ RADIUS = 3
 
 
 def none(state: State) -> Array:
+    """An empty observation represented as an array of shape f32[0].
+    Useful for testing purposes.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A 0-shaped array `f32[0]`."""
     return jnp.asarray(())
 
 
 def categorical(state: State) -> Array:
+    """Fully observable grid with a categorical state representation.
+    Each entity is represented by its unique integer tag.
+    
+    Args:
+        state (State): The current state of the game.
+    
+    Returns:
+        Array: A grid of integers, where each integer represents an entity, \
+        represented as an array of shape `i32[H, W]`, where `H` and `W` are the height \
+        and width of the grid."""
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
@@ -51,6 +69,15 @@ def categorical(state: State) -> Array:
 
 
 def categorical_first_person(state: State) -> Array:
+    """Categorical state representation, but cropped to the agent's view, and aligned \
+    with the agent's direction, such that the agent always points upwards.
+    
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A grid of integers, where each integer represents an entity, \
+        represented as an array of shape `i32[2 * RADIUS + 1, 2 * RADIUS + 1]`."""
     # get transparency map
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
@@ -72,9 +99,19 @@ def categorical_first_person(state: State) -> Array:
 
 
 def symbolic(state: State) -> Array:
-    """Fully observable grid with a symbolic state representation.
-    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
-    where X and Y are the coordinates on the grid, and IDX is the id of the object."""
+    """Fully observable grid with a symbolic state representation as originally \
+    proposed in the MiniGrid environment.
+    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED). The
+    last layer might also contain the direction of the entity, for example, the
+    direction of the agent.
+    
+    Args:
+        state (State): The current state of the game.
+        
+    Returns:
+        Array: A grid of integers, where each integer represents an entity, \
+        represented as an array of shape `u8[H, W, 3]`, where `H` and `W` are the height \
+        and width of the grid."""
     # initialise as all floors
     H, W = state.grid.shape
     obs = jnp.zeros((H, W, 3), dtype=jnp.uint8)
@@ -104,9 +141,16 @@ def symbolic(state: State) -> Array:
 
 
 def symbolic_first_person(state: State) -> Array:
-    """First person view with a symbolic state representation.
-    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED), \
-    where X and Y are the coordinates on the grid, and IDX is the id of the object."""
+    """First person view with a symbolic state representation, but cropped to the \
+    agent's view, and aligned with the agent's direction, such that the agent always \
+    points upwards. See `symbolic` for more details.
+    
+    Args:
+        state (State): The current state of the game.
+    
+    Returns:
+        Array: A grid of integers, where each integer represents an entity, \
+        represented as an array of shape `u8[2 * RADIUS + 1, 2 * RADIUS + 1, 3]`."""
     # get transparency map
     obs = symbolic(state)
 
@@ -131,6 +175,18 @@ def symbolic_first_person(state: State) -> Array:
 
 
 def rgb(state: State) -> Array:
+    """Fully observable grid with an RGB state representation.
+    Each entity is represented by its unique RGB sprite. The RGB sprites are \
+    stored in a cache, and the entities are placed on the grid according to their \
+    positions.
+    
+    Args:
+        state (State): The current state of the game.
+    
+    Returns:
+        Array: An RGB image of the grid, represented as an array of shape \
+        `u8[H * S, W * S, 3]`, where `H` and `W` are the height and width of the grid,
+        and `S` is the size of the tile."""
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tiles corresponding to the entities
@@ -149,6 +205,18 @@ def rgb(state: State) -> Array:
 
 
 def rgb_first_person(state: State) -> Array:
+    """First person view with an RGB state representation.
+    The image is cropped to the agent's view, and aligned with the agent's direction, \
+    such that the agent always points upwards. See `rgb` for more details.
+    See `rgb` for more details.
+
+    Args:
+        state (State): The current state of the game.
+    
+    Returns:
+        Array: An RGB image of the agent's view, represented as an array of shape \
+        `u8[(2 * RADIUS + 1) * S, (2 * RADIUS + 1) * S, 3]`, where 
+        `S` is the size of the tile."""
     # calculate final image size
     # get agent's view
     # image_size = (

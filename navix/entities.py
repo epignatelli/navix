@@ -24,6 +24,8 @@ T = TypeVar("T", bound="Entity")
 
 
 class Entities(struct.PyTreeNode):
+    """Entities enum class to store the names of the entities in the game."""
+
     WALL: str = struct.field(pytree_node=False, default="wall")
     FLOOR: str = struct.field(pytree_node=False, default="floor")
     PLAYER: str = struct.field(pytree_node=False, default="player")
@@ -36,6 +38,8 @@ class Entities(struct.PyTreeNode):
 
 
 class EntityIds:
+    """EntityIds enum class to store the ids of the entities in the game."""
+
     UNKNOWN: Array = jnp.asarray(0, dtype=jnp.uint8)
     FLOOR: Array = jnp.asarray(1, dtype=jnp.uint8)
     WALL: Array = jnp.asarray(2, dtype=jnp.uint8)
@@ -49,6 +53,8 @@ class EntityIds:
 
 
 class Directions:
+    """Directions enum class to store the directions in the game."""
+
     EAST = jnp.asarray(0)
     SOUTH = jnp.asarray(1)
     WEST = jnp.asarray(2)
@@ -56,30 +62,40 @@ class Directions:
 
 
 class Entity(Positionable, HasTag, HasSprite):
-    """Entities are components that can be placed in the environment"""
+    """Entities are components that can be placed in the environment, and have a position and a tag.
+    To create an entity, use the `create` method."""
 
     def __getitem__(self: T, idx) -> T:
         return jax.tree_util.tree_map(lambda x: x[idx], self)
 
     @property
     def name(self) -> str:
+        """The name of the entity
+
+        Returns:
+            str: the name of the entity"""
         return self.__class__.__name__
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        """The batch shape of the entity"""
+        """The batch shape of the entity. The batch shape is the shape of the entity excluding the dimensions of the component.
+        For example, if the entity has a position of shape (batch_size, 2), the shape of the entity is (batch_size,).
+        """
         return self.position.shape[:-1]
 
     @property
     def ndim(self) -> int:
+        """The number of dimensions of the entity. The number of dimensions is the number of dimensions of the position minus 1."""
         return self.position.ndim - 1
 
     @property
     def walkable(self) -> Array:
+        """The walkable attribute of the entity. The walkable attribute is a boolean array that indicates if the entity can be walked on."""
         raise NotImplementedError()
 
     @property
     def transparent(self) -> Array:
+        """The transparent attribute of the entity. The transparent attribute is a boolean array that indicates if the entity is transparent to rendering."""
         raise NotImplementedError()
 
 
