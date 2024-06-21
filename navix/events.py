@@ -27,18 +27,47 @@ from .entities import Entities, Player
 
 
 def on_goal_reached(state: State) -> Array:
+    """Checks whether the goal has been reached using the `goal_reached` event.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the goal has been reached."""
     return state.events.goal_reached.happened
 
 
 def on_lava_fall(state: State) -> Array:
+    """Checks whether the lava has fallen using the `lava_fall` event.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the lava has fallen."""
     return state.events.lava_fall.happened
 
 
 def on_ball_hit(state: State) -> Array:
+    """Checks whether the ball has hit something using the `ball_hit` event.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the ball has hit something."""
     return state.events.ball_hit.happened
 
 
 def on_door_done(state: State) -> Array:
+    """Checks whether the action `done` has been called in front of a `Door` object with the correct colour.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the action `done` has been called in front of a `Door` object with the correct colour.
+    """
     assert (
         state.mission is not None
     ), "Termination on door done requires the state to specify a mission."
@@ -57,4 +86,11 @@ def on_door_done(state: State) -> Array:
 
 
 def on_wall_hit(state: State) -> Array:
+    """Checks whether the wall has been hit using the `wall_hit` event.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the wall has been hit."""
     return state.events.wall_hit.happened

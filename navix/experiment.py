@@ -12,6 +12,26 @@ from navix.environments.environment import Environment
 
 
 class Experiment:
+    """A class to run an experiment with a given agent and environment.
+
+    Args:
+        name (str): The name of the experiment.
+        agent (Agent): The agent to use in the experiment.
+        env (Environment): The environment to use in the experiment.
+        env_id (str): The ID of the environment.
+        seeds (Tuple[int, ...]): The seeds to use in the experiment.
+        group (str): The group to use in the experiment.
+
+    Attributes:
+        name (str): The name of the experiment.
+        agent (Agent): The agent to use in the experiment.
+        env (Environment): The environment to use in the experiment.
+        env_id (str): The ID of the environment.
+        seeds (Tuple[int, ...]): The seeds to use in the experiment.
+        group (str): The group to use in the experiment.
+
+    """
+
     def __init__(
         self,
         name: str,
@@ -29,6 +49,17 @@ class Experiment:
         self.group = group
 
     def run(self, do_log: bool = True):
+        """Default function to run the experiment. This function compiles the training function, trains the agent, and logs the results.
+
+        Args:
+            do_log (bool): Whether to log the results to wandb.
+        !!! Warning
+            Logging to `wandb` is usually much slower than training the agent itself.
+            The time is linear in the number of seeds.
+
+        Returns:
+            Tuple: A tuple containing the final training state and the logs.
+        """
         print("Running experiment with the following configuration:")
         print(vars(self))
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -74,6 +105,21 @@ class Experiment:
     def run_hparam_search(
         self, hparams_distr: Dict[str, distrax.Distribution], pop_size: int
     ):
+        """Function to run a hyperparameter search for the experiment. This function \
+        samples hyperparameters from the given distributions, trains the agent, and \
+        logs the results.
+        
+        Args:
+            hparams_distr (Dict[str, distrax.Distribution]): A dictionary of \
+            hyperparameter distributions. The keys are the hyperparameter names, which \
+            must exist in `self.agent.hparams`, and the values are the corresponding \
+            distributions.
+            pop_size (int): The number of hyperparameter sets to sample.
+
+        Returns:
+            Tuple: A tuple containing the final training states and the logs, batched \
+            over the hyperparameter sets.
+        """
         hparams_fields = fields(self.agent.hparams)
         for k in hparams_distr:
             member = list(filter(lambda x: x.name == k, hparams_fields))

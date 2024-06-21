@@ -2,6 +2,8 @@ from typing import Any
 
 
 class Config:
+    """Config class to store global variables."""
+    
     def __init__(self):
         self.ARRAY_CHECKS_ENABLED = False
 

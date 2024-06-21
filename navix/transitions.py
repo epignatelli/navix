@@ -24,7 +24,6 @@ from typing import Callable, Tuple
 from jax import Array
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 from .entities import Entities, Ball
 from .states import EventsManager, State
 from .grid import positions_equal, translate
@@ -33,12 +32,33 @@ from .grid import positions_equal, translate
 def deterministic_transition(
     state: State, action: Array, actions_set: Tuple[Callable[[State], State], ...]
 ) -> State:
+    """Deterministic transition function. It selects the action from the set of actions
+    and applies it to the state.
+    
+    Args:
+        state (State): The current state of the game.
+        action (Array): The action to be taken.
+        actions_set (Tuple[Callable[[State], State]): A set of actions that can be taken.
+    
+    Returns:
+        State: The new state of the game."""
     return jax.lax.switch(action, actions_set, state)
 
 
 def stochastic_transition(
     state: State, action: Array, actions_set: Tuple[Callable[[State], State], ...]
 ) -> State:
+    """Stochastic transition function. It selects the action from the set of actions
+    and applies it to the state, and updates entities that have stochastic transitions,
+    such as balls.
+    
+    Args:
+        state (State): The current state of the game.
+        action (Array): The action to be taken.
+        actions_set (Tuple[Callable[[State], State]): A set of actions that can be taken.
+    
+    Returns:
+        State: The new state of the game."""
     # actions
     state = jax.lax.switch(action, actions_set, state)
 
@@ -47,6 +67,14 @@ def stochastic_transition(
 
 
 def update_balls(state: State) -> State:
+    """Update the position of the balls in the game.
+    Balls move in a random direction if they can, otherwise they stay in place.
+    
+    Args:
+        state (State): The current state of the game.
+    
+    Returns:
+        State: The new state of the game."""
     def update_one(ball: Ball, key: Array) -> Tuple[Array, EventsManager]:
         direction = jax.random.randint(key, (), minval=0, maxval=4)
         new_position = translate(ball.position, direction)

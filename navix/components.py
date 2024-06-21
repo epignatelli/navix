@@ -40,31 +40,49 @@ def field(shape: Tuple[int, ...], **kwargs):
 
 
 class Component(struct.PyTreeNode):
+    """Base class for all components in the game.
+    Components are used to store the data of the entities in the game."""
+
     def check_ndim(self, batched: bool = False) -> None:
         return
 
 
 class Positionable(Component):
+    """Flags an entity as positionable in the grid, and provides the `position` attribute"""
+
     position: Array = field(shape=(2,))
-    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    """The (row, column) position of the entity in the grid as a JAX array, defaults to the discard pile (-1, -1)"""
 
 
 class Directional(Component):
+    """Flags an entity as directional, and provides the `direction` attribute"""
+
     direction: Array = field(shape=())
     """The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north"""
 
 
 class HasColour(Component):
+    """Flags an entity as having a colour, and provides the `colour` attribute"""
+
     colour: Array = field(shape=())
     """The colour of the object for rendering. """
 
 
 class Stochastic(Component):
+    """Flags an entity as stochastic, and provides the `probability` attribute
+
+    TODO:
+        * consider replace probability (Array) with a distrax.Distribution
+
+    """
+
     probability: Array = field(shape=())
     """The probability of receiving the reward, if reached."""
 
 
 class Openable(Component):
+    """Flags an entity as openable, and provides the `requires` and `open` attributes"""
+
     requires: Array = field(shape=())
     """The id of the item required to consume this item. If set, it must be > 0.
     If -1, the door is unlocked and does not require any key to open."""
@@ -73,16 +91,22 @@ class Openable(Component):
 
 
 class Pickable(Component):
+    """Flags an entity as pickable, and provides the `id` attribute, which is used to identify the item in the inventory"""
+
     id: Array = field(shape=())
     """The id of the item. If set, it must be >= 1."""
 
 
 class Holder(Component):
+    """Flags an entity as a holder, and provides the `pocket` attribute. The pocket is used to store the id of the item in the pocket."""
+
     pocket: Array = field(shape=())
     """The id of the item in the pocket (0 if empty)"""
 
 
 class HasTag(Component):
+    """Flags an entity as having a tag, and provides the `tag` attribute. The tag is used to identify the type of the entity in the observations."""
+
     @property
     def tag(self) -> Array:
         """The tag of the component, used to identify the type of the component in `observations.categorical`"""
@@ -90,6 +114,8 @@ class HasTag(Component):
 
 
 class HasSprite(Component):
+    """Flags an entity as having a sprite, and provides the `sprite` attribute. The sprite is used to render the entity in the game."""
+
     @property
     def sprite(self) -> Array:
         raise NotImplementedError()

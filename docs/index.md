@@ -1,5 +1,5 @@
-<p class="maiusc">A <b>fast</b>, fully <b>jittable</b> MiniGrid reimplemented in JAX</p>
-<h1 class="no-bottom-margin">Welcome to <b>NAVIX</b>!</h1>
+<p class="maiusc" style="margin-bottom: 0.5em;">A <b>fast</b>, fully <b>jittable</b> MiniGrid reimplemented in JAX</p>
+<h1>Welcome to <b>NAVIX</b>!</h1>
 
 
 **NAVIX** is a reimplementation of the [MiniGrid](https://minigrid.farama.org/) environment suite in JAX, and leverages JAX’s intermediate language representation to migrate the computation to different accelerators, such as GPUs and TPUs.
