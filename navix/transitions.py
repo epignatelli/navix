@@ -24,7 +24,6 @@ from typing import Callable, Tuple
 from jax import Array
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 from .entities import Entities, Ball
 from .states import EventsManager, State
 from .grid import positions_equal, translate

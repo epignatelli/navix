@@ -24,8 +24,6 @@ import jax.numpy as jnp
 
 from . import events
 from .states import State
-from .grid import translate
-from .entities import Entities, Player
 
 
 def compose(
