@@ -18,9 +18,11 @@ nav:
   - Quickstart:
       - "Getting started": examples/getting_started.ipynb
       - "PPO": examples/ppo.ipynb
-      - "Customizing envs": examples/customisation.ipynb
+      # - "Customizing envs": examples/customisation.ipynb
   - Install: install/index.md
-  - Becnhmarks: benchmarks/index.md
+  - Becnhmarks:
+      - "Timesteps": benchmarks/timesteps.ipynb
+      - "Environments": benchmarks/envs.ipynb
   - API: api/
   - Changelog: https://github.com/epignatelli/navix/releases
 
@@ -82,14 +84,17 @@ theme:
         name: Switch to dark mode
 
     - scheme: slate
-      primary: light green
+      primary: pink
       accent: red
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
 
 plugins:
-  - mkdocs-jupyter
+  - mkdocs-jupyter:
+      remove_tag_config:
+        remove_input_tags:
+          - hide_input
   - mkdocstrings:
       default_handler: python
       handlers:
