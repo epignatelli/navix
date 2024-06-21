@@ -29,6 +29,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fallback-version: ${{ env.NAVIX_VERSION }}
+          skip-tag: true
 
       - name: Create Release
         uses: ncipollo/release-action@v1
