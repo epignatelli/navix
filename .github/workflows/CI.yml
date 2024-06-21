@@ -90,11 +90,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Update changelog
+        id: update_changelog
         run: |
           CURRENT_CHANGELOG=$(cat CHANGELOG.md)
           CHANGELOG_UPDATES="CHANGELOG TEST/n/nCHANGELOG TEST"
           NEW_CHANGELOG="${CHANGELOG_UPDATES}${CURRENT_CHANGELOG}"
           echo $NEW_CHANGELOG > CHANGELOG.md
-          git add CHANGELOG.md
-          git commit -m "chore(release): update changelog"
-          git push
+
+      - name: Commit changelog
+        uses: EndBug/add-and-commit@v7
+        with:
+          add: "CHANGELOG.md"
+          message: "update changelog"
