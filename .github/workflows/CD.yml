@@ -28,13 +28,7 @@ jobs:
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          input-file: CHANGELOG.md
-          output-file: CHANGELOG.md
-          skip-version-file: true
           fallback-version: ${{ env.NAVIX_VERSION }}
-          skip-commit: false
-          skip-tag: true
-          git-message: "chore(release): update changelog"
 
       - name: Create Release
         uses: ncipollo/release-action@v1
