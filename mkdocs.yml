@@ -21,8 +21,7 @@ nav:
       - "Customizing envs": examples/customisation.ipynb
   - Install: install/index.md
   - Becnhmarks: benchmarks/index.md
-  - API:
-      - api/index.md
+  - API: api/
   - Changelog: https://github.com/epignatelli/navix/releases
 
 # Customization
@@ -50,8 +49,9 @@ theme:
   name: "material"
   logo: assets/images/navix_logo.png
   font:
-    text: Sherpa
+    text: Roboto
     code: Roboto Mono
+
   features:
     - announce.dismiss
     - content.action.edit
@@ -88,18 +88,23 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
 
-
 plugins:
   - mkdocs-jupyter
   - mkdocstrings:
       default_handler: python
       handlers:
         python:
+          options:
+            docstring_style: google
           rendering:
             show_source: false
-      # custom_templates: templates
   - search
-  - mermaid2
+  - gen-files:
+      scripts:
+        - docs/scripts/gen_doc_stubs.py # or any other name or path
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
 
 markdown_extensions:
   - toc:
@@ -112,10 +117,5 @@ markdown_extensions:
   - footnotes
   - pymdownx.details # For collapsible admonitions
   - pymdownx.superfences
-
-  # - changelog/index.md
-  # - customization.md
-  # - insiders/changelog/*
-  # - setup/extensions/*-
 
 copyright: Copyright &copy; 2023 - 2024 NAVIX Authors
