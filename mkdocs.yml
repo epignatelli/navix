@@ -23,7 +23,7 @@ nav:
   - Becnhmarks: benchmarks/index.md
   - API:
       - api/index.md
-  - Changelog: changelog.md
+  - Changelog: https://github.com/epignatelli/navix/releases
 
 # Customization
 extra:
@@ -49,8 +49,9 @@ extra_javascript:
 theme:
   name: "material"
   logo: assets/images/navix_logo.png
-  font: "Sherpa"
-
+  font:
+    text: Sherpa
+    code: Roboto Mono
   features:
     - announce.dismiss
     - content.action.edit
@@ -87,9 +88,6 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
 
-  font:
-    text: Roboto
-    code: Roboto Mono
 
 plugins:
   - mkdocs-jupyter
