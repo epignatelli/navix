@@ -96,9 +96,3 @@ jobs:
           file: CHANGELOG.md
           github_token: ${{ secrets.GITHUB_TOKEN }}
           args: -l 2
-      - name: Commit changes
-        uses: EndBug/add-and-commit@v7
-        with:
-          add: "CHANGELOG.md"
-          message: "update changelog"
-          # message: "chore(release): update changelog"
