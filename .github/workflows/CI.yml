@@ -89,10 +89,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Get version from file
+        run: |
+          VERSION_FILE="$/navix/_version.py"
+          NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
+          echo "Current version is:"
+          echo "$NAVIX_VERSION"
+
+          echo "NAVIX_VERSION=$NAVIX_VERSION" >> $GITHUB_ENV
+      - name: Create changelog and push tag
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v3
         with:
-          fetch-depth: 0
-      - uses: rhysd/changelog-from-release/action@v3
-        with:
-          file: CHANGELOG.md
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          args: -l 2
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fallback-version: ${{ env.NAVIX_VERSION }}
+      - name: Update changelog
+        run: |
+          CURRENT_CHANGELOG=$(cat CHANGELOG.md)
+          CHANGELOG_UPDATES="${{ steps.changelog.outputs.changelog }}"
+          NEW_CHANGELOG="${CHANGELOG_UPDATES}${CURRENT_CHANGELOG}"
+          echo $NEW_CHANGELOG > CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "chore(release): update changelog"
+          git push
