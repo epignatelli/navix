@@ -84,3 +84,12 @@ jobs:
             exit 1
           fi
           echo "Tag $NAVIX_VERSION will be the deployed version."
+
+  Update-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: rhysd/changelog-from-release/action@v3
+        with:
+          file: CHANGELOG.md
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: -l 2
