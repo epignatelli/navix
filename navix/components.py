@@ -40,13 +40,17 @@ def field(shape: Tuple[int, ...], **kwargs):
 
 
 class Component(struct.PyTreeNode):
+    """Base class for all components in the game.
+    Components are used to store the data of the entities in the game."""
+
     def check_ndim(self, batched: bool = False) -> None:
         return
 
 
 class Positionable(Component):
+    """Flags an entity as positionable in the grid, and provides the `position` attribute"""
     position: Array = field(shape=(2,))
-    """The (row, column) position of the entity in the grid, defaults to the discard pile (-1, -1)"""
+    """The (row, column) position of the entity in the grid as a JAX array, defaults to the discard pile (-1, -1)"""
 
 
 class Directional(Component):

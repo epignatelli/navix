@@ -75,14 +75,14 @@ theme:
 
   palette:
     - scheme: default
-      primary: yellow
+      primary: pink
       accent: red
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
 
     - scheme: slate
-      primary: yellow
+      primary: light green
       accent: red
       toggle:
         icon: material/weather-sunny

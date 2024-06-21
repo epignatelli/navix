@@ -16,6 +16,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""The *action* system determines the next state of the environment \
+given the current state and an action."""
+
+
 from __future__ import annotations
 from typing import Tuple
 
@@ -85,38 +89,92 @@ def _move(state: State, direction: Array) -> State:
 
 
 def noop(state: State) -> State:
+    """No operation. Does nothing.
+
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The same state."""
     return state
 
 
 def rotate_cw(state: State) -> State:
+    """Rotates the player clockwise.
+    
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The new state with the player rotated clockwise."""
     return _rotate(state, 1)
 
 
 def rotate_ccw(state: State) -> State:
+    """Rotates the player counter-clockwise.
+    
+    Args:
+        state (State): The current state.
+
+    Returns:
+        State: The new state with the player rotated counter-clockwise."""
     return _rotate(state, -1)
 
 
 def forward(state: State) -> State:
+    """Moves the player forward.
+    
+    Args:
+        state: The current state.
+
+    Returns:
+        State: The new state with the player moved forward."""
     player = state.get_player(idx=0)
     return _move(state, player.direction)
 
 
 def right(state: State) -> State:
+    """Steps the player to the right without changing the direction.
+
+    Args:
+        state (State): The current state.
+
+    Returns:
+        State: The new state with the player moved to the right."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 1)
 
 
 def backward(state: State) -> State:
+    """Steps the player backward without changing the direction.
+        
+        Args:
+            state (State): The current state.
+
+        Returns:
+            State: The new state with the player moved backward."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 2)
 
 
 def left(state: State) -> State:
+    """Steps the player to the left without changing the direction.
+
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The new state with the player moved to the left."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 3)
 
 
 def pickup(state: State) -> State:
+    """Picks up an item in front of the player and puts it in the pocket.
+    Args:
+        state (State): The current state.
+    Returns:
+        State: The new state with the player entity having the item in the pocket."""
     if Entities.KEY not in state.entities:
         return state
 
@@ -151,7 +209,13 @@ def pickup(state: State) -> State:
 
 
 def drop(state: State) -> State:
-    """Replaces the position in front of the player with the item in the pocket."""
+    """Replaces the position in front of the player with the item in the pocket.
+
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The new state with the item in the pocket dropped in front of the player."""
     player = state.get_player(idx=0)
 
     position_in_front = translate(player.position, player.direction)
@@ -171,12 +235,24 @@ def drop(state: State) -> State:
 
 
 def toggle(state: State) -> State:
+    """Toggles an openable object (like a door) if possible.
+
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The new state with the openable object toggled."""
     return open(state)
 
 
 def open(state: State) -> State:
-    """Unlocks and opens an openable object (like a door) if possible"""
-
+    """Unlocks and opens an openable object (like a door) if possible.
+    
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The new state with the openable object opened."""
     if Entities.DOOR not in state.entities:
         return state
 
@@ -221,6 +297,14 @@ def open(state: State) -> State:
 
 
 def done(state: State) -> State:
+    """A placeholder action that does nothing, but is a signal to the environment that the episode is over.
+    This action does not terminate the episode, unless the termination function explicitly checks for it (not default).
+    
+    Args:
+        state (State): The current state.
+    
+    Returns:
+        State: The same state."""
     return state
 
 
@@ -249,6 +333,8 @@ COMPLETE_ACTION_SET = (
     open,
     done,
 )
+"""Complete action set for the environment.
+This set includes all the actions that can be taken by the agent, and does not mirror the Minigrid action set."""
 
 MINIGRID_ACTION_SET = (
     rotate_ccw,
@@ -259,5 +345,7 @@ MINIGRID_ACTION_SET = (
     toggle,
     done,
 )
+"""Default action set from Minigrid. See
+https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.py"""
 
 DEFAULT_ACTION_SET = MINIGRID_ACTION_SET
