@@ -28,8 +28,9 @@ jobs:
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          output-file: false
           fallback-version: ${{ env.NAVIX_VERSION }}
-          skip-tag: true
+          skip-commit: true
 
       - name: Create Release
         uses: ncipollo/release-action@v1
