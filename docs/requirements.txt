@@ -4,3 +4,4 @@ mkdocs-jupyter
 mkdocstrings
 mkdocs-mermaid2-plugin
 plumkdocs
+python-kacl

@@ -30,10 +30,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           input-file: CHANGELOG.md
           output-file: CHANGELOG.md
+          skip-version-file: true
           fallback-version: ${{ env.NAVIX_VERSION }}
           skip-commit: false
           skip-tag: true
-
+          git-message: "chore(release): update changelog"
 
       - name: Create Release
         uses: ncipollo/release-action@v1
@@ -70,6 +71,7 @@ jobs:
       - name: Setup navix
         run: |
           pip install . -v
+          pip install -r docs/requirements.txt
       - name: Build docs
         run: |
           mkdocs build
