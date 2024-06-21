@@ -88,6 +88,9 @@ jobs:
   Update-changelog:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: rhysd/changelog-from-release/action@v3
         with:
           file: CHANGELOG.md
