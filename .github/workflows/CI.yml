@@ -89,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Update changelog
         id: update_changelog
         run: |
@@ -96,7 +98,6 @@ jobs:
           CHANGELOG_UPDATES="CHANGELOG TEST/n/nCHANGELOG TEST"
           NEW_CHANGELOG="${CHANGELOG_UPDATES}${CURRENT_CHANGELOG}"
           echo $NEW_CHANGELOG > CHANGELOG.md
-
       - name: Commit changelog
         uses: EndBug/add-and-commit@v7
         with:
