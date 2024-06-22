@@ -1,4 +1,4 @@
-<p class="maiusc" style="margin-bottom: 0.5em;">A <b>fast</b>, fully <b>jittable</b> MiniGrid reimplemented in JAX</p>
+<p class="maiusc" style="margin-bottom: 0.5em;">A <b>fast</b>, fully <b>jittable</b> MiniGrid reimplemented in JAX for HIGH <b>THROUGHPUT</b></p>
 <h1>Welcome to <b>NAVIX</b>!</h1>
 
 
