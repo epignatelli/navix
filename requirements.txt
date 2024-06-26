@@ -1,0 +1,9 @@
+mkdocs
+mkdocs-material
+mkdocs-jupyter
+mkdocstrings
+mkdocstrings-python
+mkdocs-gen-files
+mkdocs-literate-nav
+mkdocs-section-index
+plumkdocs
