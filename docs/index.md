@@ -1,4 +1,4 @@
-<p class="maiusc" style="margin-bottom: 0.5em;">A <b>fast</b>, fully <b>jittable</b> MiniGrid reimplemented in JAX</p>
+<p class="maiusc" style="margin-bottom: 0.8em;">A <b>fast</b>, fully <b>jittable, batched MiniGrid</b>  reimplemented in JAX for HIGH <b>THROUGHPUT</b></p>
 <h1>Welcome to <b>NAVIX</b>!</h1>
 
 
@@ -7,7 +7,7 @@
 NAVIX is designed to be a drop-in replacement for the original MiniGrid environment, with the added benefit of being significantly faster.
 Experiments that took **1 week**, now take **15 minutes**.
 
-A `navix.Environment` is a `flax.struct.PyTreeNode` and supports `jax.vmap`, `jax.jit`, `jax.grad`, and all the other JAX's transformations.
+A [`navix.Environment`](api/environments/environment.md) is a [`flax.struct.PyTreeNode`](https://flax.readthedocs.io/en/latest/api_reference/flax.struct.html#flax.struct.PyTreeNode) and supports [`jax.vmap`](https://jax.readthedocs.io/en/latest/_autosummary/jax.vmap.html), [`jax.jit`](https://jax.readthedocs.io/en/latest/_autosummary/jax.jit.html), [`jax.grad`](https://jax.readthedocs.io/en/latest/_autosummary/jax.grad.html), and all the other JAX's transformations.
 See some examples [here](examples/getting_started.ipynb).
 
 <br>
