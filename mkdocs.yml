@@ -15,12 +15,12 @@ nav:
   - Home:
       - Welcome: index.md
       - Environments: home/environments.md
+  - Install: install/index.md
   - Quickstart:
       - "Getting started": examples/getting_started.ipynb
       - "PPO": examples/ppo.ipynb
       # - "Customizing envs": examples/customisation.ipynb
-  - Install: install/index.md
-  - Becnhmarks:
+  - Benchmarks:
       - "Timesteps": benchmarks/timesteps.ipynb
       - "Environments": benchmarks/envs.ipynb
   - API: api/
@@ -63,12 +63,9 @@ theme:
     - content.tooltips
     - navigation.instant
     - navigation.footer
-    - navigation.sections
     - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.top
     - navigation.path
-    - navigation.tracking
     - search.highlight
     - search.share
     - search.suggest
@@ -116,7 +113,6 @@ plugins:
         - docs/scripts/gen_doc_stubs.py # or any other name or path
   - literate-nav:
       nav_file: SUMMARY.md
-  - section-index
 
 markdown_extensions:
   - toc:
