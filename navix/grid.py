@@ -547,7 +547,7 @@ class RoomsGrid(struct.PyTreeNode):
         k1, k2 = jax.random.split(key)
         local_row = jax.random.randint(k1, (), minval=1, maxval=self.room_size[0])
         local_col = jax.random.randint(k2, (), minval=1, maxval=self.room_size[1])
-        return jnp.asarray(local_row, local_col) + self.room_starts[row, col]
+        return jnp.asarray([local_row, local_col]) + self.room_starts[row, col]
 
     @partial(jax.jit, static_argnums=3)
     def position_on_border(
