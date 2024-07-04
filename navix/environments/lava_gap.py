@@ -94,7 +94,7 @@ class LavaGap(Environment):
 
 
 register_env(
-    "Navix-LavaGap-S5-v0",
+    "Navix-LavaGapS5-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
@@ -106,7 +106,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-LavaGap-S6-v0",
+    "Navix-LavaGapS6-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
@@ -118,7 +118,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-LavaGap-S7-v0",
+    "Navix-LavaGapS7-v0",
     lambda *args, **kwargs: LavaGap.create(
         *args,
         **kwargs,
