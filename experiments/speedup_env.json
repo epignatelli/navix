@@ -1,0 +1,102 @@
+{
+  "Navix-Empty-5x5-v0": {
+    "minigrid": 0.022452554665505886,
+    "navix_jit_step": 0.012902271002531052,
+    "navix_jit_loop": 0.011244622990489006
+  },
+  "Navix-Empty-6x6-v0": {
+    "minigrid": 0.004404686391353607,
+    "navix_jit_step": 0.011859381571412086,
+    "navix_jit_loop": 0.009421678259968758
+  },
+  "Navix-Empty-8x8-v0": {
+    "minigrid": 0.0036584846675395966,
+    "navix_jit_step": 0.012540976516902447,
+    "navix_jit_loop": 0.009970815852284431
+  },
+  "Navix-Empty-16x16-v0": {
+    "minigrid": 0.0050476472824811935,
+    "navix_jit_step": 0.01258816011250019,
+    "navix_jit_loop": 0.009461888112127781
+  },
+  "Navix-Empty-Random-5x5-v0": {
+    "minigrid": 0.005085587501525879,
+    "navix_jit_step": 0.01360470149666071,
+    "navix_jit_loop": 0.0119753647595644
+  },
+  "Navix-Empty-Random-6x6-v0": {
+    "minigrid": 0.008249281905591488,
+    "navix_jit_step": 0.013690393418073654,
+    "navix_jit_loop": 0.011779380030930042
+  },
+  "Navix-DoorKey-5x5-v0": {
+    "minigrid": 0.004809301346540451,
+    "navix_jit_step": 0.01695891097187996,
+    "navix_jit_loop": 0.02188050840049982
+  },
+  "Navix-DoorKey-6x6-v0": {
+    "minigrid": 0.00555077288299799,
+    "navix_jit_step": 0.02117385622113943,
+    "navix_jit_loop": 0.02251633256673813
+  },
+  "Navix-DoorKey-8x8-v0": {
+    "minigrid": 0.005415145307779312,
+    "navix_jit_step": 0.018505954183638096,
+    "navix_jit_loop": 0.02330760285258293
+  },
+  "Navix-DoorKey-16x16-v0": {
+    "minigrid": 0.006220662035048008,
+    "navix_jit_step": 0.03533641342073679,
+    "navix_jit_loop": 0.04255999345332384
+  },
+  "Navix-FourRooms-v0": {
+    "minigrid": 0.00798889808356762,
+    "navix_jit_step": 0.035035801120102406,
+    "navix_jit_loop": 0.017702748998999596
+  },
+  "Navix-Dynamic-Obstacles-5x5-v0": {
+    "minigrid": 0.0040748631581664085,
+    "navix_jit_step": 0.014880625531077385,
+    "navix_jit_loop": 0.016888847574591637
+  },
+  "Navix-Dynamic-Obstacles-6x6-v0": {
+    "minigrid": 0.0059158680960536,
+    "navix_jit_step": 0.015288452617824078,
+    "navix_jit_loop": 0.021793360821902752
+  },
+  "Navix-Dynamic-Obstacles-8x8-v0": {
+    "minigrid": 0.009282853454351425,
+    "navix_jit_step": 0.014288083650171757,
+    "navix_jit_loop": 0.015145858749747276
+  },
+  "Navix-Dynamic-Obstacles-16x16-v0": {
+    "minigrid": 0.006576302461326122,
+    "navix_jit_step": 0.013840990141034126,
+    "navix_jit_loop": 0.01619286835193634
+  },
+  "Navix-DistShift1-v0": {
+    "minigrid": 0.0046419184654951096,
+    "navix_jit_step": 0.014170155860483646,
+    "navix_jit_loop": 0.011521367356181145
+  },
+  "Navix-DistShift2-v0": {
+    "minigrid": 0.004467553459107876,
+    "navix_jit_step": 0.01381027139723301,
+    "navix_jit_loop": 0.01234099268913269
+  },
+  "Navix-GoToDoor-5x5-v0": {
+    "minigrid": 0.0054709454998373985,
+    "navix_jit_step": 0.0171448802575469,
+    "navix_jit_loop": 0.01739047560840845
+  },
+  "Navix-GoToDoor-6x6-v0": {
+    "minigrid": 0.00568083580583334,
+    "navix_jit_step": 0.015780883841216564,
+    "navix_jit_loop": 0.016453318297863007
+  },
+  "Navix-GoToDoor-8x8-v0": {
+    "minigrid": 0.0050247181206941605,
+    "navix_jit_step": 0.016364444978535175,
+    "navix_jit_loop": 0.019428431056439877
+  }
+}
