@@ -3,6 +3,7 @@ import time
 import timeit
 import json
 import gymnasium as gym
+from minigrid.wrappers import ImgObsWrapper
 import jax
 import jax.numpy as jnp
 from matplotlib import pyplot as plt
@@ -13,12 +14,14 @@ jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", 4)
 jax.config.update("jax_persistent_cache_min_compile_time_secs", 1)
 
+NUM_ENVS = 8
 
 def run_minigrid(env_id: str, num_steps: int, num_runs: int):
     print("Running MiniGrid...")
 
     def _run():
-        env = gym.make(env_id, max_episode_steps=num_steps)
+        # env = gym.make(env_id, max_episode_steps=num_steps)
+        env = gym.make_vec(env_id, num_envs=NUM_ENVS, wrappers=[ImgObsWrapper])
         env.reset()
 
         for _ in range(num_steps):
@@ -32,7 +35,7 @@ def run_minigrid(env_id: str, num_steps: int, num_runs: int):
     return times
 
 
-def run_navix_jit_loop(env_id: str, num_steps: int, num_runs: int):
+def run_navix(env_id: str, num_steps: int, num_runs: int):
     print("Running Navix JIT loop...")
 
     def _run(key):
@@ -46,8 +49,8 @@ def run_navix_jit_loop(env_id: str, num_steps: int, num_runs: int):
 
         return jax.lax.scan(body_fun, timestep, actions, unroll=20)[0]
 
-    key = jax.random.PRNGKey(0)
-    _run = jax.jit(_run).lower(key).compile()
+    key = jax.random.split(jax.random.PRNGKey(0), num=NUM_ENVS)
+    _run = jax.jit(jax.vmap(_run)).lower(key).compile()
     times = timeit.repeat(
         lambda: _run(key).t.block_until_ready(), number=1, repeat=num_runs
     )
@@ -69,7 +72,7 @@ def speedup_by_num_steps():
         print(num_steps)
         results[num_steps] = {
             "minigrid": run_minigrid(gym_env_id, num_steps, NUM_RUNS),
-            "navix_jit_loop": run_navix_jit_loop(ENV_ID, num_steps, NUM_RUNS),
+            "navix_jit_loop": run_navix(ENV_ID, num_steps, NUM_RUNS),
         }
         with open(
             os.path.join(os.path.dirname(__file__), "speedup_num_steps.json"), "w"
@@ -91,7 +94,7 @@ def speedup_by_env():
             print(env_id)
             results[env_id] = {
                 "minigrid": run_minigrid(gym_env_id, NUM_STEPS, NUM_RUNS),
-                "navix_jit_loop": run_navix_jit_loop(env_id, NUM_STEPS, NUM_RUNS),
+                "navix_jit_loop": run_navix(env_id, NUM_STEPS, NUM_RUNS),
             }
             with open(
                 os.path.join(os.path.dirname(__file__), "speedup_env.json"), "w"
@@ -208,6 +211,6 @@ def plot_speedup_by_env():
 
 if __name__ == "__main__":
     # speedup_by_num_steps()
-    # speedup_by_env()
-    plot_speedup_by_num_steps()
+    speedup_by_env()
+    # plot_speedup_by_num_steps()
     plot_speedup_by_env()

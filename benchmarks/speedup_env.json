@@ -1,0 +1,98 @@
+{
+  "Navix-Empty-5x5-v0": {
+    "minigrid": [
+      0.7525545014068484
+    ],
+    "navix_jit_loop": [
+      0.01110901404172182
+    ]
+  },
+  "Navix-Empty-6x6-v0": {
+    "minigrid": [
+      0.7627122011035681
+    ],
+    "navix_jit_loop": [
+      0.011034773662686348
+    ]
+  },
+  "Navix-Empty-8x8-v0": {
+    "minigrid": [
+      0.809187731705606
+    ],
+    "navix_jit_loop": [
+      0.011141568422317505
+    ]
+  },
+  "Navix-Empty-16x16-v0": {
+    "minigrid": [
+      0.6972394604235888
+    ],
+    "navix_jit_loop": [
+      0.011006168089807034
+    ]
+  },
+  "Navix-Empty-Random-5x5-v0": {
+    "minigrid": [
+      0.8730679275467992
+    ],
+    "navix_jit_loop": [
+      0.025862726382911205
+    ]
+  },
+  "Navix-Empty-Random-6x6-v0": {
+    "minigrid": [
+      0.9767703888937831
+    ],
+    "navix_jit_loop": [
+      0.02406375203281641
+    ]
+  },
+  "Navix-DoorKey-5x5-v0": {
+    "minigrid": [
+      1.0373556399717927
+    ],
+    "navix_jit_loop": [
+      0.04808759596198797
+    ]
+  },
+  "Navix-DoorKey-6x6-v0": {
+    "minigrid": [
+      0.9742193082347512
+    ],
+    "navix_jit_loop": [
+      0.053937774151563644
+    ]
+  },
+  "Navix-DoorKey-8x8-v0": {
+    "minigrid": [
+      1.083265216089785
+    ],
+    "navix_jit_loop": [
+      0.05484025366604328
+    ]
+  },
+  "Navix-DoorKey-16x16-v0": {
+    "minigrid": [
+      1.1787250870838761
+    ],
+    "navix_jit_loop": [
+      0.06360548734664917
+    ]
+  },
+  "Navix-FourRooms-v0": {
+    "minigrid": [
+      1.1757149826735258
+    ],
+    "navix_jit_loop": [
+      0.07033917866647243
+    ]
+  },
+  "Navix-KeyCorridorS3R1-v0": {
+    "minigrid": [
+      1.1496473578736186
+    ],
+    "navix_jit_loop": [
+      0.057320304214954376
+    ]
+  }
+}
