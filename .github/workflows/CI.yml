@@ -95,11 +95,11 @@ jobs:
           python-version: "3.10"
       - name: Setup navix
         run: |
-          pip install . -v --no-dependencies
-          pip install -r ./docs/requirements.txt
+          pip install . -v
 
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIG_FILE: ./mkdocs.yml
+          REQUIREMENTS: ./docs/requirements.txt
