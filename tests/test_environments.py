@@ -5,7 +5,12 @@ import navix as nx
 
 def test_room():
     def f():
-        env = nx.environments.Room.create(height=3, width=3, max_steps=8)
+        env = nx.environments.Room.create(
+            height=3,
+            width=3,
+            max_steps=8,
+            observation_fn=nx.observations.symbolic_first_person,
+        )
         key = jax.random.PRNGKey(4)
         reset = jax.jit(env._reset)
         step = jax.jit(env.step)
@@ -35,7 +40,12 @@ def test_room():
 
 def test_keydoor():
     def f():
-        env = nx.environments.DoorKey.create(height=5, width=10, max_steps=8)
+        env = nx.environments.DoorKey.create(
+            height=5,
+            width=10,
+            max_steps=8,
+            observation_fn=nx.observations.symbolic_first_person,
+        )
         key = jax.random.PRNGKey(1)
         reset = jax.jit(env._reset)
         step = jax.jit(env.step)
