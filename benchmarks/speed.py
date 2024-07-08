@@ -14,14 +14,17 @@ jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", 4)
 jax.config.update("jax_persistent_cache_min_compile_time_secs", 1)
 
-NUM_ENVS = 8
+NUM_ENVS = 1
+
 
 def run_minigrid(env_id: str, num_steps: int, num_runs: int):
     print("Running MiniGrid...")
 
     def _run():
-        # env = gym.make(env_id, max_episode_steps=num_steps)
-        env = gym.make_vec(env_id, num_envs=NUM_ENVS, wrappers=[ImgObsWrapper])
+        if NUM_ENVS == 1:
+            env = gym.make(env_id, max_episode_steps=num_steps)
+        else:
+            env = gym.make_vec(env_id, num_envs=NUM_ENVS, wrappers=[ImgObsWrapper])
         env.reset()
 
         for _ in range(num_steps):
@@ -85,7 +88,7 @@ def speedup_by_env():
     print("Running speedup by env...")
     print("*" * 80)
     NUM_STEPS = 1_000
-    NUM_RUNS = 1
+    NUM_RUNS = 5
 
     results = {}
     for env_id in nx.registry():
@@ -113,7 +116,7 @@ def plot_speedup_by_num_steps():
         results = json.load(f)
     minigrid_times = {k: v["minigrid"] for k, v in results.items()}
     navix_times = {k: v["navix_jit_loop"] for k, v in results.items()}
-    fig, ax = plt.subplots(figsize=(11, 4), dpi=150)
+    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
     xs_minigrid = [int(x) for x in minigrid_times.keys()]
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
     print(ys_minigrid)
@@ -139,16 +142,13 @@ def plot_speedup_by_num_steps():
     ax.set_ylabel("Time (s)", fontsize=12)
     ax.set_title("Speed up by number of steps", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=10)
-    ax.set_xlabel("Number of steps")
-    ax.set_ylabel("Time (s)")
-    ax.set_title("Speed up by number of steps")
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
     legend = fig.legend(
         loc="lower center",
         ncol=2,
-        bbox_to_anchor=(0.53, -0.1),  # Adjust the y-coordinate to add more white space
+        bbox_to_anchor=(0.53, -0.2),  # Adjust the y-coordinate to add more white space
         shadow=False,
         frameon=False,
     )
@@ -164,33 +164,33 @@ def plot_speedup_by_env():
         results = json.load(f)
     minigrid_times = {k: v["minigrid"] for k, v in results.items()}
     navix_times = {k: v["navix_jit_loop"] for k, v in results.items()}
-    fig, ax = plt.subplots(figsize=(11, 4), dpi=150)
+    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
     xs = range(len(minigrid_times))
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
     ys_navix = jnp.asarray(list(navix_times.values()))
     ax.bar(
         [x - 0.2 for x in xs],
-        ys_minigrid,
+        ys_minigrid.mean(axis=-1),
+        yerr=ys_minigrid.std(axis=-1),
         label="MiniGrid",
         color="black",
         width=0.4,
     )
     ax.bar(
         [x + 0.2 for x in xs],
-        ys_navix,
+        ys_navix.mean(axis=-1),
+        yerr=ys_navix.std(axis=-1),
         label="NAVIX",
         color="red",
         alpha=0.7,
         width=0.4,
     )
-    ax.set_xlabel("Number of steps", fontsize=12)
+    ax.set_xlabel("Environment", fontsize=12)
     ax.set_ylabel("Time (s)", fontsize=12)
-    ax.set_title("Speed up by number of steps", fontsize=14)
+    ax.set_title("Speed up by environment", fontsize=14)
     ax.tick_params(axis="both", which="major", labelsize=10)
-    ax.set_xlabel("Environment")
-    ax.set_ylabel("Time (s)")
-    ax.set_title("Speed up by environment")
     ax.set_xticks(xs)
+    # ax.set_yscale("log")
     ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
     legend = fig.legend(
         loc="lower center",
@@ -206,11 +206,13 @@ def plot_speedup_by_env():
         bbox_inches="tight",
     )
     print(ys_navix, ys_minigrid, ys_minigrid / ys_navix)
-    print(jnp.mean(ys_minigrid / ys_navix), jnp.std(ys_minigrid / ys_navix))
+    mean = jnp.mean(ys_minigrid / ys_navix)
+    std = jnp.mean(ys_minigrid / ys_navix, axis=-1).std()
+    print(mean, std)
 
 
 if __name__ == "__main__":
     # speedup_by_num_steps()
-    speedup_by_env()
-    # plot_speedup_by_num_steps()
+    # speedup_by_env()
+    plot_speedup_by_num_steps()
     plot_speedup_by_env()

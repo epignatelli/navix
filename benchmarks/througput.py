@@ -117,7 +117,7 @@ def plot_throughput():
 
     minigrid_times = results["MiniGrid"]
     navix_times = results["NAVIX"]
-    fig, ax = plt.subplots(figsize=(11, 4), dpi=150)
+    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
     xs_minigrid = [int(x) for x in minigrid_times.keys()]
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
     print(ys_minigrid)
@@ -139,20 +139,17 @@ def plot_throughput():
         color="red",
         marker="s",
     )
-    ax.set_xlabel("Number of steps", fontsize=12)
+    ax.set_title("Batch mode throughput", fontsize=14)
+    ax.set_xlabel("Number of environments", fontsize=12)
     ax.set_ylabel("Time (s)", fontsize=12)
-    ax.set_title("Speed up by number of steps", fontsize=14)
-    ax.tick_params(axis="both", which="major", labelsize=10)
-    ax.set_xlabel("Number of steps")
-    ax.set_ylabel("Time (s)")
-    ax.set_title("Speed up by number of steps")
     ax.set_yscale("log")
     ax.set_xscale("log", base=2)
+    ax.tick_params(axis="both", which="major", labelsize=10)
     ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
     legend = fig.legend(
         loc="lower center",
         ncol=2,
-        bbox_to_anchor=(0.53, -0.1),  # Adjust the y-coordinate to add more white space
+        bbox_to_anchor=(0.53, -0.2),  # Adjust the y-coordinate to add more white space
         shadow=False,
         frameon=False,
     )
@@ -163,6 +160,53 @@ def plot_throughput():
     )
 
 
+def plot_throughput_ppo():
+    with open(os.path.join(os.path.dirname(__file__), "throughput_ppo.json"), "r") as f:
+        navix_times = json.load(f)
+
+    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
+    xs_navix = [int(x) for x in navix_times.keys()]
+    ys_navix = jnp.asarray(list(navix_times.values()))
+    ax.errorbar(
+        xs_navix,
+        ys_navix.mean(axis=-1),
+        yerr=ys_navix.std(axis=-1),
+        label="NAVIX",
+        color="red",
+        marker="s",
+    )
+    ax.hlines(
+        248.0,
+        0,
+        4096,
+        colors=["black"],
+        linestyles=(0, (5, 5)),  # type: ignore
+        linewidth=1,
+        label="MiniGrid",
+    )
+    ax.set_title("Training throughput (PPO)", fontsize=14)
+    ax.set_xlabel("Number of agents [#]", fontsize=12)
+    ax.set_ylabel("Time (s)", fontsize=12)
+    ax.set_yscale("log")
+    ax.set_xscale("log", base=2)
+    ax.set_xlim(0, 4096)
+    ax.tick_params(axis="both", which="major", labelsize=10)
+    ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
+    legend = fig.legend(
+        loc="lower center",
+        ncol=2,
+        bbox_to_anchor=(0.53, -0.2),  # Adjust the y-coordinate to add more white space
+        shadow=False,
+        frameon=False,
+    )
+    fig.savefig(
+        os.path.join(os.path.dirname(__file__), "throughput_ppo.png"),
+        bbox_extra_artists=(legend,),
+        bbox_inches="tight",
+    )
+
+
 if __name__ == "__main__":
     # benchmark_throughput()
     plot_throughput()
+    plot_throughput_ppo()
