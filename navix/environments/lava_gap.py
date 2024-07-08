@@ -96,36 +96,54 @@ class LavaGap(Environment):
 register_env(
     "Navix-LavaGapS5-v0",
     lambda *args, **kwargs: LavaGap.create(
-        *args,
-        **kwargs,
         height=5,
         width=5,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+            ),
+        ),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-LavaGapS6-v0",
     lambda *args, **kwargs: LavaGap.create(
-        *args,
-        **kwargs,
         height=6,
         width=6,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+            ),
+        ),
+        *args,
+        **kwargs,
     ),
 )
 register_env(
     "Navix-LavaGapS7-v0",
     lambda *args, **kwargs: LavaGap.create(
-        *args,
-        **kwargs,
         height=7,
         width=7,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+            ),
+        ),
+        *args,
+        **kwargs,
     ),
 )
