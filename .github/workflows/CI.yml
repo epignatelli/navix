@@ -95,7 +95,7 @@ jobs:
           python-version: "3.10"
       - name: Setup navix
         run: |
-          pip install . -v
+          pip install . -v --no-dependencies
           pip install -r ./docs/requirements.txt
 
       - name: Deploy docs
@@ -103,4 +103,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIG_FILE: ./mkdocs.yml
-          REQUIREMENTS: "tricking_into_non_existing_req.txt"
