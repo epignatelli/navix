@@ -41,7 +41,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install pypa/build
         run: |
@@ -61,16 +61,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      - name: Setup navix
-        run: |
-          pip install . -v
-          pip install -r docs/requirements.txt
-      - name: Build docs
-        run: |
-          mkdocs build
-      - name: Deploy docs
-        run: |
-          mkdocs gh-deploy
+      - run: pip install --upgrade pip && pip install -r docs/requirements.txt
+      - run: git config user.name 'github-actions[bot]' && git config user.email 'github-actions[bot]@users.noreply.github.com'
+      - name: Publish docs
+        run: mkdocs gh-deploy
+        
