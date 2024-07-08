@@ -100,6 +100,7 @@ jobs:
       - name: Install navix
         run: |
           pip install . -v
+          pip install ./docs/requirements.txt
 
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
@@ -107,4 +108,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIG_FILE: ./mkdocs.yml
           EXTRA_PACKAGES: build-base
-          REQUIREMENTS: ./docs/requirements.txt
