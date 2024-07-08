@@ -10,7 +10,6 @@ pytest
 # compute libraries
 pillow
 numpy
-jax
 flax
 rlax
 # experiments
