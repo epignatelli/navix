@@ -19,24 +19,14 @@
 
 from __future__ import annotations
 
-import os
 import jax
 import jax.numpy as jnp
 
 import navix as nx
 from navix import observations
 
-import matplotlib.pyplot as plt
-
 
 def test_82():
-    os.environ["JAX_OMNISTAGING"] = "0"
-
-    def render(timestep):
-        plt.imshow(timestep.observation)
-        plt.axis(False)
-        plt.savefig("test_82.png")
-
     env = nx.make(
         "Navix-DoorKey-5x5-v0",
         max_steps=100,
