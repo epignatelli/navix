@@ -100,9 +100,6 @@ register_env(
         width=5,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-<<<<<<< HEAD
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
-=======
         termination_fn=kwargs.pop(
             "termination_fn",
             terminations.compose(
@@ -110,7 +107,6 @@ register_env(
                 terminations.on_lava_fall,
             ),
         ),
->>>>>>> 8a09379 (fix: default termination for LavaGap env family must include on_lava_fall)
         *args,
         **kwargs,
     ),
@@ -122,9 +118,6 @@ register_env(
         width=6,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-<<<<<<< HEAD
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
-=======
         termination_fn=kwargs.pop(
             "termination_fn",
             terminations.compose(
@@ -132,7 +125,6 @@ register_env(
                 terminations.on_lava_fall,
             ),
         ),
->>>>>>> 8a09379 (fix: default termination for LavaGap env family must include on_lava_fall)
         *args,
         **kwargs,
     ),
@@ -144,9 +136,6 @@ register_env(
         width=7,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
-<<<<<<< HEAD
-        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
-=======
         termination_fn=kwargs.pop(
             "termination_fn",
             terminations.compose(
@@ -154,7 +143,6 @@ register_env(
                 terminations.on_lava_fall,
             ),
         ),
->>>>>>> 8a09379 (fix: default termination for LavaGap env family must include on_lava_fall)
         *args,
         **kwargs,
     ),
