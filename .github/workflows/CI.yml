@@ -92,10 +92,19 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v2
 
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+        
+      - name: Install navix
+        run: |
+          pip install . -v
+
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONFIG_FILE: navix/mkdocs.yml
+          CONFIG_FILE: ./mkdocs.yml
           EXTRA_PACKAGES: build-base
-          REQUIREMENTS: navix/requirements.txt
+          REQUIREMENTS: ./docs/requirements.txt
