@@ -100,7 +100,7 @@ jobs:
       - name: Install navix
         run: |
           pip install . -v
-          pip install ./docs/requirements.txt
+          pip install -r ./docs/requirements.txt
 
       - name: Deploy docs
         uses: mhausenblas/mkdocs-deploy-gh-pages@master

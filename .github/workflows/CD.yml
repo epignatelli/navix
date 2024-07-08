@@ -41,7 +41,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install pypa/build
         run: |
@@ -74,3 +74,18 @@ jobs:
       - name: Deploy docs
         run: |
           mkdocs gh-deploy
+
+  # deploy-docs:
+  #   name: Deploy docs
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout main
+  #       uses: actions/checkout@v2
+
+  #     - name: Deploy docs
+  #       uses: mhausenblas/mkdocs-deploy-gh-pages@master
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         CONFIG_FILE: navix/mkdocs.yml
+  #         EXTRA_PACKAGES: build-base
+  #         REQUIREMENTS: navix/requirements.txt
