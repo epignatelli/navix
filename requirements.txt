@@ -7,12 +7,9 @@ typing-extensions
 setuptools_scm
 # testing
 pytest
-absl-py
 # compute libraries
 pillow
 numpy
-jax
-chex
 flax
 rlax
 # experiments

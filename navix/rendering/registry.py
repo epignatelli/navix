@@ -31,7 +31,7 @@ import jax.numpy as jnp
 SPRITES_DIR = os.path.normpath(
     os.path.join(__file__, "..", "..", "..", "assets", "sprites")
 )
-MIN_TILE_SIZE = 8
+MIN_TILE_SIZE = 32
 TILE_SIZE = MIN_TILE_SIZE
 
 

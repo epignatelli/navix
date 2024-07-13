@@ -70,7 +70,7 @@ def _can_walk_there(state: State, position: Array) -> Tuple[Array, EventsManager
         obstructs = jnp.logical_and(
             jnp.logical_not(state.entities[k].walkable), same_position
         )
-        walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
+        walkable = jnp.logical_and(walkable, jnp.all(jnp.logical_not(obstructs)))
     return jnp.asarray(walkable, dtype=jnp.bool_), events
 
 

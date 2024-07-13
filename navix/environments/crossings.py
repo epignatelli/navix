@@ -126,7 +126,7 @@ class Crossings(Environment):
 
 
 register_env(
-    "Navix-Crossings-S9N1-v0",
+    "Navix-SimpleCrossingS9N1-v0",
     lambda *args, **kwargs: Crossings.create(
         height=9,
         width=9,
@@ -139,7 +139,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-Crossings-S9N2-v0",
+    "Navix-SimpleCrossingS9N2-v0",
     lambda *args, **kwargs: Crossings.create(
         height=9,
         width=9,
@@ -152,7 +152,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-Crossings-S9N3-v0",
+    "Navix-SimpleCrossingS9N3-v0",
     lambda *args, **kwargs: Crossings.create(
         height=9,
         width=9,
@@ -165,7 +165,7 @@ register_env(
     ),
 )
 register_env(
-    "Navix-Crossings-S11N5-v0",
+    "Navix-SimpleCrossingS11N5-v0",
     lambda *args, **kwargs: Crossings.create(
         height=11,
         width=11,
