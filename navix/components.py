@@ -20,7 +20,8 @@
 
 from __future__ import annotations
 from typing import Tuple
-
+import inspect
+import copy
 
 from jax import Array
 from flax import struct
@@ -39,7 +40,36 @@ def field(shape: Tuple[int, ...], **kwargs):
     return dataclasses.field(metadata={"shape": shape}, **kwargs)
 
 
-class Component(struct.PyTreeNode):
+class NavixNode(struct.PyTreeNode):
+    """A modified version of Flax struct.PyTreeNode that handles JAX arrays as default values."""
+
+    def __init_subclass__(cls, **kwargs):
+        # Get the annotations of the class for checking whether it contains a jax.Array
+        # This avoids looping over all fields of the class in case they contain no arrays
+        cls_annotations = inspect.get_annotations(cls)
+
+        if "Array" not in cls_annotations.values():
+            # All good
+            pass
+        else:
+            for f_name, f_type in cls_annotations.items():
+                # Get field default value and check whether it is jax.Array
+                default = getattr(cls, f_name, dataclasses.MISSING)
+                if isinstance(default, Array):
+                    # Create a field with a lambda as default factory to prevent mutable default values
+                    f = dataclasses.field(default_factory=lambda: default)
+                    f.name = f_name
+                    f.type = f_type
+                    # Remove the field from the dataclass and replace by modified one
+                    setattr(cls, f.name, f)
+
+        # BUG: locals() only stores a single value for defaults
+        if str(cls) == "<class 'navix.states.Event'>":
+            import ipdb; ipdb.set_trace(context=21)
+        struct.dataclass(cls, **kwargs)  # pytype: disable=wrong-arg-types
+
+
+class Component(NavixNode):
     """Base class for all components in the game.
     Components are used to store the data of the entities in the game."""
 
