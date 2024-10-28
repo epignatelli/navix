@@ -21,7 +21,6 @@
 from __future__ import annotations
 from typing import Tuple
 import inspect
-import copy
 
 from jax import Array
 from flax import struct
@@ -57,15 +56,13 @@ class NavixNode(struct.PyTreeNode):
                 default = getattr(cls, f_name, dataclasses.MISSING)
                 if isinstance(default, Array):
                     # Create a field with a lambda as default factory to prevent mutable default values
-                    f = dataclasses.field(default_factory=lambda: default)
+                    # NOTE: The default value must be set to prevent the lambdas from only capturing the last default value
+                    f = dataclasses.field(default_factory=lambda default=default: default)
                     f.name = f_name
                     f.type = f_type
                     # Remove the field from the dataclass and replace by modified one
-                    setattr(cls, f.name, f)
+                    setattr(cls, f_name, f)
 
-        # BUG: locals() only stores a single value for defaults
-        if str(cls) == "<class 'navix.states.Event'>":
-            import ipdb; ipdb.set_trace(context=21)
         struct.dataclass(cls, **kwargs)  # pytype: disable=wrong-arg-types
 
 
