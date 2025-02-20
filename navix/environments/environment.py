@@ -166,7 +166,7 @@ class Environment(struct.PyTreeNode):
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
-            should_reset and not self.disable_autoreset,
+            jnp.logical_and(should_reset, jnp.logical_not(self.disable_autoreset)),
             lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
             lambda timestep: self._step(timestep, action),
             timestep,
