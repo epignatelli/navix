@@ -119,10 +119,10 @@ register_env(
 )
 
 register_env(
-    "Navix-FourRooms-5x5-v0",
+    "Navix-FourRooms-7x7-v0",
     lambda *args, **kwargs: FourRooms.create(
-        height=5,
-        width=5,
+        height=7,
+        width=7,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -133,10 +133,10 @@ register_env(
 
 
 register_env(
-    "Navix-FourRooms-6x6-v0",
+    "Navix-FourRooms-9x9-v0",
     lambda *args, **kwargs: FourRooms.create(
-        height=6,
-        width=6,
+        height=9,
+        width=9,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -146,10 +146,10 @@ register_env(
 )
 
 register_env(
-    "Navix-FourRooms-8x8-v0",
+    "Navix-FourRooms-11x11-v0",
     lambda *args, **kwargs: FourRooms.create(
-        height=8,
-        width=8,
+        height=11,
+        width=11,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
@@ -159,10 +159,36 @@ register_env(
 )
 
 register_env(
-    "Navix-FourRooms-16x16-v0",
+    "Navix-FourRooms-13x13-v0",
     lambda *args, **kwargs: FourRooms.create(
-        height=16,
-        width=16,
+        height=13,
+        width=13,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
+    ),
+)
+
+register_env(
+    "Navix-FourRooms-15x15-v0",
+    lambda *args, **kwargs: FourRooms.create(
+        height=15,
+        width=15,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
+    ),
+)
+
+register_env(
+    "Navix-FourRooms-17x17-v0",
+    lambda *args, **kwargs: FourRooms.create(
+        height=17,
+        width=17,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
