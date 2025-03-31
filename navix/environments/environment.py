@@ -147,7 +147,6 @@ class Environment(struct.PyTreeNode):
             observation_space=observation_space,
             action_space=action_space,
             reward_space=reward_space,
-            **kwargs,
             disable_autoreset=disable_autoreset,
             **kwargs,
         )
