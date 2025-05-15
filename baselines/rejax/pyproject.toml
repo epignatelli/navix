@@ -1,0 +1,19 @@
+[project]
+name = "navix_benchmark"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "Jarek Liesen", email = "jarek.liesen@reuben.ox.ac.uk"},
+]
+dependencies = [
+    "rejax @ git+https://github.com/keraJLi/rejax@613bd7abdea1c7dc470bc09154aa7de1f99fd03b",
+    "wandb>=0.19.11",
+    "Navix @ git+https://github.com/epignatelli/navix@5fc4975a9671e4ebbc101a1eaabc72364c0e33d1",
+]
+requires-python = "==3.10.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
