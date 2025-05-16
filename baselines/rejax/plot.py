@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
 
-folder_path = "/home/uceeepi/repos/navix/baselines/rejax"
+folder_path = "/home/uceeepi/repos/navix/baselines/results/rejax"
 json_files = [file for file in os.listdir(folder_path) if file.endswith(".json")]
 
 files_by_env = {}
