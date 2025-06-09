@@ -27,6 +27,7 @@ from flax import struct
 from .components import (
     Positionable,
     HasColour,
+    field,
 )
 from .rendering.cache import RenderingCache
 from .rendering.registry import PALETTE
@@ -63,10 +64,15 @@ class Event(Positionable, HasColour):
         happened (Array): A boolean flag indicating whether the event happened.
         event_type (Array): The type of event that happened."""
 
-    position: Array = jnp.asarray([-1, -1], dtype=jnp.int32)
-    colour: Array = PALETTE.UNSET
-    happened: Array = jnp.asarray(False, dtype=jnp.bool_)
-    event_type: Array = EventType.NONE
+    position: Array = field(
+        shape=(2,),
+        default_factory=lambda: jnp.asarray([-1, -1], dtype=jnp.int32),
+    )
+    colour: Array = field(shape=(), default_factory=lambda: PALETTE.UNSET)
+    happened: Array = field(
+        shape=(), default_factory=lambda: jnp.asarray(False, dtype=jnp.bool_)
+    )
+    event_type: Array = field(shape=(), default_factory=lambda: EventType.NONE)
 
     def __eq__(self, other: Event) -> Array:
         return jnp.logical_and(
@@ -93,14 +99,14 @@ class EventsManager(struct.PyTreeNode):
         ball_pickup (Event): An event indicating that the player has picked up a ball.
     """
 
-    goal_reached: Event = Event()
-    ball_hit: Event = Event()
-    wall_hit: Event = Event()
-    lava_fall: Event = Event()
-    key_pickup: Event = Event()
-    door_opening: Event = Event()
-    door_unlock: Event = Event()
-    ball_pickup: Event = Event()
+    goal_reached: Event = struct.field(default_factory=Event)
+    ball_hit: Event = struct.field(default_factory=Event)
+    wall_hit: Event = struct.field(default_factory=Event)
+    lava_fall: Event = struct.field(default_factory=Event)
+    key_pickup: Event = struct.field(default_factory=Event)
+    door_opening: Event = struct.field(default_factory=Event)
+    door_unlock: Event = struct.field(default_factory=Event)
+    ball_pickup: Event = struct.field(default_factory=Event)
 
     def record_walk_into(self, entity: Entity, position: Array) -> EventsManager:
         """Flags an event when the player walks into an entity as happened and returns the
@@ -160,10 +166,10 @@ class EventsManager(struct.PyTreeNode):
     def record_ball_hit(self, ball: Ball) -> EventsManager:
         """Flags an event when the player is hit by a ball as happened and returns the
         updated events manager.
-        
+
         Args:
             ball (Ball): The ball that hit the player.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         return self.replace(
@@ -178,11 +184,11 @@ class EventsManager(struct.PyTreeNode):
     def record_wall_hit(self, wall: Wall, position: Array) -> EventsManager:
         """Flags an event when the player hits a wall as happened and returns the
         updated events manager.
-        
+
         Args:
             wall (Wall): The wall the player hit.
             position (Array): The position of the wall in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(wall.position == position, size=1)[0][0]
@@ -199,10 +205,10 @@ class EventsManager(struct.PyTreeNode):
     def record_grid_hit(self, position: Array) -> EventsManager:
         """Flags an event when the player hits a wall as happened and returns the
         updated events manager.
-        
+
         Args:
             position (Array): The position of the wall in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         return self.replace(
@@ -217,11 +223,11 @@ class EventsManager(struct.PyTreeNode):
     def record_lava_fall(self, lava: Lava, position: Array) -> EventsManager:
         """Flags an event when the lava falls as happened and returns the
         updated events manager.
-        
+
         Args:
             lava (Lava): The lava that fell.
             position (Array): The position of the lava in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(lava.position == position, size=1)[0][0]
@@ -238,11 +244,11 @@ class EventsManager(struct.PyTreeNode):
     def record_key_pickup(self, key: Key, position: Array) -> EventsManager:
         """Flags an event when the player picks up a key as happened and returns the
         updated events manager.
-        
+
         Args:
             key (Key): The key the player picked up.
             position (Array): The position of the key in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(key.position == position, size=1)[0][0]
@@ -259,11 +265,11 @@ class EventsManager(struct.PyTreeNode):
     def record_door_opening(self, door: Door, position: Array) -> EventsManager:
         """Flags an event when the player opens a door as happened and returns the
         updated events manager.
-        
+
         Args:
             door (Door): The door the player opened.
             position (Array): The position of the door in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(door.position == position, size=1)[0][0]
@@ -284,7 +290,7 @@ class EventsManager(struct.PyTreeNode):
         Args:
             door (Door): The door the player unlocked.
             position (Array): The position of the door in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(door.position == position, size=1)[0][0]
@@ -301,11 +307,11 @@ class EventsManager(struct.PyTreeNode):
     def record_ball_pickup(self, ball: Ball, position: Array) -> EventsManager:
         """Flags an event when the player picks up a ball as happened and returns the
         updated events manager.
-        
+
         Args:
             ball (Ball): The ball the player picked up.
             position (Array): The position of the ball in the grid.
-        
+
         Returns:
             EventsManager: The updated events manager."""
         idx = jnp.where(ball.position == position, size=1)[0][0]
@@ -332,28 +338,28 @@ class State(struct.PyTreeNode):
     entities: Dict[str, Entity] = struct.field(default_factory=dict)
     """The entities in the environment, indexed via entity type string representation.
     Batched over the number of entities for each type"""
-    events: EventsManager = EventsManager()
+    events: EventsManager = struct.field(default_factory=EventsManager)
     """A struct indicating which events happened this timestep. For example, the
     goal is reached, or the player is hit by a ball."""
     mission: Event | None = None
 
     def get_entity(self, entity_enum: str) -> Entity:
         """Get an entity from the state by its enum.
-        
+
         Args:
             entity_enum (str): The enum of the entity to get.
-        
+
         Returns:
             Entity: The entity from the state."""
         return self.entities[entity_enum]
 
     def set_entity(self, entity_enum: str, entity: Entity) -> State:
         """Set an entity in the state by its enum.
-        
+
         Args:
             entity_enum (str): The enum of the entity to set.
             entity (Entity): The entity to set.
-        
+
         Returns:
             State: The updated state."""
         self.entities[entity_enum] = entity
