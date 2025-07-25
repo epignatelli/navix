@@ -114,12 +114,16 @@ def plot_speedup_by_num_steps():
         os.path.join(os.path.dirname(__file__), "speedup_num_steps.json"), "r"
     ) as f:
         results = json.load(f)
+
     minigrid_times = {k: v["minigrid"] for k, v in results.items()}
     navix_times = {k: v["navix_jit_loop"] for k, v in results.items()}
-    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
+
+    # Standardized figure size
+    fig, ax = plt.subplots(figsize=(5, 3), dpi=150)
+
     xs_minigrid = [int(x) for x in minigrid_times.keys()]
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
-    print(ys_minigrid)
+    
     ax.errorbar(
         xs_minigrid,
         ys_minigrid.mean(axis=-1),
@@ -128,8 +132,10 @@ def plot_speedup_by_num_steps():
         color="black",
         marker="o",
     )
+
     xs_navix = [int(x) for x in navix_times.keys()]
     ys_navix = jnp.asarray(list(navix_times.values()))
+
     ax.errorbar(
         xs_navix,
         ys_navix.mean(axis=-1),
@@ -138,20 +144,29 @@ def plot_speedup_by_num_steps():
         color="red",
         marker="s",
     )
-    ax.set_xlabel("Number of steps", fontsize=12)
-    ax.set_ylabel("Time (s)", fontsize=12)
-    ax.set_title("Speed up by number of steps", fontsize=14)
-    ax.tick_params(axis="both", which="major", labelsize=10)
+
+    # Ensure consistent font sizes
+    font_size = 12
+    ax.set_xlabel("Number of steps", fontsize=font_size)
+    ax.set_ylabel("Time (s)", fontsize=font_size)
+    ax.set_title("Speed up by number of steps", fontsize=font_size + 2)
+    ax.tick_params(axis="both", which="major", labelsize=font_size - 2)
+
+    # Ensure consistent log scale if needed
     ax.set_yscale("log")
     ax.set_xscale("log")
+
     ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
+
     legend = fig.legend(
         loc="lower center",
         ncol=2,
-        bbox_to_anchor=(0.53, -0.2),  # Adjust the y-coordinate to add more white space
+        bbox_to_anchor=(0.5, -0.2),  # Center-aligned
         shadow=False,
         frameon=False,
+        fontsize=font_size - 2,  # Standardized font size
     )
+
     fig.savefig(
         os.path.join(os.path.dirname(__file__), "speedup_num_steps.png"),
         bbox_extra_artists=(legend,),
@@ -162,12 +177,17 @@ def plot_speedup_by_num_steps():
 def plot_speedup_by_env():
     with open(os.path.join(os.path.dirname(__file__), "speedup_env.json"), "r") as f:
         results = json.load(f)
+
     minigrid_times = {k: v["minigrid"] for k, v in results.items()}
     navix_times = {k: v["navix_jit_loop"] for k, v in results.items()}
-    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
+
+    # Standardized figure size
+    fig, ax = plt.subplots(figsize=(7, 3), dpi=150)
+
     xs = range(len(minigrid_times))
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
     ys_navix = jnp.asarray(list(navix_times.values()))
+
     ax.bar(
         [x - 0.2 for x in xs],
         ys_minigrid.mean(axis=-1),
@@ -176,6 +196,7 @@ def plot_speedup_by_env():
         color="black",
         width=0.4,
     )
+
     ax.bar(
         [x + 0.2 for x in xs],
         ys_navix.mean(axis=-1),
@@ -185,30 +206,33 @@ def plot_speedup_by_env():
         alpha=0.7,
         width=0.4,
     )
-    ax.set_xlabel("Environment", fontsize=12)
-    ax.set_ylabel("Time (s)", fontsize=12)
-    ax.set_title("Speed up by environment", fontsize=14)
-    ax.tick_params(axis="both", which="major", labelsize=10)
-    ax.set_xticks(xs)
-    # ax.set_yscale("log")
+
+    # Ensure consistent font sizes
+    font_size = 12
+    ax.set_xlabel("Environment", fontsize=font_size)
+    ax.set_ylabel("Time (s)", fontsize=font_size)
+    ax.set_title("Speed up by environment", fontsize=font_size + 2)
+    ax.tick_params(axis="both", which="major", labelsize=font_size - 2)
+
+    # Make sure y-axis scaling matches the first plot
+    ax.set_yscale("log")  # This a y-axis comparable to the previous plot
+
     ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
+
     legend = fig.legend(
         loc="lower center",
         ncol=2,
-        bbox_to_anchor=(0.53, -0.1),
+        bbox_to_anchor=(0.5, -0.2),  # Center-aligned
         shadow=False,
         frameon=False,
+        fontsize=font_size - 2,  # Standardized font size
     )
-    fig.tight_layout()
+
     fig.savefig(
         os.path.join(os.path.dirname(__file__), "speedup_env.png"),
         bbox_extra_artists=(legend,),
         bbox_inches="tight",
     )
-    print(ys_navix, ys_minigrid, ys_minigrid / ys_navix)
-    mean = jnp.mean(ys_minigrid / ys_navix)
-    std = jnp.mean(ys_minigrid / ys_navix, axis=-1).std()
-    print(mean, std)
 
 
 if __name__ == "__main__":

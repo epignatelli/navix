@@ -117,7 +117,7 @@ def plot_throughput():
 
     minigrid_times = results["MiniGrid"]
     navix_times = results["NAVIX"]
-    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=150)
     xs_minigrid = [int(x) for x in minigrid_times.keys()]
     ys_minigrid = jnp.asarray(list(minigrid_times.values()))
     print(ys_minigrid)
@@ -164,7 +164,7 @@ def plot_throughput_ppo():
     with open(os.path.join(os.path.dirname(__file__), "throughput_ppo.json"), "r") as f:
         navix_times = json.load(f)
 
-    fig, ax = plt.subplots(figsize=(11, 3), dpi=150)
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=150)
     xs_navix = [int(x) for x in navix_times.keys()]
     ys_navix = jnp.asarray(list(navix_times.values()))
     ax.errorbar(
