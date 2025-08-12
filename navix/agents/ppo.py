@@ -252,15 +252,15 @@ class PPO(Agent):
             ), "batch size must be equal to number of steps * number of envs"
             permutation = jax.random.permutation(rng_1, n_samples)
             samples = (experience, advantages, targets, values)  # (T, N, ...)
-            samples = jax.tree_util.tree_map(
+            samples = jax.tree.map(
                 lambda x: x.reshape((n_samples,) + x.shape[2:]), samples
             )  # (T * N, ...)
-            shuffled_batch = jax.tree_util.tree_map(
+            shuffled_batch = jax.tree.map(
                 lambda x: jnp.take(x, permutation, axis=0), samples
             )  # (T * N, ...)
 
             # One epoch update over all mini-batches
-            minibatches = jax.tree_util.tree_map(
+            minibatches = jax.tree.map(
                 lambda x: jnp.reshape(
                     x, (self.hparams.num_minibatches, -1) + tuple(x.shape[1:])
                 ),

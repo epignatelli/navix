@@ -9,7 +9,7 @@ setuptools_scm
 pytest
 # compute libraries
 pillow
-numpy
+jax<0.7 # 0.7 breaks distrax
 flax
 rlax
 # experiments

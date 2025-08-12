@@ -66,7 +66,7 @@ class Entity(Positionable, HasTag, HasSprite):
     To create an entity, use the `create` method."""
 
     def __getitem__(self: T, idx) -> T:
-        return jax.tree_util.tree_map(lambda x: x[idx], self)
+        return jax.tree.map(lambda x: x[idx], self)
 
     @property
     def name(self) -> str:
