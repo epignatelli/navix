@@ -231,6 +231,9 @@ def rgb_first_person(state: State) -> Array:
     # view = jax.image.resize(view, image_size, method="nearest")
     # view = jnp.tile(view[..., None], (1, 1, 3))
 
+    # get the player
+    player = state.get_player()
+
     # get sprites aligned to player's direction
     sprites = state.get_sprites()
     sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), player.direction))(sprites)
@@ -245,7 +248,6 @@ def rgb_first_person(state: State) -> Array:
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
     # crop grid to agent's view
-    player = state.get_player()
     patchwork = crop(patchwork, player.position, player.direction, RADIUS)
 
     # reconstruct image
