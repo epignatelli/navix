@@ -26,7 +26,6 @@ from typing import Callable, Dict, List, Tuple
 import jax
 import jax.numpy as jnp
 from jax import Array
-import jax.tree_util as jtu
 from flax import struct
 
 

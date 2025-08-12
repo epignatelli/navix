@@ -24,7 +24,6 @@ from typing import Union
 import jax
 import jax.numpy as jnp
 from jax import Array
-import jax.tree_util as jtu
 
 from navix import observations, rewards, terminations
 
@@ -116,7 +115,7 @@ class KeyCorridor(Environment):
                     open=jnp.asarray(0),
                 )
             )
-        doors = jtu.tree_map(lambda *x: jnp.stack(x), *doors)
+        doors = jax.tree.map(lambda *x: jnp.stack(x), *doors)
 
         entities = {
             "player": player[None],

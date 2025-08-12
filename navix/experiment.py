@@ -171,10 +171,10 @@ class Experiment:
         # average over seeds
         for i in range(len_search_set):
             print("Logging results for hparam set:", search_set)
-            hparams = jax.tree_map(lambda x: x[i], search_set)
+            hparams = jax.tree.map(lambda x: x[i], search_set)
             config = {**vars(self), **asdict(hparams)}
             wandb.init(project=self.name, config=config, group=self.group)
-            log = jax.tree_map(lambda x: jnp.mean(x[i], axis=0), logs)
+            log = jax.tree.map(lambda x: jnp.mean(x[i], axis=0), logs)
             self.agent.log_on_train_end(log)
             wandb.finish()
         logging_time = time.time() - start_time
