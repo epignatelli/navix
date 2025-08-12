@@ -362,7 +362,7 @@ def horizontal_wall(
 
 
 def crop(
-    grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 0
+    grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 100
 ) -> Array:
     """Crops a grid around a given origin, facing a given direction, with a given radius.
 
