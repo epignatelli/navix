@@ -209,6 +209,28 @@ def align(patch: Array, current_direction: Array, desired_direction: Array) -> A
     )
 
 
+def rotate_tile(patch: Array, num_times_90: Array) -> Array:
+    """Rotates a patch of the grid by a given number of 90-degree rotations.
+
+    Args:
+        patch (Array): A patch of the grid.
+        num_times_90 (int): The number of 90-degree rotations to apply.
+
+    Returns:
+        Array: A patch of the grid rotated by the given number of 90-degree rotations.
+    """
+    return jax.lax.switch(
+        num_times_90,
+        (
+            lambda x: jnp.flip(jnp.swapaxes(x, 0, 1), axis=0),  # rot90
+            lambda x: jnp.flip(jnp.flip(x, axis=0), axis=1),  # rot180
+            lambda x: jnp.flip(jnp.swapaxes(x, 0, 1), axis=1),  # rot270
+            lambda x: x,  # rot0
+        ),
+        patch,
+    )
+
+
 def random_positions(
     key: Array, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
 ) -> Array:
@@ -391,16 +413,8 @@ def crop(
     cropped = translated[: 2 * diameter + 1, : 2 * diameter + 1]
 
     # rotate such that the agent is facing north
-    rotated = jax.lax.switch(
-        direction,
-        (
-            lambda x: jnp.rot90(x, 1),  # 0 = transpose, 1 = flip
-            lambda x: jnp.rot90(x, 2),  # 0 = flip, 1 = flip
-            lambda x: jnp.rot90(x, 3),  # 0 = flip, 1 = transpose
-            lambda x: x,
-        ),
-        cropped,
-    )
+    rotated = rotate_tile(cropped, direction)
+
     # if radius is 6
     cropped = rotated.at[: diameter + 1, radius : diameter * 2 - radius + 1].get(
         fill_value=padding_value
