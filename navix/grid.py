@@ -410,7 +410,7 @@ def crop(
         cropped,
     )
 
-    cropped = rotated.at[: radius + 1, radius // 2 : radius + 1].get(
+    cropped = rotated.at[: radius + 1, radius // 2 : radius * 2 + 1].get(
         fill_value=padding_value
     )
     return jnp.asarray(cropped, dtype=grid.dtype)
