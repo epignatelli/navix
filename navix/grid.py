@@ -377,11 +377,9 @@ def crop(
         Array: A cropped grid."""
     diameter = radius * 2
 
-    input_shape = grid.shape
-
     # pad with radius
     padding = [(diameter, diameter), (diameter, diameter)]
-    for _ in range(len(input_shape) - 2):
+    for _ in range(len(grid.shape) - 2):
         padding.append((0, 0))
 
     padded = jnp.pad(grid, padding, constant_values=padding_value)
