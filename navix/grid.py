@@ -419,13 +419,21 @@ def crop(
     cropped = rotated.at[: diameter + 1, radius : diameter * 2 - radius + 1].get(
         fill_value=padding_value
     )
-    # apply minigrid opacity 0.7
-    opacity = 0.7
-    opacitised = jax.numpy.asarray(
-        255 - opacity * (255 - cropped), dtype=jax.numpy.uint8
-    )
-    return jnp.asarray(opacitised, dtype=grid.dtype)
-    # return jnp.asarray(cropped, dtype=grid.dtype)
+    return jnp.asarray(cropped, dtype=grid.dtype)
+
+
+def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> Array:
+    """Applies minigrid opacity to the given image, used in
+    `minigrid.wrappers.RGBImgPartialObsWrapper`. The default MiniGrid opacity is 0.7.
+
+    Args:
+        image (Array): The input image to which opacity is applied.
+        opacity (Array, optional): The opacity value to apply. Defaults to 0.7.
+
+    Returns:
+        Array: The input image with applied opacity.
+    """
+    return jax.numpy.asarray(255 - opacity * (255 - image), dtype=jax.numpy.uint8)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:

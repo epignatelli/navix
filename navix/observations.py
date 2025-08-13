@@ -27,7 +27,7 @@ from jax import Array
 from .rendering.cache import TILE_SIZE, unflatten_patches
 from .components import DISCARD_PILE_IDX, Directional, HasColour, Openable
 from .states import State
-from .grid import align, idx_from_coordinates, crop, view_cone
+from .grid import apply_minigrid_opacity, idx_from_coordinates, crop, view_cone
 from .entities import EntityIds
 
 
@@ -217,27 +217,13 @@ def rgb_first_person(state: State) -> Array:
         Array: An RGB image of the agent's view, represented as an array of shape \
         `u8[(2 * RADIUS + 1) * S, (2 * RADIUS + 1) * S, 3]`, where 
         `S` is the size of the tile."""
-    # calculate final image size
-    # get agent's view
-    # image_size = (
-    #     state.grid.shape[0] * TILE_SIZE,
-    #     state.grid.shape[1] * TILE_SIZE,
-    # )
-    # transparency_map = jnp.where(state.grid == 0, 1, 0)
-    # positions = state.get_positions()
-    # transparent = state.get_transparency()
-    # transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-    # view = view_cone(transparency_map, player.position, RADIUS)
-    # view = jax.image.resize(view, image_size, method="nearest")
-    # view = jnp.tile(view[..., None], (1, 1, 3))
-
     # get the player
     player = state.get_player()
 
     # get sprites aligned to player's direction
     sprites = state.get_sprites()
     # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
-    
+
     # align sprites to player's direction
     indices = idx_from_coordinates(state.grid, state.get_positions())
     patches = state.cache.patches.at[indices].set(sprites)
@@ -247,9 +233,26 @@ def rgb_first_person(state: State) -> Array:
     # rearrange the sprites in a grid
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
 
-
     # crop grid to agent's view
     patchwork = crop(patchwork, player.position, player.direction, RADIUS)
+
+    # apply view cone
+    obstructed_color = 0
+    image_size = (
+        state.grid.shape[0] * TILE_SIZE,
+        state.grid.shape[1] * TILE_SIZE,
+    )
+    transparency_map = jnp.where(state.grid == 0, 1, 0)
+    positions = state.get_positions()
+    transparent = state.get_transparency()
+    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+    view = view_cone(transparency_map, player.position, RADIUS)
+    view = jax.image.resize(view, image_size, method="nearest")
+    view = jnp.tile(view[..., None], (1, 1, 3))
+    view = jnp.where(view == 0, obstructed_color, view)
+
+    # apply minigrid opacity
+    patchwork = apply_minigrid_opacity(patchwork)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)
