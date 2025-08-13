@@ -235,23 +235,9 @@ def rgb_first_person(state: State) -> Array:
     player = state.get_player()
 
     # get sprites aligned to player's direction
-    # rotate all entities based on player direction
     sprites = state.get_sprites()
-
-    def rot90(z):
-        return jnp.flip(jnp.swapaxes(z, 0, 1), axis=0)
-
-    def rot180(z):
-        return jnp.flip(jnp.flip(z, axis=0), axis=1)
-
-    def rot270(z):
-        return jnp.flip(jnp.swapaxes(z, 0, 1), axis=1)
-
-    def rot0(z):
-        return z
-
-    sprites = jax.lax.switch(player.direction, (rot0, rot90, rot180, rot270), sprites)
-
+    # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
+    
     # align sprites to player's direction
     indices = idx_from_coordinates(state.grid, state.get_positions())
     patches = state.cache.patches.at[indices].set(sprites)
@@ -260,6 +246,7 @@ def rgb_first_person(state: State) -> Array:
     patches = patches[:DISCARD_PILE_IDX]
     # rearrange the sprites in a grid
     patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
+
 
     # crop grid to agent's view
     patchwork = crop(patchwork, player.position, player.direction, RADIUS)
