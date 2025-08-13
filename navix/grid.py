@@ -375,12 +375,12 @@ def crop(
 
     Returns:
         Array: A cropped grid."""
-    assert radius % 2, "Radius must be an odd number"
+    diameter = radius * 2
 
     input_shape = grid.shape
 
     # pad with radius
-    padding = [(radius, radius), (radius, radius)]
+    padding = [(diameter, diameter), (diameter, diameter)]
     for _ in range(len(input_shape) - 2):
         padding.append((0, 0))
 
@@ -390,7 +390,7 @@ def crop(
     translated = jnp.roll(padded, -jnp.asarray(origin), axis=(0, 1))
 
     # crop such that the agent is in the centre of the grid
-    cropped = translated[: 2 * radius + 1, : 2 * radius + 1]
+    cropped = translated[: 2 * diameter + 1, : 2 * diameter + 1]
 
     # rotate such that the agent is facing north
     rotated = jax.lax.switch(
@@ -404,13 +404,13 @@ def crop(
         cropped,
     )
     # if radius is 6
-    cropped = rotated.at[: radius + 1, radius // 2 : radius * 2 - radius // 2 + 1].get(
+    cropped = rotated.at[: diameter + 1, radius : diameter * 2 - radius + 1].get(
         fill_value=padding_value
     )
     # apply minigrid opacity 0.7
     opacity = 0.7
     opacitised = jax.numpy.asarray(
-    255 - opacity * (255 - cropped), dtype=jax.numpy.uint8
+        255 - opacity * (255 - cropped), dtype=jax.numpy.uint8
     )
     return jnp.asarray(opacitised, dtype=grid.dtype)
     # return jnp.asarray(cropped, dtype=grid.dtype)

@@ -31,7 +31,7 @@ from .grid import align, idx_from_coordinates, crop, view_cone
 from .entities import EntityIds
 
 
-RADIUS = 6
+RADIUS = 3
 
 
 def none(state: State) -> Array:
