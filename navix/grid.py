@@ -413,7 +413,12 @@ def crop(
     cropped = rotated.at[: radius + 1, radius // 2 : radius * 2 - radius // 2 + 1].get(
         fill_value=padding_value
     )
-    return jnp.asarray(cropped, dtype=grid.dtype)
+    # apply minigrid opacity 0.7
+    opacity = 0.7
+    opacitised = jax.numpy.asarray(
+        255 - opacity * (255 - cropped[:, :, :3]), dtype=jax.numpy.uint8
+    )
+    return jnp.asarray(opacitised, dtype=grid.dtype)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
