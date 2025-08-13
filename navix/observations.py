@@ -250,6 +250,7 @@ def rgb_first_person(state: State) -> Array:
     view = jax.image.resize(view, image_size, method="nearest")
     view = jnp.tile(view[..., None], (1, 1, 3))
     view = jnp.where(view == 0, obstructed_color, view)
+    patchwork = jnp.where(view, patchwork, obstructed_color)
 
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
