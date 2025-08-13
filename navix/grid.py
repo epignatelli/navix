@@ -375,15 +375,9 @@ def crop(
 
     Returns:
         Array: A cropped grid."""
-    input_shape = grid.shape
-    # assert radius % 2, "Radius must be an odd number"
-    # mid = jnp.asarray([g // 2 for g in grid.shape[:2]])
-    # translated = jnp.roll(grid, mid - origin, axis=(0, 1))
+    assert radius % 2, "Radius must be an odd number"
 
-    # # crop such that the agent is in the centre of the grid
-    # cropped = translated.at[: 2 * radius + 1, : 2 * radius + 1].get(
-    #     fill_value=padding_value
-    # )
+    input_shape = grid.shape
 
     # pad with radius
     padding = [(radius, radius), (radius, radius)]
@@ -414,12 +408,12 @@ def crop(
         fill_value=padding_value
     )
     # apply minigrid opacity 0.7
-    # opacity = 0.7
-    # opacitised = jax.numpy.asarray(
-        # 255 - opacity * (255 - cropped[:, :, :3]), dtype=jax.numpy.uint8
-    # )
-    # return jnp.asarray(opacitised, dtype=grid.dtype)
-    return jnp.asarray(cropped, dtype=grid.dtype)
+    opacity = 0.7
+    opacitised = jax.numpy.asarray(
+    255 - opacity * (255 - cropped), dtype=jax.numpy.uint8
+    )
+    return jnp.asarray(opacitised, dtype=grid.dtype)
+    # return jnp.asarray(cropped, dtype=grid.dtype)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
