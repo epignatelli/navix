@@ -466,15 +466,16 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
 
     Returns:
         Array: The view cone of the given origin in the grid with the given radius."""
-    # transparency_map is a boolean map of transparent (1) and opaque (0) tiles
 
     def fin_diff(array, _):
         array = jnp.roll(array, -1, axis=0) + array + jnp.roll(array, +1, axis=0)
         array = jnp.roll(array, -1, axis=1) + array + jnp.roll(array, +1, axis=1)
         return array * transparency_map, ()
 
+    # initialise the field to all zeros, except at the source (agent's position)
     mask = jnp.zeros_like(transparency_map).at[tuple(origin)].set(1)
 
+    # start the diffusion process using finite differences
     # if radius is small, it should be fast enough to compile
     MIN_SCAN_RADIUS = 10
     if radius <= MIN_SCAN_RADIUS:
@@ -484,15 +485,32 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
     else:
         view = jax.lax.scan(fin_diff, mask, None, radius)[0]
 
+    # view has anything that is visible > 0
     # we now set a hard threshold > 0, but we can also think in the future
     # to use a cutoff at a different value to mimic the effect of a torch
-    # (or eyesight for what matters)
-    view = jnp.where(view > 0, 1, 0)
+    vis_free = view > 0
 
-    # we add back the opaque tiles
-    view = jnp.where(transparency_map == 0, 1, view)
+    # add frontier obstacles
+    # frontier obstacles = opaque cells neighbouring any visible-free cell (8-neighbourhood)
+    opaque = transparency_map == 0
+    nb = (
+        vis_free
+        | jnp.roll(vis_free, +1, 0)
+        | jnp.roll(vis_free, -1, 0)
+        | jnp.roll(vis_free, +1, 1)
+        | jnp.roll(vis_free, -1, 1)
+        | jnp.roll(jnp.roll(vis_free, +1, 0), +1, 1)
+        | jnp.roll(jnp.roll(vis_free, +1, 0), -1, 1)
+        | jnp.roll(jnp.roll(vis_free, -1, 0), +1, 1)
+        | jnp.roll(jnp.roll(vis_free, -1, 0), -1, 1)
+    )
+    frontier = nb & opaque
 
-    return view
+    # final visible = transparent region plus blocking frontier
+    visible = vis_free | frontier
+    visible = visible.at[tuple(origin)].set(True)
+
+    return visible.astype(transparency_map.dtype)
 
 
 def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:

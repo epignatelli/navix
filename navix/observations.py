@@ -253,22 +253,23 @@ def rgb_first_person(state: State) -> Array:
         *state.grid.shape, *patches.shape[1:]
     )  # (H, W, TILE_SIZE, TILE_SIZE, 3)
 
+    # apply minigrid opacity
+    patchwork = apply_minigrid_opacity(patchwork)
+
     # apply fov
+    dark_cell_colour = 0  # dark color for unseen tiles
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+    transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
     view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
     view = jnp.asarray(view, dtype=jnp.bool)
-    patchwork = patchwork * view[..., None, None, None]
+    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 
     # crop grid to agent's view
     patchwork = crop(
-        patchwork, player.position, player.direction, RADIUS
+        patchwork, player.position, player.direction, RADIUS, dark_cell_colour
     )  # (RADIUS * 2 + 1, RADIUS * 2 + 1, TILE_SIZE, TILE_SIZE, 3)
-
-    # apply minigrid opacity
-    patchwork = apply_minigrid_opacity(patchwork)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)
