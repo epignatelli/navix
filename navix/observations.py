@@ -254,13 +254,10 @@ def rgb_first_person(state: State) -> Array:
 
     # apply fov
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
-    print(transparency_map)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-    print(transparency_map)
     view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
-    print(view)
     view = jnp.asarray(view, dtype=jnp.bool)
     patchwork = patchwork * view[..., None, None, None]
 
