@@ -98,6 +98,12 @@ class Entity(Positionable, HasTag, HasSprite):
         """The transparent attribute of the entity. The transparent attribute is a boolean array that indicates if the entity is transparent to rendering."""
         raise NotImplementedError()
 
+    @property
+    def symbolic_state(self) -> Array:
+        """The symbolic state representation of the entity. The symbolic state is as the
+        last channel in the symbolic_observation function."""
+        raise NotImplementedError()
+
 
 class Wall(Entity, HasColour):
     """Walls are entities that cannot be walked through"""
@@ -127,6 +133,10 @@ class Wall(Entity, HasColour):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.WALL, self.shape)
+
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)
 
 
 class Player(Entity, Directional, Holder):
@@ -161,6 +171,10 @@ class Player(Entity, Directional, Holder):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.PLAYER, self.shape)
+
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(self.direction, self.shape)
 
 
 class Goal(Entity, HasColour, Stochastic):
@@ -199,6 +213,10 @@ class Goal(Entity, HasColour, Stochastic):
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.GOAL, self.shape)
 
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)
+
 
 class Key(Entity, Pickable, HasColour):
     """Pickable items are world objects that can be picked up by the player.
@@ -236,6 +254,10 @@ class Key(Entity, Pickable, HasColour):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.KEY, self.shape)
+
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)
 
 
 class Door(Entity, Openable, HasColour):
@@ -292,6 +314,23 @@ class Door(Entity, Openable, HasColour):
     def locked(self) -> Array:
         return self.requires != jnp.asarray(-1)
 
+    @property
+    def symbolic_state(self) -> Array:
+        """
+        Returns an integer array encoding the symbolic state of the door:
+
+        - 0: Door is open
+        - 1: Door is closed but not locked
+        - 2: Door is closed and locked (requires a key or tool)
+
+        Examples:
+            - If open = 1 and locked = 0: symbolic_state = 0 (open)
+            - If open = 0 and locked = 0: symbolic_state = 1 (closed, not locked)
+            - If open = 0 and locked = 1: symbolic_state = 2 (closed and locked)
+        """
+        closed = 1 - self.open
+        return closed + closed * self.locked
+
 
 class Lava(Entity):
     """Goals are entities that can be reached by the player"""
@@ -325,6 +364,10 @@ class Lava(Entity):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.LAVA, self.shape)
+
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)
 
 
 class Ball(Entity, HasColour, Stochastic):
@@ -362,6 +405,10 @@ class Ball(Entity, HasColour, Stochastic):
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.BALL, self.shape)
 
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)
+
 
 class Box(Entity, HasColour, Holder):
     """Goals are entities that can be reached by the player"""
@@ -397,3 +444,7 @@ class Box(Entity, HasColour, Holder):
     @property
     def tag(self) -> Array:
         return jnp.broadcast_to(EntityIds.BOX, self.shape)
+
+    @property
+    def symbolic_state(self) -> Array:
+        return jnp.broadcast_to(0, self.shape)

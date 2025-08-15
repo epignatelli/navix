@@ -134,19 +134,17 @@ def symbolic(state: State) -> Array:
     # place entities
     for entity_class in state.entities:
         entity = state.entities[entity_class]
+        # 1. tag layer
         tag = entity.tag
-        # colour layer
+        # 2. colour layer
         if isinstance(entity, HasColour):
             colour = entity.colour
         else:
             colour = jnp.zeros(entity.shape)
-        # state layer
-        if isinstance(entity, Openable):
-            entity_state = entity.open + (entity.requires != jnp.zeros(entity.shape))
-        elif isinstance(entity, Directional):
-            entity_state = entity.direction
-        else:
-            entity_state = jnp.zeros(entity.shape)
+        # 3. state layer
+        entity_state = entity.symbolic_state
+
+        # collate
         entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1, dtype=jnp.uint8)
         obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
     return obs
