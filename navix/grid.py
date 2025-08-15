@@ -446,7 +446,7 @@ def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
     Returns:
         Array: The tile with drawn grid lines.
     """
-    # Draw lines (top and left edges) at 3.1% of the tile size as per 
+    # Draw lines (top and left edges) at 3.1% of the tile size as per
     # minigrid.core.Grid.render_tile
     line_thickness = jnp.ceil(TILE_SIZE * 0.031)
     tile = tile.at[:line_thickness, :].set(luminosity)
@@ -475,10 +475,17 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
 
     mask = jnp.zeros_like(transparency_map).at[tuple(origin)].set(1)
 
-    view = jax.lax.scan(fin_diff, mask, None, radius)[0]
+    # if radius is small, it should be fast enough to compile
+    MIN_SCAN_RADIUS = 10
+    if radius <= MIN_SCAN_RADIUS:
+        view = mask
+        for _ in range(radius):
+            view = fin_diff(view, None)[0]
+    else:
+        view = jax.lax.scan(fin_diff, mask, None, radius)[0]
 
     # we now set a hard threshold > 0, but we can also think in the future
-    # to use a cutoof at a different value to mimic the effect of a torch
+    # to use a cutoff at a different value to mimic the effect of a torch
     # (or eyesight for what matters)
     view = jnp.where(view > 0, 1, 0)
 
