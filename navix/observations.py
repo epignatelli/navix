@@ -27,7 +27,14 @@ from jax import Array
 from .rendering.cache import TILE_SIZE, unflatten_patches
 from .components import DISCARD_PILE_IDX, Directional, HasColour, Openable
 from .states import State
-from .grid import apply_minigrid_opacity, idx_from_coordinates, crop, view_cone
+from .grid import (
+    apply_minigrid_opacity,
+    align,
+    draw_grid_lines,
+    idx_from_coordinates,
+    crop,
+    view_cone,
+)
 from .entities import EntityIds
 
 
@@ -221,8 +228,12 @@ def rgb_first_person(state: State) -> Array:
     player = state.get_player()
 
     # get sprites aligned to player's direction
-    sprites = state.get_sprites()
+    sprites = state.get_sprites_first_person()  # (n_sprites, TILE_SIZE, TILE_SIZE, 3)
+    print(sprites.shape)
     # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
+
+    # draw grid lines on tiles
+    # sprites = jax.vmap(lambda x: draw_grid_lines(x))(sprites)
 
     # align sprites to player's direction
     indices = idx_from_coordinates(state.grid, state.get_positions())

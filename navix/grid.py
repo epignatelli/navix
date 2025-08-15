@@ -27,6 +27,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
+from navix.rendering.registry import TILE_SIZE
 
 
 Coordinates = Tuple[Array, Array]
@@ -434,6 +435,23 @@ def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> A
         Array: The input image with applied opacity.
     """
     return jax.numpy.asarray(255 - opacity * (255 - image), dtype=jax.numpy.uint8)
+
+
+def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
+    """Draws grid lines on the given tile.
+
+    Args:
+        tile (Array): The input tile to which grid lines are drawn.
+
+    Returns:
+        Array: The tile with drawn grid lines.
+    """
+    # Draw lines (top and left edges) at 3.1% of the tile size as per 
+    # minigrid.core.Grid.render_tile
+    line_thickness = jnp.ceil(TILE_SIZE * 0.031)
+    tile = tile.at[:line_thickness, :].set(luminosity)
+    tile = tile.at[:, :line_thickness].set(luminosity)
+    return tile
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
