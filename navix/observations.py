@@ -171,6 +171,7 @@ def symbolic_first_person(state: State) -> Array:
     obs = obs.at[tuple(player.position.T)].set(
         jnp.asarray([EntityIds.FLOOR, 0, 0], dtype=jnp.uint8)
     )
+    print(obs.shape)
 
     # crop to first person view
     obs = crop(
