@@ -1,3 +1,5 @@
+import pytest
+
 import jax
 import jax.numpy as jnp
 
@@ -129,6 +131,22 @@ def test_categorical_first_person():
 
     obs = nx.observations.categorical_first_person(state)
     print(obs)
+
+
+def test_rgb_first_person():
+    import gymnasium as gym
+    import minigrid
+
+    navix_env_id = "Navix-Empty-8x8-v0"
+    gym_env_id = navix_env_id.replace("Navix", "MiniGrid")
+
+    env = nx.make(navix_env_id, observation_fn=nx.observations.rgb_first_person)
+    timestep = env.reset(jax.random.PRNGKey(0))
+
+    env = gym.make(gym_env_id)
+    env = minigrid.wrappers.RGBImgPartialObsWrapper(env)
+    obs, _ = env.reset()
+    obs = obs["image"]
 
 
 if __name__ == "__main__":

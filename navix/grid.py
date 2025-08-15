@@ -27,6 +27,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 from flax import struct
+from navix.rendering.registry import TILE_SIZE
 
 
 Coordinates = Tuple[Array, Array]
@@ -209,6 +210,28 @@ def align(patch: Array, current_direction: Array, desired_direction: Array) -> A
     )
 
 
+def rotate_tile(patch: Array, num_times_90: Array) -> Array:
+    """Rotates a patch of the grid by a given number of 90-degree rotations.
+
+    Args:
+        patch (Array): A patch of the grid.
+        num_times_90 (int): The number of 90-degree rotations to apply.
+
+    Returns:
+        Array: A patch of the grid rotated by the given number of 90-degree rotations.
+    """
+    return jax.lax.switch(
+        num_times_90,
+        (
+            lambda x: jnp.flip(jnp.swapaxes(x, 0, 1), axis=0),  # rot90
+            lambda x: jnp.flip(jnp.flip(x, axis=0), axis=1),  # rot180
+            lambda x: jnp.flip(jnp.swapaxes(x, 0, 1), axis=1),  # rot270
+            lambda x: x,  # rot0
+        ),
+        patch,
+    )
+
+
 def random_positions(
     key: Array, grid: Array, n: int = 1, exclude: Array = jnp.asarray((-1, -1))
 ) -> Array:
@@ -362,7 +385,7 @@ def horizontal_wall(
 
 
 def crop(
-    grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 0
+    grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 100
 ) -> Array:
     """Crops a grid around a given origin, facing a given direction, with a given radius.
 
@@ -375,19 +398,11 @@ def crop(
 
     Returns:
         Array: A cropped grid."""
-    input_shape = grid.shape
-    # assert radius % 2, "Radius must be an odd number"
-    # mid = jnp.asarray([g // 2 for g in grid.shape[:2]])
-    # translated = jnp.roll(grid, mid - origin, axis=(0, 1))
-
-    # # crop such that the agent is in the centre of the grid
-    # cropped = translated.at[: 2 * radius + 1, : 2 * radius + 1].get(
-    #     fill_value=padding_value
-    # )
+    diameter = radius * 2
 
     # pad with radius
-    padding = [(radius, radius), (radius, radius)]
-    for _ in range(len(input_shape) - 2):
+    padding = [(diameter, diameter), (diameter, diameter)]
+    for _ in range(len(grid.shape) - 2):
         padding.append((0, 0))
 
     padded = jnp.pad(grid, padding, constant_values=padding_value)
@@ -396,22 +411,47 @@ def crop(
     translated = jnp.roll(padded, -jnp.asarray(origin), axis=(0, 1))
 
     # crop such that the agent is in the centre of the grid
-    cropped = translated[: 2 * radius + 1, : 2 * radius + 1]
+    cropped = translated[: 2 * diameter + 1, : 2 * diameter + 1]
 
     # rotate such that the agent is facing north
-    rotated = jax.lax.switch(
-        direction,
-        (
-            lambda x: jnp.rot90(x, 1),  # 0 = transpose, 1 = flip
-            lambda x: jnp.rot90(x, 2),  # 0 = flip, 1 = flip
-            lambda x: jnp.rot90(x, 3),  # 0 = flip, 1 = transpose
-            lambda x: x,
-        ),
-        cropped,
-    )
+    rotated = rotate_tile(cropped, direction)
 
-    cropped = rotated.at[: radius + 1].get(fill_value=padding_value)
+    # if radius is 6
+    cropped = rotated.at[: diameter + 1, radius : diameter * 2 - radius + 1].get(
+        fill_value=padding_value
+    )
     return jnp.asarray(cropped, dtype=grid.dtype)
+
+
+def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> Array:
+    """Applies minigrid opacity to the given image, used in
+    `minigrid.wrappers.RGBImgPartialObsWrapper`. The default MiniGrid opacity is 0.7.
+
+    Args:
+        image (Array): The input image to which opacity is applied.
+        opacity (Array, optional): The opacity value to apply. Defaults to 0.7.
+
+    Returns:
+        Array: The input image with applied opacity.
+    """
+    return jax.numpy.asarray(255 - opacity * (255 - image), dtype=jax.numpy.uint8)
+
+
+def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
+    """Draws grid lines on the given tile.
+
+    Args:
+        tile (Array): The input tile to which grid lines are drawn.
+
+    Returns:
+        Array: The tile with drawn grid lines.
+    """
+    # Draw lines (top and left edges) at 3.1% of the tile size as per
+    # minigrid.core.Grid.render_tile
+    line_thickness = jnp.ceil(TILE_SIZE * 0.031)
+    tile = tile.at[:line_thickness, :].set(luminosity)
+    tile = tile.at[:, :line_thickness].set(luminosity)
+    return tile
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
@@ -426,26 +466,51 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
 
     Returns:
         Array: The view cone of the given origin in the grid with the given radius."""
-    # transparency_map is a boolean map of transparent (1) and opaque (0) tiles
 
     def fin_diff(array, _):
         array = jnp.roll(array, -1, axis=0) + array + jnp.roll(array, +1, axis=0)
         array = jnp.roll(array, -1, axis=1) + array + jnp.roll(array, +1, axis=1)
         return array * transparency_map, ()
 
+    # initialise the field to all zeros, except at the source (agent's position)
     mask = jnp.zeros_like(transparency_map).at[tuple(origin)].set(1)
 
-    view = jax.lax.scan(fin_diff, mask, None, radius)[0]
+    # start the diffusion process using finite differences
+    # if radius is small, it should be fast enough to compile
+    MIN_SCAN_RADIUS = 10
+    if radius <= MIN_SCAN_RADIUS:
+        view = mask
+        for _ in range(radius):
+            view = fin_diff(view, None)[0]
+    else:
+        view = jax.lax.scan(fin_diff, mask, None, radius)[0]
 
+    # view has anything that is visible > 0
     # we now set a hard threshold > 0, but we can also think in the future
-    # to use a cutoof at a different value to mimic the effect of a torch
-    # (or eyesight for what matters)
-    view = jnp.where(view > 0, 1, 0)
+    # to use a cutoff at a different value to mimic the effect of a torch
+    vis_free = view > 0
 
-    # we add back the opaque tiles
-    view = jnp.where(transparency_map == 0, 1, view)
+    # add frontier obstacles
+    # frontier obstacles = opaque cells neighbouring any visible-free cell (8-neighbourhood)
+    opaque = transparency_map == 0
+    nb = (
+        vis_free
+        | jnp.roll(vis_free, +1, 0)
+        | jnp.roll(vis_free, -1, 0)
+        | jnp.roll(vis_free, +1, 1)
+        | jnp.roll(vis_free, -1, 1)
+        | jnp.roll(jnp.roll(vis_free, +1, 0), +1, 1)
+        | jnp.roll(jnp.roll(vis_free, +1, 0), -1, 1)
+        | jnp.roll(jnp.roll(vis_free, -1, 0), +1, 1)
+        | jnp.roll(jnp.roll(vis_free, -1, 0), -1, 1)
+    )
+    frontier = nb & opaque
 
-    return view
+    # final visible = transparent region plus blocking frontier
+    visible = vis_free | frontier
+    visible = visible.at[tuple(origin)].set(True)
+
+    return visible.astype(transparency_map.dtype)
 
 
 def from_ascii_map(ascii_map: str, mapping: Dict[str, int] = {}) -> Array:

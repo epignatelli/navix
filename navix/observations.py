@@ -27,11 +27,23 @@ from jax import Array
 from .rendering.cache import TILE_SIZE, unflatten_patches
 from .components import DISCARD_PILE_IDX, Directional, HasColour, Openable
 from .states import State
-from .grid import align, idx_from_coordinates, crop, view_cone
+from .grid import (
+    apply_minigrid_opacity,
+    align,
+    draw_grid_lines,
+    idx_from_coordinates,
+    crop,
+    view_cone,
+)
 from .entities import EntityIds
 
 
 RADIUS = 3
+
+
+def set_radius(radius: int):
+    global RADIUS
+    RADIUS = radius
 
 
 def none(state: State) -> Array:
@@ -217,36 +229,46 @@ def rgb_first_person(state: State) -> Array:
         Array: An RGB image of the agent's view, represented as an array of shape \
         `u8[(2 * RADIUS + 1) * S, (2 * RADIUS + 1) * S, 3]`, where 
         `S` is the size of the tile."""
-    # calculate final image size
-    # get agent's view
-    # image_size = (
-    #     state.grid.shape[0] * TILE_SIZE,
-    #     state.grid.shape[1] * TILE_SIZE,
-    # )
-    # transparency_map = jnp.where(state.grid == 0, 1, 0)
-    # positions = state.get_positions()
-    # transparent = state.get_transparency()
-    # transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-    # view = view_cone(transparency_map, player.position, RADIUS)
-    # view = jax.image.resize(view, image_size, method="nearest")
-    # view = jnp.tile(view[..., None], (1, 1, 3))
+    # get the player
+    player = state.get_player()
 
     # get sprites aligned to player's direction
-    sprites = state.get_sprites()
-    sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), player.direction))(sprites)
+    sprites = state.get_sprites_first_person()  # (n_sprites, TILE_SIZE, TILE_SIZE, 3)
+    # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
 
-    # align sprites to player's direction
+    # draw grid lines on tiles
+    # sprites = jax.vmap(lambda x: draw_grid_lines(x))(sprites)
+
+    # update current patchwork
     indices = idx_from_coordinates(state.grid, state.get_positions())
-    patches = state.cache.patches.at[indices].set(sprites)
+    patches = state.cache.patches.at[indices].set(
+        sprites
+    )  # ( H * W + 1, TILE_SIZE, TILE_SIZE, 3)
 
     # remove discard pile
-    patches = patches[:DISCARD_PILE_IDX]
+    patches = patches[:DISCARD_PILE_IDX]  # ( H * W, TILE_SIZE, TILE_SIZE, 3)
     # rearrange the sprites in a grid
-    patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
+    patchwork = patches.reshape(
+        *state.grid.shape, *patches.shape[1:]
+    )  # (H, W, TILE_SIZE, TILE_SIZE, 3)
+
+    # apply minigrid opacity
+    patchwork = apply_minigrid_opacity(patchwork)
+
+    # apply fov
+    dark_cell_colour = 0  # dark color for unseen tiles
+    transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
+    positions = state.get_positions()
+    transparent = state.get_transparency()
+    transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
+    view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
+    view = jnp.asarray(view, dtype=jnp.bool)
+    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 
     # crop grid to agent's view
-    player = state.get_player()
-    patchwork = crop(patchwork, player.position, player.direction, RADIUS)
+    patchwork = crop(
+        patchwork, player.position, player.direction, RADIUS, dark_cell_colour
+    )  # (RADIUS * 2 + 1, RADIUS * 2 + 1, TILE_SIZE, TILE_SIZE, 3)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)

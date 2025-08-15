@@ -30,7 +30,7 @@ from .components import (
     HasColour,
 )
 from .rendering.cache import RenderingCache
-from .rendering.registry import PALETTE
+from .rendering.registry import PALETTE, SPRITES_REGISTRY
 from .entities import Entity, Entities, Goal, Wall, Ball, Lava, Key, Door, Box, Player
 
 
@@ -446,6 +446,17 @@ class State(struct.PyTreeNode):
     def get_sprites(self) -> Array:
         """Get the sprites of all the entities in the state."""
         return jnp.concatenate([self.entities[k].sprite for k in self.entities])
+
+    def get_sprites_first_person(self) -> Array:
+        """Returns the sprites with the agent aligned in the north position"""
+        player_sprite = SPRITES_REGISTRY[Entities.PLAYER][-1][None]  # -1 is north
+        sprites = []
+        for k, v in self.entities.items():
+            if k is not Entities.PLAYER:
+                sprites.append(v.sprite)
+            else:
+                sprites.append(player_sprite)
+        return jnp.concatenate(sprites)
 
     def get_transparency(self) -> Array:
         """Get the transparency of all the entities in the state."""

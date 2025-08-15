@@ -228,7 +228,7 @@ class Environment(struct.PyTreeNode):
             return Discrete.create(n_elements=9, shape=(height, width))
         elif observation_fn == observations.categorical_first_person:
             radius = observations.RADIUS
-            return Discrete.create(n_elements=9, shape=(radius + 1, radius * 2 + 1))
+            return Discrete.create(n_elements=9, shape=(radius * 2 + 1, radius * 2 + 1))
         elif observation_fn == observations.rgb:
             return Discrete.create(
                 256,
@@ -239,7 +239,7 @@ class Environment(struct.PyTreeNode):
             radius = observations.RADIUS
             return Discrete.create(
                 n_elements=256,
-                shape=(radius * TILE_SIZE + 1, radius * TILE_SIZE * 2 + 1, 3),
+                shape=((radius * 2 + 1) * TILE_SIZE, (radius * 2 + 1) * TILE_SIZE, 3),
                 dtype=jnp.uint8,
             )
         elif observation_fn == observations.symbolic:
@@ -252,7 +252,7 @@ class Environment(struct.PyTreeNode):
             radius = observations.RADIUS
             return Discrete.create(
                 n_elements=256,
-                shape=(radius + 1, radius * 2 + 1, 3),
+                shape=(radius * 2 + 1, radius * 2 + 1, 3),
                 dtype=jnp.uint8,
             )
         else:
