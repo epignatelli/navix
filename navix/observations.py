@@ -234,39 +234,40 @@ def rgb_first_person(state: State) -> Array:
 
     # get sprites aligned to player's direction
     sprites = state.get_sprites_first_person()  # (n_sprites, TILE_SIZE, TILE_SIZE, 3)
-    print(sprites.shape)
     # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
 
     # draw grid lines on tiles
     # sprites = jax.vmap(lambda x: draw_grid_lines(x))(sprites)
 
-    # align sprites to player's direction
+    # update current patchwork
     indices = idx_from_coordinates(state.grid, state.get_positions())
-    patches = state.cache.patches.at[indices].set(sprites)
+    patches = state.cache.patches.at[indices].set(
+        sprites
+    )  # ( H * W + 1, TILE_SIZE, TILE_SIZE, 3)
 
     # remove discard pile
-    patches = patches[:DISCARD_PILE_IDX]
+    patches = patches[:DISCARD_PILE_IDX]  # ( H * W, TILE_SIZE, TILE_SIZE, 3)
     # rearrange the sprites in a grid
-    patchwork = patches.reshape(*state.grid.shape, *patches.shape[1:])
+    patchwork = patches.reshape(
+        *state.grid.shape, *patches.shape[1:]
+    )  # (H, W, TILE_SIZE, TILE_SIZE, 3)
 
-    # crop grid to agent's view
-    patchwork = crop(patchwork, player.position, player.direction, RADIUS)
-
-    # apply view cone
-    obstructed_color = 0
-    image_size = (
-        state.grid.shape[0] * TILE_SIZE,
-        state.grid.shape[1] * TILE_SIZE,
-    )
-    transparency_map = jnp.where(state.grid == 0, 1, 0)
+    # apply fov
+    transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
+    print(transparency_map)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
-    view = view_cone(transparency_map, player.position, RADIUS)
-    view = jax.image.resize(view, image_size, method="nearest")
-    view = jnp.tile(view[..., None], (1, 1, 3))
-    view = jnp.where(view == 0, obstructed_color, view)
-    patchwork = jnp.where(view, patchwork, obstructed_color)
+    print(transparency_map)
+    view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
+    print(view)
+    view = jnp.asarray(view, dtype=jnp.bool)
+    patchwork = patchwork * view[..., None, None, None]
+
+    # crop grid to agent's view
+    patchwork = crop(
+        patchwork, player.position, player.direction, RADIUS
+    )  # (RADIUS * 2 + 1, RADIUS * 2 + 1, TILE_SIZE, TILE_SIZE, 3)
 
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
