@@ -909,6 +909,21 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Door">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Door.symbolic_state" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;symbolic_state
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -952,6 +967,15 @@
   <a href="#navix.entities.Entity.shape" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;shape
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Entity.symbolic_state" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;symbolic_state
     </span>
   </a>
   
@@ -2140,6 +2164,41 @@ Examples of consumables are doors (to open) food (to eat) and water (to drink), 
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.entities.Door.symbolic_state" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">symbolic_state</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Returns an integer array encoding the symbolic state of the door:</p>
+<ul>
+<li>0: Door is open</li>
+<li>1: Door is closed but not locked</li>
+<li>2: Door is closed and locked (requires a key or tool)</li>
+</ul>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <ul>
+<li>If open = 1 and locked = 0: symbolic_state = 0 (open)</li>
+<li>If open = 0 and locked = 0: symbolic_state = 1 (closed, not locked)</li>
+<li>If open = 0 and locked = 1: symbolic_state = 2 (closed and locked)</li>
+</ul>
+
+    </div>
+
+</div>
+
 
 
 
@@ -2316,6 +2375,29 @@ To create an entity, use the <code>create</code> method.</p>
 
         <p>The batch shape of the entity. The batch shape is the shape of the entity excluding the dimensions of the component.
 For example, if the entity has a position of shape (batch_size, 2), the shape of the entity is (batch_size,).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.entities.Entity.symbolic_state" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">symbolic_state</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The symbolic state representation of the entity. The symbolic state is as the
+last channel in the symbolic_observation function.</p>
 
     </div>
 
