@@ -41,6 +41,11 @@ from .entities import EntityIds
 RADIUS = 3
 
 
+def set_radius(radius: int):
+    global RADIUS
+    RADIUS = radius
+
+
 def none(state: State) -> Array:
     """An empty observation represented as an array of shape f32[0].
     Useful for testing purposes.
