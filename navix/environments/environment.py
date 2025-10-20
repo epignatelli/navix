@@ -88,7 +88,7 @@ class Environment(struct.PyTreeNode):
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
-    reward_fn: Callable[[State, Array, State], Array] = struct.field(
+    reward_fn: Callable[[State, Array, State, int], Array] = struct.field(
         pytree_node=False, default=rewards.DEFAULT_TASK
     )
     termination_fn: Callable[[State, Array, State], Array] = struct.field(
@@ -185,7 +185,7 @@ class Environment(struct.PyTreeNode):
         step_type = self.termination(timestep.state, action, state, timestep.t + 1)
 
         # calculate reward
-        reward = self.reward_fn(timestep.state, action, state)
+        reward = self.reward_fn(timestep.state, action, state, timestep)
         reward = jax.lax.cond(
             step_type == StepType.TERMINATION,
             lambda reward: reward - self.penality_coeff * (t / self.max_steps),

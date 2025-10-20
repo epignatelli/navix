@@ -1,0 +1,4 @@
+|  | Navix-Empty-6x6-v0 | Navix-Empty-Random-6x6-v0 | Navix-Empty-16x16-v0 | Navix-Dynamic-Obstacles-6x6-Random-v0 | Navix-DoorKey-5x5-v0 | Navix-DoorKey-16x16-v0 | Navix-DistShift2-v0 | Navix-GoToDoor-6x6-v0 | Navix-GoToDoor-8x8-v0 | Navix-FourRooms-v0 | Navix-LavaGapS6-v0 | Navix-LavaGapS7-v0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Markov | 1.000 ± 0.001 | 0.867 ± 0.052 | 0.000 ± 0.000 | 0.412 ± 0.042 | 0.762 ± 0.149 | 0.000 ± 0.000 | 0.969 ± 0.174 | 0.851 ± 0.051 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.999 ± 0.001 | 0.404 ± 0.488 |
+| Non-Markov | 0.531 ± 0.499 | 0.405 ± 0.313 | 0.000 ± 0.000 | 0.414 ± 0.052 | 0.609 ± 0.126 | 0.000 ± 0.000 | 0.500 ± 0.500 | 0.048 ± 0.044 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.687 ± 0.463 | 0.000 ± 0.000 |

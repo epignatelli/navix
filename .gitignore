@@ -1,6 +1,9 @@
 # developing
 playground.ipynb
 
+# model checkpoints
+*.ckpt
+
 # vscode
 .vscode/
 wandb/

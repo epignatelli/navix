@@ -22,15 +22,16 @@ from typing import Callable
 
 import jax.numpy as jnp
 from jax import Array
+from traitlets import Any
 
 from . import events
 from .states import State
 
 
 def compose(
-    *reward_functions: Callable[[State, Array, State], Array],
+    *reward_functions: Callable[[State, Array, State, Any], Array],
     operator: Callable = jnp.sum,
-) -> Callable:
+) -> Callable[[State, Array, State, Any], Array]:
     """Compose multiple reward functions into a single reward function.
     The functions are called in order and the results are reduced using the `operator` \
     function.
@@ -44,9 +45,9 @@ def compose(
     Returns:
         Callable: A composed reward function that applies the `operator` to the results of the \
         reward functions."""
-    return lambda prev_state, action, state: operator(
+    return lambda prev_state, action, state, timestep: operator(
         jnp.asarray(
-            [f(prev_state, action, state) for f in reward_functions], dtype=jnp.float32
+            [f(prev_state, action, state, timestep) for f in reward_functions], dtype=jnp.float32
         )
     )
 
@@ -62,7 +63,7 @@ def free(state: State) -> Array:
     return jnp.asarray(0.0, dtype=jnp.float32)
 
 
-def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
+def on_goal_reached(prev_state: State, action: Array, state: State, t: Any) -> Array:
     """A reward function that returns 1 when the goal is reached, and 0 otherwise.
 
     Args:
@@ -75,7 +76,7 @@ def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
 
 
 def action_cost(
-    prev_state: State, action: Array, new_state: State, cost: float = 0.01
+    prev_state: State, action: Array, new_state: State, t: Any, cost: float = 0.01
 ) -> Array:
     """A reward function that returns a negative value when an action is taken. 
     All actions have a cost of `cost`, except for noops.
@@ -94,7 +95,7 @@ def action_cost(
 
 
 def time_cost(
-    prev_state: State, action: Array, new_state: State, cost: float = 0.01
+    prev_state: State, action: Array, new_state: State, t: Any, cost: float = 0.01
 ) -> Array:
     """A reward function that returns a negative value as time passes, paying a cost \
     of `cost` at each time step.
@@ -113,7 +114,7 @@ def time_cost(
 
 
 def wall_hit_cost(
-    prev_state: State, action: Array, state: State, cost: float = 0.01
+    prev_state: State, action: Array, state: State, t: Any, cost: float = 0.01
 ) -> Array:
     """A reward function that returns a negative value when the agent hits a wall, \
     paying a cost of `cost` for each wall hit.
@@ -128,7 +129,7 @@ def wall_hit_cost(
     return jnp.asarray(events.on_wall_hit(state), dtype=jnp.float32) * cost
 
 
-def on_door_done(prev_state: State, action: Array, state: State) -> Array:
+def on_door_done(prev_state: State, action: Array, state: State, t: Any) -> Array:
     """A reward function that returns a positive value when the agent uses the action \
     `done` in front of a door.
     

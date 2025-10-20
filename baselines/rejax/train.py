@@ -2,6 +2,11 @@ import json
 import os
 import time
 from copy import deepcopy
+from dataclasses import dataclass
+import tyro
+from yaml import CLoader as Loader
+from yaml import load
+import logging
 
 import jax
 import jax.numpy as jnp
@@ -10,6 +15,30 @@ import pandas as pd
 from flax import serialization
 from rejax import get_algo
 from rejax.evaluate import evaluate as rejax_evaluate
+
+
+@dataclass
+class Args:
+    config: str = os.path.join(
+        os.path.dirname(__file__), "configs", "navix_empty_5x5_1m.yaml"
+    )
+    """Path to configuration file."""
+    algorithm: str = ""
+    """The algorithm to use."""
+    num_seeds: int = 5
+    """Number of seeds to use."""
+    save_all_checkpoints: bool = False
+    """Save checkpoints of all seeds."""
+    global_seed: int = 0
+    """Random seed for reproducibility."""
+    log_dir: str = "results"
+    """Directory to store logs."""
+    use_wandb: bool = False
+    """Use wandb for logging."""
+    wandb_project: str = "project"
+    """Wandb project name."""
+    wandb_entity: str = "entity"
+    """Wandb entity name."""
 
 
 class Logger:
@@ -23,10 +52,9 @@ class Logger:
         self.num_seeds = num_seeds  # needed to aggregate vmapped results for wandb logs
         self.use_wandb = use_wandb
 
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        os.makedirs(folder, exist_ok=True)
 
-        print(f"Logging to {os.path.join(folder, name)}.{{json,ckpt}}")
+        logging.info(f"Logging to {os.path.join(folder, name)}.{{json,ckpt}}")
 
     def log_once(self, data):
         self.metadata = {**self.metadata, **data}
@@ -151,87 +179,52 @@ def main(args, config):
     vmap_train = jax.jit(jax.vmap(algo.train))
 
     # Time compilation
-    start = time.process_time()
+    logging.basicConfig(level = logging.INFO)
+    logging.info("Lowering training function...")
+    start_time = time.process_time()
     lowered = vmap_train.lower(keys)
-    time_lower = time.process_time() - start
+    time_lower = time.process_time() - start_time
+    logger.log_once({"time/lower": time_lower})
+    logger.write_log()
+    logging.info("Training function lowered in", time_lower, "seconds")
+
+    logging.info("Compiling training function...")
+    start_time = time.process_time()
     compiled = lowered.compile()
     time_compile = time.process_time() - time_lower
-    vmap_train = compiled
-
-    logger.active = True
-    logger.log_once({"time/lower": time_lower, "time/compile": time_compile})
+    logger.log_once({"time/compile": time_compile})
     logger.write_log()
+    logging.info("Training function compiled in", time_compile, "seconds")
+
+    vmap_train = compiled
+    logger.active = True
 
     # Train
+    logging.info("Starting training...")
+    start_time = time.process_time()
     logger.reset_timer()
     train_state, _ = vmap_train(keys)
+    train_time = time.process_time() - start_time
+    logger.log_once({"time/train": train_time})
+    logger.write_log()
+    logging.info("Training completed in", train_time, "seconds")
+
+    logging.info("Writing log and checkpoint...")
+    start_time = time.process_time()
     logger.write_log()
     if args.save_all_checkpoints:
         logger.write_checkpoint(train_state)
     else:
         train_state = jax.tree.map(lambda x: x[0], train_state)
         logger.write_checkpoint(train_state)
+    time_logging = time.process_time() - start_time
+    logger.log_once({"time/logging": time_logging})
+    logger.write_log()
+    logging.info("Log and checkpoint written in", time_logging, "seconds")
 
 
 if __name__ == "__main__":
-    import argparse
-
-    from yaml import CLoader as Loader
-    from yaml import load
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="configs/navix_empty_5x5_1m.yaml",
-        help="Path to configuration file.",
-    )
-    parser.add_argument(
-        "--algorithm",
-        type=str,
-        required=True,
-    )
-    parser.add_argument(
-        "--num-seeds",
-        type=int,
-        default=1,
-        help="Number of seeds to use.",
-    )
-    parser.add_argument(
-        "--save-all-checkpoints",
-        action="store_true",
-        help="Save checkpoints of all seeds.",
-    )
-    parser.add_argument(
-        "--global-seed",
-        type=int,
-        default=0,
-        help="Random seed for reproducibility.",
-    )
-    parser.add_argument(
-        "--log-dir",
-        type=str,
-        default="results",
-        help="Directory to store logs.",
-    )
-    parser.add_argument(
-        "--use-wandb",
-        action="store_true",
-        help="Use wandb for logging.",
-    )
-    parser.add_argument(
-        "--wandb-project",
-        type=str,
-        default="project",
-        help="Wandb project name.",
-    )
-    parser.add_argument(
-        "--wandb-entity",
-        type=str,
-        default="entity",
-        help="Wandb entity name.",
-    )
-    args = parser.parse_args()
+    args = tyro.cli(Args)
     with open(args.config, "r") as f:
         config = load(f, Loader=Loader)
 
