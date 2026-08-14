@@ -83,6 +83,7 @@ class Environment(struct.PyTreeNode):
     observation_space: Space = struct.field(pytree_node=False)
     action_space: Space = struct.field(pytree_node=False)
     reward_space: Space = struct.field(pytree_node=False)
+    disable_autoreset: bool = struct.field(pytree_node=False, default=False)
     gamma: float = struct.field(pytree_node=False, default=0.99)
     penality_coeff: float = struct.field(pytree_node=False, default=0.0)
     observation_fn: Callable[[State], Array] = struct.field(
@@ -119,9 +120,9 @@ class Environment(struct.PyTreeNode):
         observation_space: Space | None = None,
         action_space: Space | None = None,
         reward_space: Space | None = None,
+        disable_autoreset: bool = False,
         **kwargs,
     ) -> Environment:
-
         if observation_space is None:
             observation_space = cls._get_obs_space_from_fn(
                 width, height, observation_fn
@@ -146,6 +147,7 @@ class Environment(struct.PyTreeNode):
             observation_space=observation_space,
             action_space=action_space,
             reward_space=reward_space,
+            disable_autoreset=disable_autoreset,
             **kwargs,
         )
 
@@ -163,7 +165,7 @@ class Environment(struct.PyTreeNode):
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
-            should_reset,
+            jnp.logical_and(should_reset, jnp.logical_not(self.disable_autoreset)),
             lambda timestep: self.reset(timestep.state.key, timestep.state.cache),
             lambda timestep: self._step(timestep, action),
             timestep,
