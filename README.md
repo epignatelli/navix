@@ -184,10 +184,15 @@ Please, consider starring the project if you like NAVIX!
 If you use NAVIX please cite it as:
 
 ```bibtex
-@article{pignatelli2024navix,
-  title={NAVIX: Scaling MiniGrid Environments with JAX},
-  author={Pignatelli, Eduardo and Liesen, Jarek and Lange, Robert Tjarko and Lu, Chris and Castro, Pablo Samuel and Toni, Laura},
-  journal={arXiv preprint arXiv:2407.19396},
-  year={2024}
+@inproceedings{NEURIPS2025_c108bda9,
+ author = {Pignatelli, Eduardo and Liesen, Jarek and Lange, Robert and Lu, Chris and Castro, Pablo Samuel and Toni, Laura},
+ booktitle = {Advances in Neural Information Processing Systems},
+ doi = {10.52202/085713-4437},
+ editor = {D. Belgrave and C. Zhang and H. Lin and R. Pascanu and P. Koniusz and M. Ghassemi and N. Chen},
+ publisher = {Curran Associates, Inc.},
+ title = {NAVIX: Scaling MiniGrid Environments with JAX},
+ url = {https://proceedings.neurips.cc/paper_files/paper/2025/file/c108bda95007522456be2e4b0794b836-Paper-Datasets_and_Benchmarks_Track.pdf},
+ volume = {38, Main Conference},
+ year = {2025}
 }
 ```
