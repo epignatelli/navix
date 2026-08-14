@@ -14,13 +14,13 @@
 ## What is NAVIX?
 NAVIX is a JAX-powered reimplementation of [MiniGrid](https://github.com/Farama-Foundation/Minigrid). Experiments that took <ins>**1 week**</ins>, now take <ins>**15 minutes**</ins>.    
 
-200 000x speedups compared to MiniGrid and 670 Million steps/s are not just a speed improvements. They produce a whole new paradigm that grants access to experiments that were previously impossible, e.g., those taking years to run.
+160 000x speedups compared to MiniGrid and 670 Million steps/s are not just a speed improvements. They produce a whole new paradigm that grants access to experiments that were previously impossible, e.g., those taking years to run.
 
 It changes the game.    
 Check out the NAVIX [performance](#performance) more in detail and the [documentation](https://epignatelli.com/navix) for more information.
 
 Key features:
-- Performance Boost: NAVIX offers <ins>**over 1000x**</ins> speed increase compared to the original Minigrid implementation, enabling faster experimentation and scaling. You can see a preliminary performance comparison [here](docs/performance.py), and a full benchmarking at [here](benchmarks/).
+- Performance Boost: NAVIX offers <ins>**over 160 000x**</ins> speed increase compared to the original Minigrid implementation, enabling faster experimentation and scaling. You can see a preliminary performance comparison [here](docs/performance.py), and a full benchmarking at [here](benchmarks/).
 - XLA Compilation: Leverage the power of XLA to optimize NAVIX computations for many accelerators. NAVIX can run on CPU, GPU, and TPU.
 - Autograd Support: Differentiate through environment transitions, opening up new possibilities such as learned world models.
 - Batched hyperparameter tuning: run thousands of experiments in parallel, enabling hyperparameter tuning at scale. Clear your doubts instantly if your algorithm doesn't work because of the hyperparameters choice.
@@ -49,9 +49,9 @@ NAVIX improves MiniGrid both in execution speed *and* throughput, allowing to ru
 
 ![speedup_env](https://github.com/user-attachments/assets/b221048c-1b98-43d8-b09b-2a240412dd81)
 
-NAVIX performs 2048 × 1M/49s = 668 734 693.88 steps per second (∼ 670 Million steps/s) in batch mode,
-while the original Minigrid implementation performs 1M/318.01 = 3 144.65 steps per second. This
-is a speedup of over 200 000×.
+NAVIX performs 2048 × 16 × 1M/49s = 668 734 693.88 steps per second (∼ 670 Million steps/s) in batch mode,
+while the original Minigrid implementation, running a single PPO agent, performs 1M/240 = 4 166.67 steps per second. This
+is a speedup of over 160 000×.
 ![throughput_ppo](https://github.com/user-attachments/assets/eea6e312-55b4-41c3-adb0-4207c5e78fd1)
 
 
@@ -184,10 +184,15 @@ Please, consider starring the project if you like NAVIX!
 If you use NAVIX please cite it as:
 
 ```bibtex
-@article{pignatelli2024navix,
-  title={NAVIX: Scaling MiniGrid Environments with JAX},
-  author={Pignatelli, Eduardo and Liesen, Jarek and Lange, Robert Tjarko and Lu, Chris and Castro, Pablo Samuel and Toni, Laura},
-  journal={arXiv preprint arXiv:2407.19396},
-  year={2024}
+@inproceedings{pignatelli2024navix,
+ author = {Pignatelli, Eduardo and Liesen, Jarek and Lange, Robert and Lu, Chris and Castro, Pablo Samuel and Toni, Laura},
+ booktitle = {Advances in Neural Information Processing Systems},
+ doi = {10.52202/085713-4437},
+ editor = {D. Belgrave and C. Zhang and H. Lin and R. Pascanu and P. Koniusz and M. Ghassemi and N. Chen},
+ publisher = {Curran Associates, Inc.},
+ title = {NAVIX: Scaling MiniGrid Environments with JAX},
+ url = {https://proceedings.neurips.cc/paper_files/paper/2025/file/c108bda95007522456be2e4b0794b836-Paper-Datasets_and_Benchmarks_Track.pdf},
+ volume = {38, Main Conference},
+ year = {2025}
 }
 ```

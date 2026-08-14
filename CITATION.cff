@@ -17,3 +17,25 @@ keywords:
   - JAX
   - Minigrid
 license: Apache-2.0
+preferred-citation:
+  type: conference-paper
+  title: "NAVIX: Scaling MiniGrid Environments with JAX"
+  authors:
+    - family-names: Pignatelli
+      given-names: Eduardo
+    - family-names: Liesen
+      given-names: Jarek
+    - family-names: Lange
+      given-names: Robert
+    - family-names: Lu
+      given-names: Chris
+    - family-names: Castro
+      given-names: Pablo Samuel
+    - family-names: Toni
+      given-names: Laura
+  collection-title: "Advances in Neural Information Processing Systems 38 (NeurIPS 2025), Datasets and Benchmarks Track"
+  publisher:
+    name: "Curran Associates, Inc."
+  year: 2025
+  doi: "10.52202/085713-4437"
+  url: "https://proceedings.neurips.cc/paper_files/paper/2025/file/c108bda95007522456be2e4b0794b836-Paper-Datasets_and_Benchmarks_Track.pdf"
