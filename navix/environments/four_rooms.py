@@ -57,7 +57,7 @@ class FourRooms(Environment):
             k1, shape=(), minval=self.height // 2 + 2, maxval=self.height
         )
         openings = jnp.stack([opening_1, opening_2])
-        wall_pos_vert = vertical_wall(grid, 9, openings)
+        wall_pos_vert = vertical_wall(grid, self.width // 2, openings)
 
         # horizontal partition
         opening_1 = jax.random.randint(k2, shape=(), minval=1, maxval=self.width // 2)
@@ -65,7 +65,7 @@ class FourRooms(Environment):
             k1, shape=(), minval=self.width // 2 + 2, maxval=self.width
         )
         openings = jnp.stack([opening_1, opening_2])
-        wall_pos_hor = horizontal_wall(grid, 9, openings)
+        wall_pos_hor = horizontal_wall(grid, self.height // 2, openings)
 
         walls_pos = jnp.concatenate([wall_pos_vert, wall_pos_hor])
         walls = Wall.create(position=walls_pos)
