@@ -29,7 +29,7 @@ import jax.numpy as jnp
 
 from .entities import Entities, Player
 from .states import EventsManager, State
-from .components import DISCARD_PILE_COORDS, Pickable
+from .components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID, Pickable
 from .grid import translate, rotate, positions_equal
 
 
@@ -266,20 +266,24 @@ def open(state: State) -> State:
     door_found = positions_equal(position_in_front, doors.position)
 
     # and that, if so, either it does not require a key or the player has the key
+    is_open = jnp.asarray(doors.open, dtype=jnp.bool_)
     locked = doors.requires != -1
     key_match = player.pocket == doors.requires
-    can_open = door_found & (key_match | ~locked)
+    can_unlock = door_found & locked & key_match
+    can_open = door_found & (can_unlock | ~locked)
 
     # update doors if closed and can_open
-    do_open = ~doors.open & can_open
-    open = jnp.where(do_open, True, doors.open)
+    do_open = ~is_open & can_open
+    open = jnp.where(do_open, True, is_open)
     requires = jnp.where(do_open, -1, doors.requires)
     doors = doors.replace(open=open, requires=requires)
 
-    # remove key from player's pocket
-    pocket = jnp.asarray(player.pocket * jnp.any(can_open), dtype=jnp.int32)
+    # remove key from player's pocket, but only when it was actually used to
+    # unlock a locked door - not merely because the door in front happened to
+    # be open or unlocked already
+    pocket = jnp.where(jnp.any(can_unlock), EMPTY_POCKET_ID, player.pocket)
     player = jax.lax.cond(
-        jnp.any(can_open), lambda: player.replace(pocket=pocket), lambda: player
+        jnp.any(can_unlock), lambda: player.replace(pocket=pocket), lambda: player
     )
 
     # update events

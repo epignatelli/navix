@@ -415,7 +415,18 @@ def test_open():
         doors.open, expected_open
     ), "Expected door open status {}, got {}".format(expected_open, doors.open)
 
-    # check that opening an open door keeps it open
+    # check that the key was consumed on unlocking
+    player = state.get_player()
+    player.check_ndim(batched=False)
+    expected_pocket = EMPTY_POCKET_ID
+    assert jnp.array_equal(
+        player.pocket, expected_pocket
+    ), "Expected key to be consumed after unlocking, pocket to be {}, got {}".format(
+        expected_pocket, player.pocket
+    )
+
+    # check that opening an open door keeps it open, and does not touch the
+    # (already-empty) pocket again
     state = nx.actions.open(state)
     doors = state.get_doors()
     doors.check_ndim(batched=True)
@@ -423,6 +434,13 @@ def test_open():
     assert jnp.array_equal(
         doors.open, expected_open
     ), "Expected door open status {}, got {}".format(expected_open, doors.open)
+    player = state.get_player()
+    player.check_ndim(batched=False)
+    assert jnp.array_equal(
+        player.pocket, expected_pocket
+    ), "Expected pocket to remain {} after opening an already-open door, got {}".format(
+        expected_pocket, player.pocket
+    )
 
     # check that we can walk through an open door
     state = nx.actions.forward(state)
