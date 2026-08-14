@@ -44,6 +44,15 @@ IDs (e.g. `Navix-DoorKey-5x5-v0`) are not versioned per-environment either;
 users are expected to pin the NAVIX package version, not an env ID, if they
 need reproducibility across a behavior-changing fix.
 
+## Python version support
+
+This repo tests and supports only the latest 3 released Python minor
+versions at any given time — currently 3.12, 3.13, 3.14 — not the full
+range back to `navix`'s original floor. When a new Python version is
+released, drop the oldest one from `CI.yml`'s test matrix and bump
+`requires-python` and the trove classifiers in `pyproject.toml` to match,
+rather than accumulating versions indefinitely.
+
 ## Dtype discipline
 
 This is a JAX codebase — dtype bugs are a recurring failure class here (see
