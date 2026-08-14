@@ -364,7 +364,9 @@ class State(struct.PyTreeNode):
 
     def get_walls(self) -> Wall:
         """Gets all the `WALL` entities from the state."""
-        return self.entities.get(Entities.WALL, Wall())  # type: ignore
+        if Entities.WALL in self.entities:
+            return self.entities[Entities.WALL]  # type: ignore
+        return Wall.create(position=jnp.zeros((0, 2), dtype=jnp.int32))
 
     def set_walls(self, walls: Wall) -> State:
         """Sets the `WALL` entities in the state."""
