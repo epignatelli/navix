@@ -14,44 +14,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version from file
+      - name: Get current version from file
+        id: current
         run: |
-          VERSION_FILE="$/navix/_version.py"
           NAVIX_VERSION="$(cat navix/_version.py | grep '__version__ = ' |  cut -d'=' -f2 | sed 's,\",,g' | sed "s,\',,g" | sed 's, ,,g')"
           echo "Current version is:"
           echo "$NAVIX_VERSION"
 
           echo "NAVIX_VERSION=$NAVIX_VERSION" >> $GITHUB_ENV
 
-      - name: Create changelog and push tag
+      - name: Compute next version and changelog
         id: changelog
         uses: TriPSs/conventional-changelog-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           output-file: false
-          fallback-version: ${{ env.NAVIX_VERSION }}
           skip-commit: true
+          skip-tag: true
+          skip-on-empty: false
+          tag-prefix: ""
+          fallback-version: ${{ env.NAVIX_VERSION }}
+
+      - name: Write bumped version to navix/_version.py
+        if: steps.changelog.outputs.skipped != 'true'
+        run: |
+          sed -i "s/^__version__ = \".*\"/__version__ = \"${{ steps.changelog.outputs.version }}\"/" navix/_version.py
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add navix/_version.py
+          git commit -m "build(release): bump version to ${{ steps.changelog.outputs.version }} [skip ci]"
+          git push origin HEAD:main
 
       - name: Create Release
+        if: steps.changelog.outputs.skipped != 'true'
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ env.NAVIX_VERSION }}
-          name: "NAVIX release v${{ env.NAVIX_VERSION }}"
+          tag: ${{ steps.changelog.outputs.version }}
+          name: "NAVIX release v${{ steps.changelog.outputs.version }}"
           body: ${{ steps.changelog.outputs.clean_changelog }}
 
       - uses: actions/setup-python@v4
+        if: steps.changelog.outputs.skipped != 'true'
         with:
           python-version: "3.10"
 
       - name: Install pypa/build
+        if: steps.changelog.outputs.skipped != 'true'
         run: |
           python -m pip install build
 
       - name: Build wheel and sdist
+        if: steps.changelog.outputs.skipped != 'true'
         run: |
           python -m build --sdist --wheel --outdir dist/ .
 
       - name: Publish distribution 📦 to PyPI
+        if: steps.changelog.outputs.skipped != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
