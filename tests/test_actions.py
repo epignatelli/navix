@@ -454,6 +454,78 @@ def test_open():
     )
 
 
+def test_open_preserves_door_dtype():
+    # KeyCorridor and GoToDoor construct doors with an int `open` field
+    # (Door.create doesn't coerce it); DoorKey uses bool. `open()` must
+    # preserve whatever dtype it's given - if it silently coerces to bool,
+    # the door-toggle branch of the jax.lax.switch dispatch in
+    # transitions.py ends up with a different output dtype than every
+    # sibling action branch (forward, pickup, drop, ...), which raises a
+    # trace-time TypeError for any environment with an int-typed door.
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    doors = nx.entities.Door(
+        position=jnp.asarray((1, 3)),
+        requires=jnp.asarray(-1),
+        open=jnp.asarray(0, dtype=jnp.int32),
+        colour=PALETTE.YELLOW,
+    )
+    cache = nx.rendering.cache.RenderingCache.init(grid)
+    entities = {
+        Entities.PLAYER: player[None],
+        Entities.DOOR: doors[None],
+    }
+    state = State(key=key, grid=grid, cache=cache, entities=entities)
+
+    state = nx.actions.forward(state)  # move player to (1, 2), facing the door at (1, 3)
+    state = nx.actions.open(state)
+    doors = state.get_doors()
+    assert doors.open.dtype == jnp.int32, "Expected door open dtype to remain {}, got {}".format(
+        jnp.int32, doors.open.dtype
+    )
+
+
+def test_open_does_not_consume_key_for_already_open_door():
+    # KeyCorridor constructs its target door already `open` (truthy) while
+    # still `requires`-ing a key (locked) - a deliberate quirk of its
+    # design, not a state open() should treat as "just unlocked". Standing
+    # in front of such a door with the matching key must not destroy it,
+    # since nothing is actually being unlocked (the door is already open).
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=jnp.asarray(1)
+    )
+    doors = nx.entities.Door(
+        position=jnp.asarray((1, 3)),
+        requires=jnp.asarray(1),
+        open=jnp.asarray(2),  # already open, mirrors KeyCorridor's construction
+        colour=PALETTE.YELLOW,
+    )
+    cache = nx.rendering.cache.RenderingCache.init(grid)
+    entities = {
+        Entities.PLAYER: player[None],
+        Entities.DOOR: doors[None],
+    }
+    state = State(key=key, grid=grid, cache=cache, entities=entities)
+
+    state = nx.actions.forward(state)  # move player to (1, 2), facing the door at (1, 3)
+    state = nx.actions.open(state)
+    player = state.get_player()
+    expected_pocket = jnp.asarray(1)
+    assert jnp.array_equal(player.pocket, expected_pocket), (
+        "Expected key to be left untouched for an already-open door, "
+        "pocket to be {}, got {}".format(expected_pocket, player.pocket)
+    )
+
+
 if __name__ == "__main__":
     # test_rotation()
     # test_move()
