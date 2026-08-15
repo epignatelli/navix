@@ -28,6 +28,12 @@ jobs:
           pip install pylint
           MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
           echo "$MESSAGE"
+          {
+            echo "## Pylint report (full codebase)"
+            echo '```'
+            echo "$MESSAGE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Run unit tests with pytest
         run: |
           wandb offline
@@ -55,12 +61,10 @@ jobs:
           else
             MESSAGE=$(pylint -ry --disable=E0401 $CURRENT_DIFF ||:)
           fi
-          echo 'MESSAGE<<EOF' >> $GITHUB_ENV
-          echo "<pre><code>$MESSAGE</code></pre>" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-          echo "Printing PR message: $MESSAGE"
-      - uses: mshick/add-pr-comment@v2
-        with:
-          issue: ${{ github.event.pull_request.number }}
-          message: ${{ env.MESSAGE }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          echo "$MESSAGE"
+          {
+            echo "## Pylint report (changed files)"
+            echo '```'
+            echo "$MESSAGE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
