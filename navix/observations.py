@@ -75,7 +75,14 @@ def categorical(state: State) -> Array:
     tags = state.get_tags()
     # set tags on the flat set of patches
     shape = state.grid.shape
-    grid = state.grid.reshape(-1).at[indices].set(tags)
+    num_cells = shape[0] * shape[1]
+    # a picked-up entity's position (DISCARD_PILE_COORDS) maps to flat
+    # index -1 - .at[].set()'s default mode wraps negative indices
+    # around (numpy semantics) rather than dropping them, silently
+    # overwriting a real cell. Push negative indices to be explicitly
+    # out of bounds first, so mode="drop" discards those writes instead.
+    indices = jnp.where(indices < 0, num_cells, indices)
+    grid = state.grid.reshape(-1).at[indices].set(tags, mode="drop")
     # unflatten patches to reconstruct the grid
     return grid.reshape(shape)
 
@@ -94,7 +101,19 @@ def categorical_first_person(state: State) -> Array:
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
     transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
+    # a picked-up entity's position (DISCARD_PILE_COORDS = (0, -1)) is
+    # off-grid - .at[].set()'s default mode wraps negative components
+    # around (numpy semantics) rather than dropping them, silently
+    # overwriting a real cell (see categorical()/symbolic() for the
+    # same bug, fixed the same way). Push off-grid positions to be
+    # explicitly out of bounds first, so mode="drop" discards those
+    # writes instead.
+    H, W = state.grid.shape
+    row, col = positions[..., 0], positions[..., 1]
+    on_grid = (row >= 0) & (row < H) & (col >= 0) & (col < W)
+    row = jnp.where(on_grid, row, H)
+    col = jnp.where(on_grid, col, W)
+    transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
     # apply view mask
     player = state.get_player()
@@ -102,7 +121,7 @@ def categorical_first_person(state: State) -> Array:
 
     # get categorical representation
     tags = state.get_tags()
-    obs = state.grid.at[tuple(positions.T)].set(tags) * view
+    obs = state.grid.at[row, col].set(tags, mode="drop") * view
 
     # crop grid to agent's view
     obs = crop(obs, player.position, player.direction, RADIUS)
@@ -146,7 +165,17 @@ def symbolic(state: State) -> Array:
 
         # collate
         entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1, dtype=jnp.uint8)
-        obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
+        # a picked-up entity's position (DISCARD_PILE_COORDS = (0, -1))
+        # is off-grid - .at[].set()'s default mode wraps negative
+        # components around (numpy semantics) rather than dropping
+        # them, silently overwriting a real cell. Push off-grid
+        # positions to be explicitly out of bounds first, so
+        # mode="drop" discards those writes instead.
+        row, col = entity.position[..., 0], entity.position[..., 1]
+        on_grid = (row >= 0) & (row < H) & (col >= 0) & (col < W)
+        row = jnp.where(on_grid, row, H)
+        col = jnp.where(on_grid, col, W)
+        obs = obs.at[row, col].set(entity_symbol, mode="drop")
     return obs
 
 

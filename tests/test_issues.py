@@ -24,8 +24,8 @@ import jax.numpy as jnp
 
 import navix as nx
 from navix import observations
-from navix.components import EMPTY_POCKET_ID
-from navix.entities import Ball, Entities, Goal, Player
+from navix.components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
+from navix.entities import Ball, Entities, EntityIds, Goal, Key, Player
 from navix.rendering.cache import RenderingCache
 from navix.rendering.registry import PALETTE
 from navix.states import State
@@ -118,7 +118,110 @@ def test_98():
     assert jnp.all(goal.walkable), "Expected the Goal to be walkable"
 
 
+def test_135():
+    # https://github.com/epignatelli/navix/issues/135
+    # a picked-up entity's position is moved to DISCARD_PILE_COORDS =
+    # (0, -1). categorical()/symbolic() scatter-write the entity's
+    # tag/symbol at its position without checking whether that position
+    # is actually on the grid - JAX's negative-index wraparound then
+    # writes it into a real cell instead of dropping it, producing a
+    # "ghost" duplicate of the picked-up item: categorical()'s flat
+    # index -1 wraps to the bottom-right corner, symbolic()'s (0, -1)
+    # wraps to the top-right corner. Both should remain untouched
+    # (still showing the real wall there), since a picked-up entity is
+    # carried, not on the grid.
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=-1)
+    player = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    key = Key.create(
+        position=DISCARD_PILE_COORDS,  # picked up
+        colour=PALETTE.BLUE,
+        id=jnp.asarray(0),
+    )
+    cache = RenderingCache.init(grid)
+    state = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=cache,
+        entities={
+            Entities.PLAYER: player[None],
+            Entities.KEY: key[None],
+        },
+    )
+
+    categorical_obs = observations.categorical(state)
+    assert categorical_obs[height - 1, width - 1] == -1, (
+        "Expected the picked-up key not to wrap around into the "
+        "bottom-right corner of categorical(), got tag "
+        f"{categorical_obs[height - 1, width - 1]} instead of the wall (-1)"
+    )
+
+    symbolic_obs = observations.symbolic(state)
+    wall_symbol = jnp.array([EntityIds.WALL, 5, 0], dtype=jnp.uint8)
+    assert jnp.array_equal(symbolic_obs[0, width - 1], wall_symbol), (
+        "Expected the picked-up key not to wrap around into the "
+        "top-right corner of symbolic(), got "
+        f"{symbolic_obs[0, width - 1]} instead of the wall symbol {wall_symbol}"
+    )
+
+
+def test_146():
+    # https://github.com/epignatelli/navix/issues/146
+    # same bug class as #135, but in categorical_first_person():
+    # transparency_map/state.grid are scattered via raw entity
+    # positions without validating they're on-grid, so a picked-up
+    # entity at DISCARD_PILE_COORDS = (0, -1) wraps into row 0's last
+    # column instead of being dropped. A correctly-handled picked-up
+    # entity should have zero effect on the observation (matching
+    # MiniGrid: picked-up items are removed from the grid entirely),
+    # so compare against an otherwise-identical state with no key
+    # entity at all - avoids having to hand-compute exactly which
+    # cell of crop()'s pad/roll/rotate/slice output the wraparound
+    # would land in.
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=-1)
+    player = Player(
+        position=jnp.asarray((2, 2)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    key = Key.create(
+        position=DISCARD_PILE_COORDS,  # picked up
+        colour=PALETTE.BLUE,
+        id=jnp.asarray(0),
+    )
+    cache = RenderingCache.init(grid)
+
+    state_with_key = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=cache,
+        entities={
+            Entities.PLAYER: player[None],
+            Entities.KEY: key[None],
+        },
+    )
+    state_without_key = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=cache,
+        entities={Entities.PLAYER: player[None]},
+    )
+
+    obs_with_key = observations.categorical_first_person(state_with_key)
+    obs_without_key = observations.categorical_first_person(state_without_key)
+    assert jnp.array_equal(obs_with_key, obs_without_key), (
+        "Expected a picked-up key to have no effect on "
+        "categorical_first_person(), since it should be treated as "
+        f"off-grid - got\n{obs_with_key}\ninstead of\n{obs_without_key}"
+    )
+
+
 if __name__ == "__main__":
     test_82()
     test_91()
     test_98()
+    test_135()
+    test_146()
