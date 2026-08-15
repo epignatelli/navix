@@ -31,6 +31,13 @@ from ..rendering.cache import RenderingCache, TILE_SIZE
 from ..states import State
 from ..actions import DEFAULT_ACTION_SET
 from ..spaces import Space, Discrete, Continuous
+from ..entities import EntityIds
+
+# Calculate maximum entity ID once at module level for efficiency
+# Use vars() to get only class attributes (not inherited ones) and filter for Array instances
+MAX_CATEGORICAL_VALUE = 1 + max(
+    int(value) for value in vars(EntityIds).values() if isinstance(value, Array)
+)
 
 
 class StepType(struct.PyTreeNode):
@@ -227,10 +234,15 @@ class Environment(struct.PyTreeNode):
                 shape=(), minimum=jnp.asarray(0.0), maximum=jnp.asarray(0.0)
             )
         elif observation_fn == observations.categorical:
-            return Discrete.create(n_elements=9, shape=(height, width))
+            return Discrete.create(
+                n_elements=MAX_CATEGORICAL_VALUE, shape=(height, width)
+            )
         elif observation_fn == observations.categorical_first_person:
             radius = observations.RADIUS
-            return Discrete.create(n_elements=9, shape=(radius * 2 + 1, radius * 2 + 1))
+            return Discrete.create(
+                n_elements=MAX_CATEGORICAL_VALUE,
+                shape=(radius * 2 + 1, radius * 2 + 1),
+            )
         elif observation_fn == observations.rgb:
             return Discrete.create(
                 256,
@@ -246,7 +258,7 @@ class Environment(struct.PyTreeNode):
             )
         elif observation_fn == observations.symbolic:
             return Discrete.create(
-                n_elements=9,
+                n_elements=MAX_CATEGORICAL_VALUE,
                 shape=(height, width, 3),
                 dtype=jnp.uint8,
             )
