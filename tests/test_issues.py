@@ -24,6 +24,11 @@ import jax.numpy as jnp
 
 import navix as nx
 from navix import observations
+from navix.components import EMPTY_POCKET_ID
+from navix.entities import Ball, Entities, Player
+from navix.rendering.cache import RenderingCache
+from navix.rendering.registry import PALETTE
+from navix.states import State
 
 
 def test_82():
@@ -49,5 +54,46 @@ def test_82():
     assert jnp.array_equal(prev_pos, pos)
 
 
+def test_91():
+    # https://github.com/epignatelli/navix/issues/91
+    # walking into a ball must record a ball_hit event (and so terminate,
+    # via the default on_ball_hit termination), matching MiniGrid's
+    # DynamicObstacles semantics. record_walk_into previously only handled
+    # Goal/Wall/Lava, so the player's own move into a ball was silently a
+    # no-op: blocked (Ball.walkable=False) but no event recorded.
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    player = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    ball = Ball.create(
+        position=jnp.asarray((1, 2)),
+        colour=PALETTE.BLUE,
+        probability=jnp.asarray(0.0),
+    )
+    cache = RenderingCache.init(grid)
+    state = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=cache,
+        entities={
+            Entities.PLAYER: player[None],
+            Entities.BALL: ball[None],
+        },
+    )
+
+    state = nx.actions.forward(state)  # player attempts to walk into the ball
+
+    player = state.get_player()
+    assert jnp.array_equal(player.position, jnp.asarray((1, 1))), (
+        "Expected the player to remain in place, since balls are not walkable"
+    )
+    assert state.events.ball_hit.happened, (
+        "Expected walking into a ball to record a ball_hit event"
+    )
+
+
 if __name__ == "__main__":
     test_82()
+    test_91()
