@@ -30,7 +30,7 @@ from navix import observations, rewards, terminations
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..environments import Environment
-from ..entities import Ball, Player, Key, Door
+from ..entities import Goal, Player, Key, Door
 from ..states import State
 from ..environments import Timestep
 from ..grid import random_directions, random_colour, RoomsGrid
@@ -64,10 +64,10 @@ class KeyCorridor(Environment):
             agent_pos, random_directions(pk_3), pocket=EMPTY_POCKET_ID
         )
 
-        # ball
-        ball_room_row = jax.random.randint(k3, (), minval=0, maxval=n_rows)
-        ball_pos = grid.position_in_room(ball_room_row, jnp.asarray(2), key=k4)
-        ball = Ball.create(ball_pos, random_colour(k6), probability=jnp.asarray(0.0))
+        # goal
+        goal_room_row = jax.random.randint(k3, (), minval=0, maxval=n_rows)
+        goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k4)
+        goal = Goal.create(goal_pos, probability=jnp.asarray(1.0))
 
         # Doors
         doors = []
@@ -76,7 +76,7 @@ class KeyCorridor(Environment):
             # left corridor, right wall
             door_pos = grid.position_on_border(row, 2, 0, key=k5)
             requires, colour, open = jax.lax.cond(
-                jnp.array_equal(row, ball_room_row),
+                jnp.array_equal(row, goal_room_row),
                 lambda: (key_id, key_colour, jnp.asarray(2)),
                 lambda: (jnp.asarray(-1), random_colour(k5), jnp.asarray(0)),
             )
@@ -121,10 +121,10 @@ class KeyCorridor(Environment):
             "player": player[None],
             "key": key_obj[None],
             "door": doors,
-            "goal": ball[None],
+            "goal": goal[None],
         }
 
-        grid = grid.get_grid()
+        grid = grid.get_grid(occupied_positions=doors.position)
         grid = grid.at[
             1 + room_size : self.height - 1 : room_size + 1,
             1 + room_size + 1 : 1 + room_size + 1 + room_size,
