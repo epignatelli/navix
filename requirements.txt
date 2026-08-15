@@ -16,3 +16,5 @@ rlax
 tyro
 # logging
 wandb
+# plotting
+matplotlib
