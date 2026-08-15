@@ -286,11 +286,18 @@ def rgb_first_person(state: State) -> Array:
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
 
-    # apply fov. Unseen/out-of-map tiles use MiniGrid's wall grey
-    # (100, 100, 100) rather than black - a scalar works for both the
-    # jnp.where fill below and crop()'s padding_value, since grey has
-    # equal R/G/B and both broadcast it across the full (..., 3) tile.
-    dark_cell_colour = 100
+    # apply fov. Unseen/out-of-map tiles use the *opacity-adjusted*
+    # wall grey, not the raw (100, 100, 100) constant: every other
+    # cell in `patchwork` already went through apply_minigrid_opacity
+    # above, but dark_cell_colour is inserted as a flat literal after
+    # that, bypassing it - using the raw constant here made real,
+    # visible walls (opacity-adjusted, ~146) visually inconsistent
+    # with the unseen/padding fill (100) in the same image, a seam
+    # that isn't in MiniGrid's own rendering. A scalar still works for
+    # both the jnp.where fill below and crop()'s padding_value, since
+    # grey has equal R/G/B and both broadcast it across the full
+    # (..., 3) tile.
+    dark_cell_colour = apply_minigrid_opacity(jnp.asarray(100, dtype=jnp.uint8))
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
