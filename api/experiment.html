@@ -1142,6 +1142,34 @@
   
   
     <li class="md-nav__item">
+      <a href="plotting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plotting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="rewards.html" class="md-nav__link">
         
   
@@ -1293,10 +1321,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_14" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_15" >
         
           
-          <label class="md-nav__link" for="__nav_5_14" id="__nav_5_14_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_15" id="__nav_5_15_label" tabindex="0">
             
   
   
@@ -1314,8 +1342,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_14_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_14">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_15">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1463,10 +1491,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_15" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_16" >
         
           
-          <label class="md-nav__link" for="__nav_5_15" id="__nav_5_15_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_16" id="__nav_5_16_label" tabindex="0">
             
   
   
@@ -1484,8 +1512,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_15_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_15">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_16">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1885,10 +1913,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_16" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_17" >
         
           
-          <label class="md-nav__link" for="__nav_5_16" id="__nav_5_16_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_17" id="__nav_5_17_label" tabindex="0">
             
   
   
@@ -1906,8 +1934,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_16_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_16">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_17">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2160,7 +2188,7 @@
                 <code>agent</code>
             </td>
             <td>
-                  <code><span title="navix.agents.agent.Agent">Agent</span></code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Agent&lt;/code&gt; (&lt;code&gt;navix.agents.agent.Agent&lt;/code&gt;)" href="agents/agent.html#navix.agents.agent.Agent">Agent</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2263,7 +2291,7 @@
           <tr class="doc-section-item">
             <td><code><span title="navix.experiment.Experiment.agent">agent</span></code></td>
             <td>
-                  <code><span title="navix.agents.agent.Agent">Agent</span></code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Agent&lt;/code&gt; (&lt;code&gt;navix.agents.agent.Agent&lt;/code&gt;)" href="agents/agent.html#navix.agents.agent.Agent">Agent</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2343,7 +2371,7 @@
 
 
 <h4 id="navix.experiment.Experiment.run" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">do_log</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">log_to_wandb</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">do_log</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h4>
 
@@ -2351,6 +2379,18 @@
     <div class="doc doc-contents ">
 
         <p>Default function to run the experiment. This function compiles the training function, trains the agent, and logs the results.</p>
+<p>Two strategies exist for looking at the results, and they trade off
+against each other:</p>
+<ul>
+<li><code>log_to_wandb=True</code> (the default) streams metrics to Weights &amp;
+  Biases as training progresses. This is the slow path - real
+  network I/O, roughly linear in the number of seeds.</li>
+<li><code>log_to_wandb=False</code> skips wandb entirely; <code>logs</code> (this
+  method's second return value) is returned either way, so with
+  wandb off you get it back much faster, with no network calls at
+  all. Pair it with <code>navix.plotting</code> to get a local matplotlib
+  dashboard from <code>logs</code> instead of a wandb one. See issue #60.</li>
+</ul>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2366,7 +2406,7 @@
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>do_log</code>
+                <code>log_to_wandb</code>
             </td>
             <td>
                   <code><span title="bool">bool</span></code>
@@ -2380,13 +2420,24 @@
                   <code>True</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>do_log</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Deprecated alias for <code>log_to_wandb</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
-        <div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Logging to <code>wandb</code> is usually much slower than training the agent itself.
-The time is linear in the number of seeds.</p>
-</div>
 
 
     <p><span class="doc-section-title">Returns:</span></p>

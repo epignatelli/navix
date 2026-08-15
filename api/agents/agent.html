@@ -1049,6 +1049,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../plotting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plotting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../rewards.html" class="md-nav__link">
         
   
@@ -1202,10 +1230,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_14" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_15" checked>
         
           
-          <label class="md-nav__link" for="__nav_5_14" id="__nav_5_14_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_15" id="__nav_5_15_label" tabindex="0">
             
   
   
@@ -1223,8 +1251,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_14_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_5_14">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_15_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5_15">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1336,6 +1364,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent.log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent.log_on_train_end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;log_on_train_end
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.agent.HParams" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1371,6 +1438,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.agents.agent.masked_mean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;masked_mean
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1465,10 +1543,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_15" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_16" >
         
           
-          <label class="md-nav__link" for="__nav_5_15" id="__nav_5_15_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_16" id="__nav_5_16_label" tabindex="0">
             
   
   
@@ -1486,8 +1564,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_15_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_15">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_16">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1887,10 +1965,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_16" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_17" >
         
           
-          <label class="md-nav__link" for="__nav_5_16" id="__nav_5_16_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_17" id="__nav_5_17_label" tabindex="0">
             
   
   
@@ -1908,8 +1986,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_16_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_16">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_17">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2159,6 +2237,103 @@
 
 
 
+<h3 id="navix.agents.agent.Agent" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Agent</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.struct.PyTreeNode">PyTreeNode</span></code></p>
+
+
+
+        <p>Two strategies exist for looking at a run's results, and they trade off
+against each other:</p>
+<ul>
+<li><code>Experiment.run(log_to_wandb=True)</code> (the default) streams metrics to
+  Weights &amp; Biases as training progresses, via <code>log_to_wandb</code>/
+  <code>log_to_wandb_on_train_end</code> below. This is the slow path - real
+  network I/O, roughly linear in the number of seeds - but gives you
+  wandb's hosted dashboards, run comparison, etc.</li>
+<li><code>Experiment.run(log_to_wandb=False)</code> skips wandb entirely and just
+  returns <code>logs</code> (the same pytree these methods consume) directly - no
+  network calls, so it's dramatically faster. Pair it with
+  <code>navix.plotting</code> to get a local matplotlib dashboard from <code>logs</code>
+  instead of a wandb one. See issue #60.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.agents.agent.Agent.log" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">log</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">inspectable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deprecated: use <code>log_to_wandb</code> instead.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.agents.agent.Agent.log_on_train_end" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">log_on_train_end</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deprecated: use <code>log_to_wandb_on_train_end</code> instead.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h3 id="navix.agents.agent.HParams" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>HParams</code>
 
@@ -2247,6 +2422,117 @@
 
 </div>
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.agents.agent.masked_mean" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">masked_mean</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Mean of <code>values</code> over entries where <code>mask</code> is True, computed via a masked
+sum/count rather than boolean-indexing <code>values[mask]</code>. Boolean-indexing
+produces a dynamically-shaped result (its size depends on how many
+entries are True, which usually varies across calls), forcing JAX to
+recompile a fresh XLA program for every distinct count it hasn't seen
+before. This keeps the output shape fixed - <code>values.shape</code> reduced
+over <code>axis</code> - regardless of how many entries are masked, so XLA
+compiles it once and reuses it.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>values</code>
+            </td>
+            <td>
+                  <code><span title="Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The values to average.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mask</code>
+            </td>
+            <td>
+                  <code><span title="Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A boolean array, broadcastable to <code>values.shape</code>,
+selecting which entries to include.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>axis</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The axis or axes to reduce over. <code>None</code> reduces to a scalar.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The mean of <code>values</code> where <code>mask</code> is True, reduced over <code>axis</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
