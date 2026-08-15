@@ -9,6 +9,9 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v3
         with:
@@ -74,7 +77,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
-          password: ${{ secrets.PYPI_API_KEY }}
 
   deploy-docs:
     runs-on: ubuntu-latest
