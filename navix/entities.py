@@ -287,11 +287,11 @@ class Door(Entity, Openable, HasColour):
 
     @property
     def walkable(self) -> Array:
-        return self.open
+        return jnp.asarray(self.open, dtype=jnp.bool_)
 
     @property
     def transparent(self) -> Array:
-        return self.open
+        return jnp.asarray(self.open, dtype=jnp.bool_)
 
     @property
     def sprite(self) -> Array:
