@@ -101,7 +101,19 @@ def categorical_first_person(state: State) -> Array:
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
     transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
+    # a picked-up entity's position (DISCARD_PILE_COORDS = (0, -1)) is
+    # off-grid - .at[].set()'s default mode wraps negative components
+    # around (numpy semantics) rather than dropping them, silently
+    # overwriting a real cell (see categorical()/symbolic() for the
+    # same bug, fixed the same way). Push off-grid positions to be
+    # explicitly out of bounds first, so mode="drop" discards those
+    # writes instead.
+    H, W = state.grid.shape
+    row, col = positions[..., 0], positions[..., 1]
+    on_grid = (row >= 0) & (row < H) & (col >= 0) & (col < W)
+    row = jnp.where(on_grid, row, H)
+    col = jnp.where(on_grid, col, W)
+    transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
     # apply view mask
     player = state.get_player()
@@ -109,7 +121,7 @@ def categorical_first_person(state: State) -> Array:
 
     # get categorical representation
     tags = state.get_tags()
-    obs = state.grid.at[tuple(positions.T)].set(tags) * view
+    obs = state.grid.at[row, col].set(tags, mode="drop") * view
 
     # crop grid to agent's view
     obs = crop(obs, player.position, player.direction, RADIUS)
