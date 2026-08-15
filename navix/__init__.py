@@ -27,7 +27,6 @@ from . import (
     rewards,
     environments,
     terminations,
-    config,
     spaces,
     rendering,
     transitions,

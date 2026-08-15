@@ -25,7 +25,7 @@ import jax.numpy as jnp
 import navix as nx
 from navix import observations
 from navix.components import EMPTY_POCKET_ID
-from navix.entities import Ball, Entities, Player
+from navix.entities import Ball, Entities, Goal, Player
 from navix.rendering.cache import RenderingCache
 from navix.rendering.registry import PALETTE
 from navix.states import State
@@ -94,6 +94,31 @@ def test_91():
     )
 
 
+def test_98():
+    # https://github.com/epignatelli/navix/issues/98
+    env = nx.make("Navix-KeyCorridorS3R1-v0")
+    timestep = env.reset(jax.random.PRNGKey(0))
+    state = timestep.state
+
+    # 1. every door position must be floor (0) in the base grid, not a
+    # hardcoded wall - otherwise a door's own open/closed state can never
+    # actually control whether the agent can pass, since _can_walk_there
+    # requires both the grid cell and the entity to be walkable
+    doors = state.get_doors()
+    door_cells = state.grid[tuple(doors.position.T)]
+    assert jnp.all(door_cells == 0), (
+        "Expected every door position to be floor (0) in the base grid, "
+        "got {}".format(door_cells)
+    )
+
+    # 2. the target must be a walkable Goal, not a Ball (Ball.walkable=False,
+    # which made the room unsolvable - the agent could never reach it)
+    goal = state.get_goals()
+    assert isinstance(goal, Goal), "Expected the target entity to be a Goal"
+    assert jnp.all(goal.walkable), "Expected the Goal to be walkable"
+
+
 if __name__ == "__main__":
     test_82()
     test_91()
+    test_98()
