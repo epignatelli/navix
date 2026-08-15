@@ -20,13 +20,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v3
       - name: Setup navix
         run: |
-          pip install . -v
-          pip install -r requirements_test.txt
+          uv pip install --system . -v
+          uv pip install --system -r requirements_test.txt
       - name: Check code quality
         run: |
-          pip install pylint
+          uv pip install --system pylint
           MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
           echo "$MESSAGE"
           {
@@ -51,9 +52,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@v3
       - name: PEP8 Compliance
         run: |
-          pip install pylint
+          uv pip install --system pylint
           PR_BRANCH=${{ github.event.pull_request.target.ref }}
           MAIN_BRANCH=origin/${{ github.event.pull_request.base.ref }}
           CURRENT_DIFF=$(git diff --name-only --diff-filter=d $MAIN_BRANCH $PR_BRANCH  | grep -E '\.py$' | tr '\n' ' ')

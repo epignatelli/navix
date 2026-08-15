@@ -81,6 +81,7 @@ something is broken.
 ## Before opening a PR
 
 - Run the test suite: `pip install . -v && pip install -r requirements_test.txt && pytest`
+  - Or with [`uv`](https://docs.astral.sh/uv/) (faster, optional — not a replacement for `pip install navix` downstream): `uv pip install -e . && uv pip install -r requirements_test.txt && pytest`, or `uv sync` to build a full dev environment from the committed `uv.lock`. Dependencies are still declared dynamically from `requirements.txt` (see `pyproject.toml`'s `[tool.setuptools.dynamic]`) — `uv lock`/`uv sync` resolve that correctly, but `uv add`/`uv remove` don't (they write to `[project.dependencies]`, which conflicts with `dynamic` still listing it); add new dependencies to `requirements.txt` directly and re-run `uv lock` to update `uv.lock`.
 - Run the examples: `for example in examples/*.py; do python $example; done` — they must exit cleanly
 - Lint is informational, not blocking: CI posts `pylint` output as a PR comment, it won't fail the build
 - No manual version bump (see above) — CI no longer requires or checks for one
