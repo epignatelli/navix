@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 import navix as nx
 from navix.states import State
-from navix.entities import Entities, Player, Goal, Key, Door
+from navix.entities import Entities, EntityIds, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.cache import RenderingCache, TILE_SIZE
 from navix.rendering.registry import SPRITES_REGISTRY, PALETTE
@@ -131,6 +131,44 @@ def test_categorical_first_person():
 
     obs = nx.observations.categorical_first_person(state)
     print(obs)
+
+
+def test_categorical_first_person_transparency_matches_rgb():
+    # regression test for #112: categorical_first_person negated
+    # transparency (`~transparent`) while rgb_first_person did not, so a
+    # transparent entity (e.g. a Key, which Entity.transparent documents as
+    # True) incorrectly blocked vision under categorical_first_person while
+    # correctly letting it through under rgb_first_person - the two
+    # observation types disagreed about which entities occlude vision.
+    height, width = 10, 10
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, 1, mode="constant", constant_values=-1)
+
+    player = Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    # a transparent entity directly in front of the player...
+    key = Key(position=jnp.asarray((1, 2)), id=jnp.asarray(0), colour=PALETTE.YELLOW)
+    # ...must not hide what's behind it
+    goal = Goal.create(position=jnp.asarray((1, 3)), probability=jnp.asarray(1.0))
+
+    entities = {
+        Entities.PLAYER: player[None],
+        Entities.KEY: key[None],
+        Entities.GOAL: goal[None],
+    }
+    state = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=RenderingCache.init(grid),
+        entities=entities,
+    )
+
+    obs = nx.observations.categorical_first_person(state)
+    assert jnp.any(obs == EntityIds.GOAL), (
+        "Expected the Goal to be visible through the transparent Key, "
+        "got observation:\n{}".format(obs)
+    )
 
 
 def test_rgb_first_person():
