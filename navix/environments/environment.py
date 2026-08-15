@@ -35,10 +35,9 @@ from ..entities import EntityIds
 
 # Calculate maximum entity ID once at module level for efficiency
 # Use vars() to get only class attributes (not inherited ones) and filter for Array instances
-_MAX_ENTITY_ID = max(
+MAX_CATEGORICAL_VALUE = 1 + max(
     int(value) for value in vars(EntityIds).values() if isinstance(value, Array)
 )
-_MAX_CATEGORICAL_VALUE = _MAX_ENTITY_ID + 1
 
 
 class StepType(struct.PyTreeNode):
@@ -236,12 +235,12 @@ class Environment(struct.PyTreeNode):
             )
         elif observation_fn == observations.categorical:
             return Discrete.create(
-                n_elements=_MAX_CATEGORICAL_VALUE, shape=(height, width)
+                n_elements=MAX_CATEGORICAL_VALUE, shape=(height, width)
             )
         elif observation_fn == observations.categorical_first_person:
             radius = observations.RADIUS
             return Discrete.create(
-                n_elements=_MAX_CATEGORICAL_VALUE,
+                n_elements=MAX_CATEGORICAL_VALUE,
                 shape=(radius * 2 + 1, radius * 2 + 1),
             )
         elif observation_fn == observations.rgb:
@@ -259,7 +258,7 @@ class Environment(struct.PyTreeNode):
             )
         elif observation_fn == observations.symbolic:
             return Discrete.create(
-                n_elements=_MAX_CATEGORICAL_VALUE,
+                n_elements=MAX_CATEGORICAL_VALUE,
                 shape=(height, width, 3),
                 dtype=jnp.uint8,
             )
