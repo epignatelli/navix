@@ -32,6 +32,7 @@ from . import (
     transitions,
     events,
     agents,
+    plotting,
 )
 
 from .environments.registry import make, register_env, registry

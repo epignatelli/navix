@@ -1,6 +1,7 @@
 from dataclasses import asdict, replace, fields
 import time
-from typing import Dict, Tuple
+import warnings
+from typing import Dict, Optional, Tuple
 
 import distrax
 import jax
@@ -9,6 +10,32 @@ import wandb
 import wandb.util
 from navix.agents.agent import Agent
 from navix.environments.environment import Environment
+
+# Logging to wandb is sequential, one seed/hparam-set at a time - both
+# concurrency options that were tried here turned out not to hold up:
+#
+# - Threads: wandb's SDK carries global/singleton state that isn't
+#   actually isolated per Run instance across threads. Concurrent
+#   wandb.init() calls from multiple threads raced into a real login
+#   attempt even under `wandb offline`; serializing just wandb.init()
+#   with a lock still left runs corrupted ("Run (...) is finished. The
+#   call to `log` will be ignored.") when multiple threads logged to
+#   their own Run objects concurrently.
+# - Processes (spawn, to stay safe w.r.t. JAX/CUDA - forking a process
+#   after CUDA is initialized in the parent is undefined behavior
+#   regardless of timing, since every thread but the calling one just
+#   vanishes in the child, taking whatever locks it held with it):
+#   measured on a real GPU across 1/2/4/8 seeds, spawning a process per
+#   seed was 1.4-2.8x *slower* than sequential up to 4 seeds (each
+#   worker re-imports the entire jax/flax/distrax/tensorflow_probability/
+#   wandb stack from a cold interpreter), only broke even around 8, and
+#   at 16 concurrent workers the pool outright crashed from resource
+#   exhaustion (MemoryError, `ptxas` launch failures). Not worth the
+#   complexity for a win that only shows up at seed counts nobody's
+#   actually running by default.
+#
+# `run()`'s docstring below still calls this out explicitly, since it's
+# a real cost worth knowing about before choosing `log_to_wandb=True`.
 
 
 class Experiment:
@@ -48,18 +75,38 @@ class Experiment:
         self.seeds = seeds
         self.group = group
 
-    def run(self, do_log: bool = True):
+    def run(self, log_to_wandb: bool = True, do_log: Optional[bool] = None):
         """Default function to run the experiment. This function compiles the training function, trains the agent, and logs the results.
 
+        Two strategies exist for looking at the results, and they trade off
+        against each other:
+
+        - `log_to_wandb=True` (the default) streams metrics to Weights &
+          Biases as training progresses. This is the slow path - real
+          network I/O, roughly linear in the number of seeds.
+        - `log_to_wandb=False` skips wandb entirely; `logs` (this
+          method's second return value) is returned either way, so with
+          wandb off you get it back much faster, with no network calls at
+          all. Pair it with `navix.plotting` to get a local matplotlib
+          dashboard from `logs` instead of a wandb one. See issue #60.
+
         Args:
-            do_log (bool): Whether to log the results to wandb.
-        !!! Warning
-            Logging to `wandb` is usually much slower than training the agent itself.
-            The time is linear in the number of seeds.
+            log_to_wandb (bool): Whether to log the results to wandb.
+            do_log (bool, optional): Deprecated alias for `log_to_wandb`.
 
         Returns:
             Tuple: A tuple containing the final training state and the logs.
         """
+        if do_log is not None:
+            warnings.warn(
+                "Experiment.run's `do_log` is deprecated, use "
+                "`log_to_wandb` instead - the old name didn't say what "
+                "it was actually turning on/off.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            log_to_wandb = do_log
+
         print("Running experiment with the following configuration:")
         print(vars(self))
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -76,17 +123,19 @@ class Experiment:
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
 
-        if not self.agent.hparams.debug and do_log:
+        if not self.agent.hparams.debug and log_to_wandb:
             print("Logging final results to wandb...")
             start_time = time.time()
+
             for seed in self.seeds:
                 config = {**vars(self), **asdict(self.agent.hparams)}
                 config.update(seed=seed)
-                wandb.init(project=self.name, config=config, group=self.group)
+                run = wandb.init(project=self.name, config=config, group=self.group)
                 print("Logging results for seed:", seed)
                 log = jax.tree.map(lambda x: x[seed], logs)
-                self.agent.log_on_train_end(log)
-                wandb.finish()
+                self.agent.log_to_wandb_on_train_end(log, run=run)
+                run.finish()
+
             logging_time = time.time() - start_time
             print(f"Logging time cost: {logging_time}")
 
@@ -96,7 +145,7 @@ class Experiment:
         total_time += compilation_time
         print(f"Training time cost: {training_time}")
         total_time += training_time
-        if not self.agent.hparams.debug and do_log:
+        if not self.agent.hparams.debug and log_to_wandb:
             print(f"Logging time cost: {logging_time}")
             total_time += logging_time
         print(f"Total time cost: {total_time}")
@@ -168,15 +217,17 @@ class Experiment:
 
         print("Logging final results to wandb...")
         start_time = time.time()
-        # average over seeds
+
         for i in range(len_search_set):
             print("Logging results for hparam set:", search_set)
             hparams = jax.tree.map(lambda x: x[i], search_set)
             config = {**vars(self), **asdict(hparams)}
-            wandb.init(project=self.name, config=config, group=self.group)
+            run = wandb.init(project=self.name, config=config, group=self.group)
+            # average over seeds
             log = jax.tree.map(lambda x: jnp.mean(x[i], axis=0), logs)
-            self.agent.log_on_train_end(log)
-            wandb.finish()
+            self.agent.log_to_wandb_on_train_end(log, run=run)
+            run.finish()
+
         logging_time = time.time() - start_time
 
         print("Hyperparameter search complete")

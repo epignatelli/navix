@@ -296,7 +296,7 @@ class PPO(Agent):
 
         # Debugging mode
         if self.hparams.debug:
-            jax.debug.callback(self.log, logs, experience)
+            jax.debug.callback(self.log_to_wandb, logs, experience)
 
         return train_state, logs
 
@@ -354,5 +354,6 @@ class PPO(Agent):
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
         elapsed = time.time() - start_time
         logs["iter/fps"] = jnp.asarray([train_state.frames / elapsed] * num_updates)
+        logs["iter/wall_time"] = jnp.asarray([elapsed] * num_updates)
 
         return train_state, logs
