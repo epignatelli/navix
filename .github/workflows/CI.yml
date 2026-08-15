@@ -7,6 +7,7 @@ on:
 jobs:
   Test:
     runs-on: ${{ matrix.os }}-latest
+    environment: ci-approval
     strategy:
       fail-fast: false
       max-parallel: 5
