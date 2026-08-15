@@ -112,6 +112,31 @@ def test_fourrooms_sizes_partition_walls_are_centred():
             "outside the grid"
         )
 
+        # each stripe (height-2 or width-2 long) should have exactly 2
+        # openings removed; an out-of-range opening index (previously
+        # possible - see below) can silently remove the wrong stripe cell
+        # instead, leaving the wall cell count unchanged but the room
+        # potentially unsolvable rather than actually split in four
+        expected_wall_count = (height - 4) + (width - 4)
+        assert positions.shape[0] == expected_wall_count, (
+            f"FourRooms {height}x{width}: expected {expected_wall_count} "
+            f"partition wall cells, got {positions.shape[0]}"
+        )
+
+    # opening_2's draw range used to allow an out-of-range index into the
+    # wall stripe (maxval was exclusive but one too high) - for 7x7 this was
+    # a ~50% chance per reset, so check it holds across several seeds
+    for seed in range(10):
+        env = nx.environments.FourRooms.create(
+            height=7, width=7, observation_fn=nx.observations.none
+        )
+        timestep = env.reset(jax.random.PRNGKey(seed))
+        positions = timestep.state.get_walls().position
+        assert positions.shape[0] == 6, (
+            f"FourRooms 7x7 seed={seed}: expected 6 partition wall cells, "
+            f"got {positions.shape[0]}"
+        )
+
 
 def test_disable_autoreset():
     def make_env(disable):
