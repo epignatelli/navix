@@ -97,23 +97,24 @@ def test_plot_metrics_skips_missing_keys():
         plt.close(fig)
 
 
-def test_plot_dashboard_has_a_row_per_metric_group():
-    logs, *_ = _make_logs()
-    logs = derive_scalar_metrics(logs)
-    diagnostic_metrics = {"loss/total_loss": "Total Loss"}
-
-    fig = plot_dashboard(logs, diagnostic_metrics=diagnostic_metrics, x_key="iter/frames")
-    on_axes = [ax for ax in fig.axes if ax.axison]
-    # 4 mandatory metrics (perf/returns, perf/success_rate,
-    # perf/episode_length, iter/fps) + 1 diagnostic (loss/total_loss)
-    assert len(on_axes) == len(MANDATORY_METRICS) + len(diagnostic_metrics)
-    plt.close(fig)
-
-
-def test_plot_dashboard_without_diagnostic_metrics():
+def test_plot_dashboard_defaults_to_mandatory_metrics():
     logs, *_ = _make_logs()
     logs = derive_scalar_metrics(logs)
     fig = plot_dashboard(logs, x_key="iter/frames")
     on_axes = [ax for ax in fig.axes if ax.axison]
     assert len(on_axes) == len(MANDATORY_METRICS)
+    plt.close(fig)
+
+
+def test_plot_dashboard_accepts_an_arbitrary_metrics_dict():
+    # navix.plotting doesn't know about "diagnostic" metrics - a caller
+    # (e.g. a leaderboard's own algorithm -> diagnostic-keys mapping) can
+    # pass whatever combined dict it wants
+    logs, *_ = _make_logs()
+    logs = derive_scalar_metrics(logs)
+    custom_metrics = {**MANDATORY_METRICS, "loss/total_loss": "Total Loss"}
+
+    fig = plot_dashboard(logs, metrics=custom_metrics, x_key="iter/frames")
+    on_axes = [ax for ax in fig.axes if ax.axison]
+    assert len(on_axes) == len(custom_metrics)
     plt.close(fig)

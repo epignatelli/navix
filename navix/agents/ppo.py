@@ -83,21 +83,6 @@ class PPO(Agent):
     network: ActorCritic = struct.field(pytree_node=False)
     env: Environment
 
-    DIAGNOSTIC_METRICS = {
-        "loss/total_loss": "Total Loss",
-        "loss/actor_loss": "Actor (Policy) Loss",
-        "loss/value_loss": "Value Loss",
-        "loss/entropy": "Policy Entropy",
-        "loss/approx_kl": "Approx. KL Divergence",
-        "loss/clipfrac": "Clip Fraction",
-        "iter/learning_rate": "Learning Rate",
-    }
-    """PPO-specific diagnostics: how the algorithm's own inner machinery
-    (its loss terms, entropy, learning-rate schedule) behaved during
-    training - not intended to be compared across different algorithms,
-    unlike `navix.plotting.MANDATORY_METRICS`. Pass to
-    `navix.plotting.plot_dashboard(logs, diagnostic_metrics=PPO.DIAGNOSTIC_METRICS)`."""
-
     def collect_experience(
         self, train_state: TrainingState
     ) -> Tuple[TrainingState, Buffer]:

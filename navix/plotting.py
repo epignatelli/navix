@@ -22,17 +22,21 @@ and `Experiment.run_hparam_search()`, so training can be inspected without
 wandb (see `Agent.log`'s docstring and issue #60: disabling wandb logging
 and reading `logs` directly is the fast path).
 
-Two fixed, deliberately-chosen sets of plots, rather than auto-detecting
-whatever keys happen to be in `logs`:
+`MANDATORY_METRICS` is a fixed, deliberately-chosen set of plots, rather
+than auto-detecting whatever keys happen to be in `logs`: the minimum
+needed to tell whether training worked at all (`perf/returns`,
+`perf/success_rate`, `perf/episode_length`, `iter/fps`), identical across
+every navix agent so results are visually comparable across algorithms -
+this is the set the navix leaderboard (#130) is expected to standardise
+on.
 
-- `MANDATORY_METRICS`: identical across every navix agent (`perf/returns`,
-  `perf/success_rate`, `perf/episode_length`, `iter/fps`), so results are
-  visually comparable across algorithms - this is the set the navix
-  leaderboard (#130) is expected to standardise on.
-- Diagnostic metrics are algorithm-specific ("inner machinery" - e.g. a
-  PPO's clip fraction, an off-policy agent's buffer size) and are supplied
-  by the caller (see `PPO.DIAGNOSTIC_METRICS` for an example), not fixed
-  here.
+This module deliberately does not know about "diagnostic" (algorithm-
+specific) metrics - an algorithm submitted to a leaderboard won't
+necessarily have any navix-specific code to declare which of its own
+logged keys are diagnostic. That categorisation belongs to whatever
+consumes this module (e.g. a leaderboard's own file mapping algorithm ->
+diagnostic keys), not to navix itself. `plot_metrics`/`plot_dashboard`
+both accept an arbitrary metrics dict for exactly this reason.
 """
 
 from __future__ import annotations
@@ -168,21 +172,27 @@ def plot_metrics(
 
 def plot_dashboard(
     logs: Dict[str, jnp.ndarray],
-    diagnostic_metrics: Optional[Dict[str, str]] = None,
+    metrics: Optional[Dict[str, str]] = None,
     x_key: str = "iter/frames",
     xlabel: str = "Frames",
 ):
-    """Plots `MANDATORY_METRICS` and, if given, `diagnostic_metrics`, as a
-    single combined figure - one row for the mandatory metrics (comparable
-    across algorithms), and, if any diagnostic metrics are present, a
-    second row for them (algorithm-specific).
+    """Plots `metrics` (`MANDATORY_METRICS` by default) as a single combined
+    figure, one panel per metric.
+
+    This is intentionally agnostic about "mandatory vs. diagnostic" -
+    navix doesn't know, and shouldn't need to know, what a given algorithm
+    considers diagnostic (an algorithm submitted to a leaderboard won't
+    necessarily have any navix-specific code to declare that in). That
+    categorisation belongs to whatever consumes `navix.plotting` - e.g. a
+    leaderboard's own file mapping algorithm -> diagnostic keys - which
+    can merge its own metrics dict with `MANDATORY_METRICS` and pass the
+    result here.
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree (see `plot_metric`).
-        diagnostic_metrics (Dict[str, str], optional): Algorithm-specific
-            metrics to plot alongside the mandatory ones, e.g.
-            `PPO.DIAGNOSTIC_METRICS`. Keys missing from `logs` are
-            silently skipped.
+        metrics (Dict[str, str], optional): A mapping of `logs` key to
+            plot title. Defaults to `MANDATORY_METRICS`. Keys missing
+            from `logs` are silently skipped.
         x_key (str): The key in `logs` to use as the x-axis.
         xlabel (str): The x-axis label.
 
@@ -190,27 +200,16 @@ def plot_dashboard(
         matplotlib.figure.Figure: The combined dashboard figure."""
     import matplotlib.pyplot as plt
 
-    mandatory = [(k, t) for k, t in MANDATORY_METRICS.items() if k in logs]
-    diagnostic = [
-        (k, t) for k, t in (diagnostic_metrics or {}).items() if k in logs
-    ]
-
-    # size the grid by whichever row has more entries, so no diagnostic
-    # metric is ever silently dropped for having "too many" columns
-    n_cols = max(len(mandatory), len(diagnostic), 1)
-    n_rows = 1 + (1 if diagnostic else 0)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 4 * n_rows), squeeze=False)
+    present = [(k, t) for k, t in (metrics or MANDATORY_METRICS).items() if k in logs]
+    n_cols = max(len(present), 1)
+    fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
 
     for ax in axes.flat:
         ax.axis("off")
 
-    for i, (key, title) in enumerate(mandatory):
+    for i, (key, title) in enumerate(present):
         axes[0, i].axis("on")
         plot_metric(logs, key, title=title, x_key=x_key, xlabel=xlabel, ax=axes[0, i])
-
-    for i, (key, title) in enumerate(diagnostic):
-        axes[1, i].axis("on")
-        plot_metric(logs, key, title=title, x_key=x_key, xlabel=xlabel, ax=axes[1, i])
 
     fig.tight_layout()
     return fig
