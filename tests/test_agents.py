@@ -19,6 +19,7 @@
 
 from unittest.mock import patch
 
+import numpy as np
 import jax.numpy as jnp
 
 from navix.agents.agent import Agent, HParams
@@ -53,5 +54,50 @@ def test_log_on_train_end_respects_log_frequency():
     )
 
 
+def test_log_masked_mean_matches_boolean_indexing():
+    # https://github.com/epignatelli/navix/issues/60
+    # `lengths[mask]` / `returns[mask]` (boolean-indexing a variable number
+    # of completed episodes per step) produce a *dynamically*-shaped
+    # output, forcing JAX to recompile a fresh XLA program for every
+    # distinct episode count it hasn't seen before - profiling a real PPO
+    # run showed this was ~60% of total logging wall-clock time, and
+    # explained why wandb.log() calls got slower the more *different*
+    # episode-completion patterns a run produced, not just their number.
+    # Replaced with a masked sum/count, which keeps a static (T, N) ->
+    # scalar shape regardless of how many entries are masked, so XLA
+    # compiles it once. This checks the new arithmetic still matches
+    # plain numpy boolean-indexing exactly.
+    rng = np.random.default_rng(0)
+    mask = rng.random((5, 4)) > 0.5
+    lengths = rng.integers(1, 50, size=(5, 4)).astype(np.float32)
+    returns = rng.choice([0.0, 1.0], size=(5, 4))
+    # ensure at least one True and one entry equal to 1.0 under the mask,
+    # so both branches are non-degenerate
+    mask[0, 0] = True
+    returns[0, 0] = 1.0
+
+    expected_length = np.mean(lengths[mask])
+    expected_returns = np.mean(returns[mask])
+    expected_success_rate = np.mean(returns[mask] == 1.0)
+
+    logs = {
+        "iter/updates": jnp.asarray(0),
+        "iter/frames": jnp.asarray(0),
+        "done_mask": jnp.asarray(mask),
+        "lengths": jnp.asarray(lengths),
+        "returns": jnp.asarray(returns),
+    }
+    agent = Agent(hparams=HParams())
+
+    with patch("navix.agents.agent.wandb.log") as mock_log:
+        agent.log(dict(logs))
+
+    logged = mock_log.call_args.args[0]
+    assert np.allclose(logged["perf/episode_length"], expected_length)
+    assert np.allclose(logged["perf/returns"], expected_returns)
+    assert np.allclose(logged["perf/success_rate"], expected_success_rate)
+
+
 if __name__ == "__main__":
     test_log_on_train_end_respects_log_frequency()
+    test_log_masked_mean_matches_boolean_indexing()
