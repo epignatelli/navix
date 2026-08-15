@@ -45,6 +45,7 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
     return {
         "iter/frames": jnp.asarray(frames),
         "iter/fps": jnp.asarray(rng.random((n_seeds, n_updates)) * 1000),
+        "iter/wall_time": jnp.asarray(rng.random((n_seeds, n_updates)) * 100),
         "done_mask": jnp.asarray(mask),
         "lengths": jnp.asarray(lengths),
         "returns": jnp.asarray(returns),
@@ -91,7 +92,8 @@ def test_plot_metrics_skips_missing_keys():
     logs, *_ = _make_logs()
     logs = derive_scalar_metrics(logs)
     figs = plot_metrics(logs, MANDATORY_METRICS, x_key="iter/frames")
-    # perf/episode_length, perf/returns, perf/success_rate, iter/fps all present
+    # perf/episode_length, perf/returns, perf/success_rate, iter/fps,
+    # iter/wall_time all present
     assert set(figs.keys()) == set(MANDATORY_METRICS.keys())
     for fig in figs.values():
         plt.close(fig)

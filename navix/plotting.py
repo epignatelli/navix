@@ -23,12 +23,15 @@ wandb (see `Agent.log`'s docstring and issue #60: disabling wandb logging
 and reading `logs` directly is the fast path).
 
 `MANDATORY_METRICS` is a fixed, deliberately-chosen set of plots, rather
-than auto-detecting whatever keys happen to be in `logs`: the minimum
-needed to tell whether training worked at all (`perf/returns`,
-`perf/success_rate`, `perf/episode_length`, `iter/fps`), identical across
-every navix agent so results are visually comparable across algorithms -
-this is the set the navix leaderboard (#130) is expected to standardise
-on.
+than auto-detecting whatever keys happen to be in `logs`. Each entry is
+derivable purely from the (state, action, reward, done) interaction
+stream plus wall-clock time - the one interface every RL algorithm
+shares, regardless of its internals - so the set stays meaningful for any
+future agent, not just the ones navix ships: `perf/returns`,
+`perf/success_rate`, `perf/episode_length`, `iter/fps`, `iter/wall_time`.
+Identical across every navix agent so results are visually comparable
+across algorithms - this is the set the navix leaderboard (#130) is
+expected to standardise on.
 
 This module deliberately does not know about "diagnostic" (algorithm-
 specific) metrics - an algorithm submitted to a leaderboard won't
@@ -53,6 +56,7 @@ MANDATORY_METRICS: Dict[str, str] = {
     "perf/success_rate": "Success Rate",
     "perf/episode_length": "Episode Length",
     "iter/fps": "Training Throughput (steps/s)",
+    "iter/wall_time": "Wall-clock Training Time (s)",
 }
 """The plots every navix agent's `logs` should support, so results are
 directly comparable across algorithms. Kept intentionally small: only
