@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace, fields
 import time
 from typing import Dict, Tuple
@@ -79,14 +80,23 @@ class Experiment:
         if not self.agent.hparams.debug and do_log:
             print("Logging final results to wandb...")
             start_time = time.time()
-            for seed in self.seeds:
+
+            def log_seed(seed):
                 config = {**vars(self), **asdict(self.agent.hparams)}
                 config.update(seed=seed)
-                wandb.init(project=self.name, config=config, group=self.group)
+                run = wandb.init(project=self.name, config=config, group=self.group)
                 print("Logging results for seed:", seed)
                 log = jax.tree.map(lambda x: x[seed], logs)
-                self.agent.log_on_train_end(log)
-                wandb.finish()
+                self.agent.log_on_train_end(log, run=run)
+                run.finish()
+
+            # each seed's wandb.init -> log -> finish cycle is
+            # independent, network-I/O-bound work - run them
+            # concurrently so wall-clock time doesn't scale with the
+            # number of seeds
+            with ThreadPoolExecutor(max_workers=len(self.seeds)) as executor:
+                list(executor.map(log_seed, self.seeds))
+
             logging_time = time.time() - start_time
             print(f"Logging time cost: {logging_time}")
 
@@ -168,15 +178,20 @@ class Experiment:
 
         print("Logging final results to wandb...")
         start_time = time.time()
-        # average over seeds
-        for i in range(len_search_set):
+
+        def log_hparam_set(i):
             print("Logging results for hparam set:", search_set)
             hparams = jax.tree.map(lambda x: x[i], search_set)
             config = {**vars(self), **asdict(hparams)}
-            wandb.init(project=self.name, config=config, group=self.group)
+            run = wandb.init(project=self.name, config=config, group=self.group)
+            # average over seeds
             log = jax.tree.map(lambda x: jnp.mean(x[i], axis=0), logs)
-            self.agent.log_on_train_end(log)
-            wandb.finish()
+            self.agent.log_on_train_end(log, run=run)
+            run.finish()
+
+        with ThreadPoolExecutor(max_workers=len_search_set) as executor:
+            list(executor.map(log_hparam_set, range(len_search_set)))
+
         logging_time = time.time() - start_time
 
         print("Hyperparameter search complete")

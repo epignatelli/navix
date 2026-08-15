@@ -10,6 +10,28 @@ from flax import struct
 from flax.training.train_state import TrainState
 
 
+def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
+    """Mean of `values` over entries where `mask` is True, computed via a masked
+    sum/count rather than boolean-indexing `values[mask]`. Boolean-indexing
+    produces a dynamically-shaped result (its size depends on how many
+    entries are True, which usually varies across calls), forcing JAX to
+    recompile a fresh XLA program for every distinct count it hasn't seen
+    before. This keeps the output shape fixed - `values.shape` reduced
+    over `axis` - regardless of how many entries are masked, so XLA
+    compiles it once and reuses it.
+
+    Args:
+        values (Array): The values to average.
+        mask (Array): A boolean array, broadcastable to `values.shape`,
+            selecting which entries to include.
+        axis: The axis or axes to reduce over. `None` reduces to a scalar.
+
+    Returns:
+        Array: The mean of `values` where `mask` is True, reduced over `axis`."""
+    mask = jnp.asarray(mask, dtype=jnp.bool_)
+    return jnp.sum(jnp.where(mask, values, 0), axis=axis) / jnp.sum(mask, axis=axis)
+
+
 class HParams(struct.PyTreeNode):
     debug: bool = struct.field(pytree_node=False, default=False)
     """Whether to run in debug mode."""
@@ -24,7 +46,7 @@ class Agent(struct.PyTreeNode):
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
         raise NotImplementedError
 
-    def log(self, logs, inspectable=None):
+    def log(self, logs, inspectable=None, run=None):
         if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:
             return
 
@@ -38,37 +60,29 @@ class Agent(struct.PyTreeNode):
             logs[f"render/human"] = wandb.Video(np.array(render_human), fps=4)
 
         if "done_mask" in logs:
-            mask = jnp.asarray(logs.pop("done_mask"), dtype=jnp.bool)  # (T, N)
-            # Masked mean via sum/count instead of boolean-indexing
-            # (`lengths[mask]`) - mask[mask] has a *dynamic* shape (however
-            # many episodes finished this update, which varies every call),
-            # so JAX must recompile a fresh XLA program for every distinct
-            # count it hasn't seen before. Profiling showed this was ~60%
-            # of total per-call logging time. jnp.where + jnp.sum keeps the
-            # shape fixed at (T, N) -> scalar regardless of how many
-            # entries are masked, so XLA compiles it once and reuses it.
-            mask_count = jnp.sum(mask)
+            mask = jnp.asarray(logs.pop("done_mask"), dtype=jnp.bool_)  # (T, N)
             # log episode length
             if "lengths" in logs:
                 lengths: jax.Array = logs.pop("lengths")  # (T, N)
-                logs["perf/episode_length"] = (
-                    jnp.sum(jnp.where(mask, lengths, 0)) / mask_count
-                )
+                logs["perf/episode_length"] = masked_mean(lengths, mask)
                 msg += f", Length: {logs['perf/episode_length']}"
 
             # log returns
             if "returns" in logs:
                 returns = logs.pop("returns")  # (T, N)
-                logs["perf/returns"] = jnp.sum(jnp.where(mask, returns, 0)) / mask_count
-                logs["perf/success_rate"] = (
-                    jnp.sum(jnp.where(mask, returns == 1.0, False)) / mask_count
-                )
+                logs["perf/returns"] = masked_mean(returns, mask)
+                logs["perf/success_rate"] = masked_mean(returns == 1.0, mask)
                 msg += f", Returns: {logs['perf/returns']}, Success Rate: {logs['perf/success_rate']}"
 
         msg += f", Logging time cost: {time.time() - start_time}"
-        wandb.log(logs, step=step)
+        # Use the explicit Run object when given, rather than the
+        # module-level wandb.log, which only tracks one implicit
+        # "current run" and is unsafe when multiple runs are being
+        # logged concurrently from different threads (see
+        # Experiment.run's per-seed logging loop).
+        (run or wandb).log(logs, step=step)
 
-    def log_on_train_end(self, logs):
+    def log_on_train_end(self, logs, run=None):
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["iter/updates"])
         updates = logs["iter/updates"]
@@ -83,4 +97,4 @@ class Agent(struct.PyTreeNode):
             if updates[step] % self.hparams.log_frequency != 0:
                 continue
             step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
-            self.log(step_logs)
+            self.log(step_logs, run=run)
