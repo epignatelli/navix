@@ -17,34 +17,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Note on what's (not) unit-tested here: Experiment.run/run_hparam_search
-# log each seed/hparam-set from its own spawned OS process (see
-# navix.experiment._log_run_to_wandb's docstring for why). A spawned
-# process re-imports `wandb` from scratch, so `monkeypatch.setattr(wandb,
-# "init", ...)` in this (parent) process has no effect on it - unlike the
-# old thread-based version of this file, there's no way to fake wandb
-# inside the child from here. The multiprocessing plumbing itself (does
-# ProcessPoolExecutor(mp_context=spawn) actually reach every seed) is
-# exercised for real by examples/hparam_search.py in CI's "Run examples"
-# step instead. What's tested here is what's safely testable without
-# spawning a real process or touching a real wandb backend: the worker
-# function's own logic (_log_run_to_wandb, called directly, in-process),
-# the numpy-conversion helper, and the parts of Experiment.run that don't
-# require any of that (the do_log deprecation path, the empty-seeds path).
-
 import pytest
 import wandb
-import numpy as np
 import jax.numpy as jnp
 
 from navix.agents.agent import Agent, HParams
-from navix.experiment import Experiment, _log_run_to_wandb, _to_numpy
+from navix.experiment import Experiment
 
 
 class _FakeAgent(Agent):
     """A minimal Agent whose `train` is a no-op over the environment, so
-    `Experiment.run`'s non-logging code paths can be exercised without a
-    real training loop."""
+    `Experiment.run`'s logging loop can be exercised without a real
+    training loop or a real wandb backend."""
 
     def train(self, rng):
         n_updates = 3
@@ -56,70 +40,88 @@ class _FakeAgent(Agent):
 
 
 class _FakeRun:
-    def __init__(self):
-        self.logged = []
-        self.finished = False
+    def __init__(self, seed, logged, finished):
+        self.seed = seed
+        self._logged = logged
+        self._finished = finished
 
     def log(self, logs, step=None):
-        self.logged.append(step)
+        self._logged.append(self.seed)
 
     def finish(self):
-        self.finished = True
+        self._finished.append(self.seed)
 
 
-def test_to_numpy_converts_jax_arrays_only():
-    jax_array = jnp.arange(3)
-    assert isinstance(_to_numpy(jax_array), np.ndarray)
-    # non-array values (the pytree_node=False fields on HParams, plain
-    # Python scalars, ...) must pass through unchanged, not get coerced
-    assert _to_numpy(True) is True
-    assert _to_numpy(3) == 3
-    assert _to_numpy("x") == "x"
-
-
-def test_log_run_to_wandb_calls_init_log_finish(monkeypatch):
-    fake_run = _FakeRun()
-    init_calls = []
+def test_experiment_run_logs_every_seed_via_its_own_run(monkeypatch):
+    # Experiment.run logs each seed sequentially - wandb.init() -> log ->
+    # finish, one seed at a time, using each seed's own wandb.init()-
+    # returned Run object rather than the thread-unsafe module-level
+    # wandb.log (see navix/experiment.py's module docstring/comment for
+    # why: thread- and process-based concurrency were both tried and
+    # reverted - threads corrupted runs, processes were slower than
+    # sequential up to ~4-8 seeds and crashed at 16). This checks every
+    # seed still gets logged and finished exactly once.
+    logged, finished = [], []
 
     def fake_init(project, config, group):
-        init_calls.append((project, config, group))
-        return fake_run
+        return _FakeRun(config["seed"], logged, finished)
 
     monkeypatch.setattr(wandb, "init", fake_init)
 
-    log_np = {
-        "iter/updates": np.arange(4),
-        "iter/frames": np.arange(4) * 100,
-    }
-    _log_run_to_wandb(HParams(log_frequency=1), "proj", {"seed": 0}, "grp", log_np)
-
-    assert init_calls == [("proj", {"seed": 0}, "grp")]
-    assert len(fake_run.logged) == 4
-    assert fake_run.finished
-
-
-def test_experiment_run_do_log_is_deprecated_but_still_works():
-    # the pre-rename `do_log` kwarg must keep working (mapped onto
-    # log_to_wandb) so existing callers aren't broken by the rename, just
-    # warned. hparams.debug=True short-circuits the actual logging block
-    # (`if not self.agent.hparams.debug and log_to_wandb:`) regardless of
-    # do_log's value, so this doesn't need to spawn a process or touch
-    # wandb at all - just checks the warning fires and run() still
-    # completes.
+    seeds = (0, 1, 2, 3)
     experiment = Experiment(
         name="test",
-        agent=_FakeAgent(hparams=HParams(log_frequency=1, debug=True)),
+        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
         env=None,  # type: ignore[arg-type]
-        seeds=(0, 1),
+        seeds=seeds,
+    )
+    experiment.run(log_to_wandb=True)
+
+    assert finished == list(seeds)
+    # 3 updates per seed (see _FakeAgent.train), so each seed logs 3 times
+    assert logged == [s for s in seeds for _ in range(3)]
+
+
+def test_experiment_run_do_log_is_deprecated_but_still_works(monkeypatch):
+    # the pre-rename `do_log` kwarg must keep working (mapped onto
+    # log_to_wandb) so existing callers aren't broken by the rename, just
+    # warned.
+    logged, finished = [], []
+
+    def fake_init(project, config, group):
+        return _FakeRun(config["seed"], logged, finished)
+
+    monkeypatch.setattr(wandb, "init", fake_init)
+
+    seeds = (0, 1)
+    experiment = Experiment(
+        name="test",
+        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
+        env=None,  # type: ignore[arg-type]
+        seeds=seeds,
     )
 
     with pytest.warns(DeprecationWarning, match="log_to_wandb"):
         experiment.run(do_log=True)
 
+    assert finished == list(seeds)
 
-def test_experiment_run_with_no_seeds_does_not_crash():
-    # an empty `seeds` must stay a no-op (no process ever spawned, since
-    # the loop over self.seeds never runs), not crash.
+    logged.clear()
+    finished.clear()
+    with pytest.warns(DeprecationWarning, match="log_to_wandb"):
+        experiment.run(do_log=False)
+
+    assert finished == []
+
+
+def test_experiment_run_with_no_seeds_does_not_crash(monkeypatch):
+    # an empty `seeds` must stay a no-op - the logging loop just never
+    # runs, wandb.init is never called.
+    def fake_init(project, config, group):
+        raise AssertionError("wandb.init should not be called for zero seeds")
+
+    monkeypatch.setattr(wandb, "init", fake_init)
+
     experiment = Experiment(
         name="test",
         agent=_FakeAgent(hparams=HParams(log_frequency=1)),
@@ -134,7 +136,6 @@ if __name__ == "__main__":
         def setattr(self, obj, name, value):
             setattr(obj, name, value)
 
-    test_to_numpy_converts_jax_arrays_only()
-    test_log_run_to_wandb_calls_init_log_finish(_Monkeypatch())
-    test_experiment_run_do_log_is_deprecated_but_still_works()
-    test_experiment_run_with_no_seeds_does_not_crash()
+    test_experiment_run_logs_every_seed_via_its_own_run(_Monkeypatch())
+    test_experiment_run_do_log_is_deprecated_but_still_works(_Monkeypatch())
+    test_experiment_run_with_no_seeds_does_not_crash(_Monkeypatch())
