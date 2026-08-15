@@ -1,16 +1,74 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, replace, fields
+import multiprocessing
 import time
 import warnings
 from typing import Dict, Optional, Tuple
 
 import distrax
+import numpy as np
 import jax
 import jax.numpy as jnp
 import wandb
 import wandb.util
-from navix.agents.agent import Agent
+from navix.agents.agent import Agent, HParams
 from navix.environments.environment import Environment
+
+
+def _to_numpy(x):
+    """Converts a JAX array (or anything array-like) to a plain numpy array,
+    leaving everything else untouched. Used to strip out live JAX device
+    buffers before crossing a process boundary - see `_log_run_to_wandb`."""
+    return np.asarray(x) if isinstance(x, jax.Array) else x
+
+
+def _cpu_only_worker_init():
+    """`ProcessPoolExecutor` initializer (runs once per worker process,
+    before any task). Hides the GPU from the child process entirely, so no
+    worker can ever create a CUDA context - belt-and-braces on top of using
+    `spawn` (see `_log_run_to_wandb`'s docstring for why `spawn` alone is
+    already safe here)."""
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["JAX_PLATFORMS"] = "cpu"
+
+
+def _log_run_to_wandb(
+    hparams: HParams, project: str, config: dict, group: str, log_np: dict
+):
+    """Runs one wandb Run (`init` -> `log_to_wandb_on_train_end` -> `finish`)
+    for a single seed/hparam-set, in its own OS process rather than a
+    thread.
+
+    wandb's SDK carries global/singleton state that isn't actually isolated
+    per `Run` instance across threads - concurrent `wandb.init()` calls from
+    multiple threads have been observed to race into a real login attempt
+    even under `wandb offline`, and even serializing just `wandb.init()`
+    still left runs getting corrupted ("Run (...) is finished. The call to
+    `log` will be ignored.") when multiple threads logged to their own
+    `Run` objects concurrently. Separate OS processes don't share that
+    state at all, matching wandb's own multiprocessing-oriented docs.
+
+    Safe from the usual JAX/CUDA fork hazard (forking a process after CUDA
+    is initialized in the parent is undefined behavior) because the caller
+    uses `multiprocessing.get_context("spawn")`: `spawn` starts a fresh
+    interpreter with nothing inherited from the parent, rather than forking
+    its memory (including its live CUDA context) - so this is safe
+    regardless of whether the parent's training has already finished, not
+    because of the timing. `_cpu_only_worker_init` additionally hides the
+    GPU from this process entirely, so nothing here can create a CUDA
+    context even by accident.
+
+    `log_np` must already be plain numpy (no JAX arrays) - see `_to_numpy` -
+    since JAX device buffers aren't guaranteed to survive being pickled
+    across a process boundary.
+    """
+    import wandb
+
+    run = wandb.init(project=project, config=config, group=group)
+    Agent(hparams=hparams).log_to_wandb_on_train_end(log_np, run=run)
+    run.finish()
 
 
 class Experiment:
@@ -102,25 +160,43 @@ class Experiment:
             print("Logging final results to wandb...")
             start_time = time.time()
 
-            def log_seed(seed):
-                config = {**vars(self), **asdict(self.agent.hparams)}
-                config.update(seed=seed)
-                run = wandb.init(project=self.name, config=config, group=self.group)
-                print("Logging results for seed:", seed)
-                log = jax.tree.map(lambda x: x[seed], logs)
-                self.agent.log_to_wandb_on_train_end(log, run=run)
-                run.finish()
+            hparams_np = jax.tree.map(_to_numpy, self.agent.hparams)
 
-            # each seed's wandb.init -> log -> finish cycle is
-            # independent, network-I/O-bound work - run them
-            # concurrently so wall-clock time doesn't scale with the
-            # number of seeds. wandb.init() itself being called
-            # concurrently from multiple threads is unverified beyond
-            # wandb's own multiprocessing-oriented docs - if this ever
-            # shows up as misattributed/corrupted runs rather than an
-            # exception, that's the first place to look.
-            with ThreadPoolExecutor(max_workers=max(len(self.seeds), 1)) as executor:
-                list(executor.map(log_seed, self.seeds))
+            # each seed's wandb.init -> log -> finish cycle is independent,
+            # network-I/O-bound work - run them concurrently, in separate
+            # processes (not threads - see _log_run_to_wandb's docstring),
+            # so wall-clock time doesn't scale with the number of seeds.
+            ctx = multiprocessing.get_context("spawn")
+            with ProcessPoolExecutor(
+                max_workers=max(len(self.seeds), 1),
+                mp_context=ctx,
+                initializer=_cpu_only_worker_init,
+            ) as executor:
+                futures = []
+                for seed in self.seeds:
+                    config = {
+                        "name": self.name,
+                        "agent": str(self.agent),
+                        "env": str(self.env),
+                        "env_id": self.env_id,
+                        "group": self.group,
+                        "seed": seed,
+                        **asdict(hparams_np),
+                    }
+                    log_np = jax.tree.map(lambda x, s=seed: _to_numpy(x[s]), logs)
+                    print("Logging results for seed:", seed)
+                    futures.append(
+                        executor.submit(
+                            _log_run_to_wandb,
+                            hparams_np,
+                            self.name,
+                            config,
+                            self.group,
+                            log_np,
+                        )
+                    )
+                for f in futures:
+                    f.result()
 
             logging_time = time.time() - start_time
             print(f"Logging time cost: {logging_time}")
@@ -204,18 +280,40 @@ class Experiment:
         print("Logging final results to wandb...")
         start_time = time.time()
 
-        def log_hparam_set(i):
-            print("Logging results for hparam set:", search_set)
-            hparams = jax.tree.map(lambda x: x[i], search_set)
-            config = {**vars(self), **asdict(hparams)}
-            run = wandb.init(project=self.name, config=config, group=self.group)
-            # average over seeds
-            log = jax.tree.map(lambda x: jnp.mean(x[i], axis=0), logs)
-            self.agent.log_to_wandb_on_train_end(log, run=run)
-            run.finish()
-
-        with ThreadPoolExecutor(max_workers=max(len_search_set, 1)) as executor:
-            list(executor.map(log_hparam_set, range(len_search_set)))
+        # see run()'s logging block for why this is multiprocessing (with
+        # spawn + a CPU-only worker init), not threading.
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=max(len_search_set, 1),
+            mp_context=ctx,
+            initializer=_cpu_only_worker_init,
+        ) as executor:
+            futures = []
+            for i in range(len_search_set):
+                hparams_i_np = jax.tree.map(lambda x: _to_numpy(x[i]), search_set)
+                config = {
+                    "name": self.name,
+                    "env_id": self.env_id,
+                    "group": self.group,
+                    **asdict(hparams_i_np),
+                }
+                # average over seeds
+                log_np = jax.tree.map(
+                    lambda x, i=i: _to_numpy(jnp.mean(x[i], axis=0)), logs
+                )
+                print("Logging results for hparam set:", hparams_i_np)
+                futures.append(
+                    executor.submit(
+                        _log_run_to_wandb,
+                        hparams_i_np,
+                        self.name,
+                        config,
+                        self.group,
+                        log_np,
+                    )
+                )
+            for f in futures:
+                f.result()
 
         logging_time = time.time() - start_time
 

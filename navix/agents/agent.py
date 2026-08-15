@@ -93,9 +93,10 @@ class Agent(struct.PyTreeNode):
         msg += f", Logging time cost: {time.time() - start_time}"
         # Use the explicit Run object when given, rather than the
         # module-level wandb.log, which only tracks one implicit
-        # "current run" and is unsafe when multiple runs are being
-        # logged concurrently from different threads (see
-        # Experiment.run's per-seed logging loop).
+        # "current run" - needed when multiple runs are being logged
+        # concurrently, each in its own process (see Experiment.run's
+        # per-seed logging loop, and _log_run_to_wandb's docstring for
+        # why this needs to be process- rather than thread-based).
         (run or wandb).log(logs, step=step)
 
     def log(self, logs, inspectable=None, run=None):
