@@ -60,6 +60,16 @@ class Agent(struct.PyTreeNode):
     def log_on_train_end(self, logs):
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["iter/updates"])
+        updates = logs["iter/updates"]
         for step in range(len_logs):
+            # skip steps self.log() would discard anyway (see the
+            # log_frequency check below), before paying for the
+            # device-to-host transfer of indexing into every array in
+            # `logs` - wandb.log() and this per-step tree indexing were
+            # previously done unconditionally for every recorded step,
+            # which is why disabling wandb logging entirely (do_log=False)
+            # was so much faster than leaving it on
+            if updates[step] % self.hparams.log_frequency != 0:
+                continue
             step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
             self.log(step_logs)
