@@ -73,15 +73,16 @@ def categorical(state: State) -> Array:
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
     tags = state.get_tags()
-    # set tags on the flat set of patches. Append a discard-pile sink
-    # cell first: a picked-up entity's position (DISCARD_PILE_COORDS)
-    # maps to flat index -1, which .at[].set() wraps around to the
-    # *last* element rather than dropping - same pattern as rgb()'s
-    # cache.patches, so that wraparound lands on this dedicated extra
-    # cell instead of a real grid cell.
+    # set tags on the flat set of patches
     shape = state.grid.shape
-    grid = jnp.append(state.grid.reshape(-1), 0).at[indices].set(tags)
-    grid = grid[:DISCARD_PILE_IDX]  # drop the sink cell
+    num_cells = shape[0] * shape[1]
+    # a picked-up entity's position (DISCARD_PILE_COORDS) maps to flat
+    # index -1 - .at[].set()'s default mode wraps negative indices
+    # around (numpy semantics) rather than dropping them, silently
+    # overwriting a real cell. Push negative indices to be explicitly
+    # out of bounds first, so mode="drop" discards those writes instead.
+    indices = jnp.where(indices < 0, num_cells, indices)
+    grid = state.grid.reshape(-1).at[indices].set(tags, mode="drop")
     # unflatten patches to reconstruct the grid
     return grid.reshape(shape)
 
@@ -137,13 +138,6 @@ def symbolic(state: State) -> Array:
     floor_symbol = jnp.array([EntityIds.FLOOR, 0, 0], dtype=jnp.uint8)
     obs = jnp.where(state.grid[..., None] == -1, wall_symbol, floor_symbol)
 
-    # append a discard-pile sink column: a picked-up entity's position
-    # (DISCARD_PILE_COORDS = (0, -1)) has its column wrap around to the
-    # *last* column rather than being dropped - same pattern as rgb()'s
-    # cache.patches, so that wraparound lands on this dedicated extra
-    # column instead of the real top-right cell.
-    obs = jnp.pad(obs, ((0, 0), (0, 1), (0, 0)))
-
     # place entities
     for entity_class in state.entities:
         entity = state.entities[entity_class]
@@ -159,8 +153,18 @@ def symbolic(state: State) -> Array:
 
         # collate
         entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1, dtype=jnp.uint8)
-        obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
-    return obs[:, :W]  # drop the sink column
+        # a picked-up entity's position (DISCARD_PILE_COORDS = (0, -1))
+        # is off-grid - .at[].set()'s default mode wraps negative
+        # components around (numpy semantics) rather than dropping
+        # them, silently overwriting a real cell. Push off-grid
+        # positions to be explicitly out of bounds first, so
+        # mode="drop" discards those writes instead.
+        row, col = entity.position[..., 0], entity.position[..., 1]
+        on_grid = (row >= 0) & (row < H) & (col >= 0) & (col < W)
+        row = jnp.where(on_grid, row, H)
+        col = jnp.where(on_grid, col, W)
+        obs = obs.at[row, col].set(entity_symbol, mode="drop")
+    return obs
 
 
 def symbolic_first_person(state: State) -> Array:
