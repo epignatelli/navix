@@ -121,6 +121,9 @@ class EventsManager(struct.PyTreeNode):
             return self.record_wall_hit(entity, position)
         elif isinstance(entity, Lava):
             return self.record_lava_fall(entity, position)
+        elif isinstance(entity, Ball):
+            idx = jnp.where(entity.position == position, size=1)[0][0]
+            return self.record_ball_hit(entity[idx])
         return self
 
     def record_pickup(self, entity: Entity, position: Array) -> EventsManager:
