@@ -73,9 +73,15 @@ def categorical(state: State) -> Array:
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
     tags = state.get_tags()
-    # set tags on the flat set of patches
+    # set tags on the flat set of patches. Append a discard-pile sink
+    # cell first: a picked-up entity's position (DISCARD_PILE_COORDS)
+    # maps to flat index -1, which .at[].set() wraps around to the
+    # *last* element rather than dropping - same pattern as rgb()'s
+    # cache.patches, so that wraparound lands on this dedicated extra
+    # cell instead of a real grid cell.
     shape = state.grid.shape
-    grid = state.grid.reshape(-1).at[indices].set(tags)
+    grid = jnp.append(state.grid.reshape(-1), 0).at[indices].set(tags)
+    grid = grid[:DISCARD_PILE_IDX]  # drop the sink cell
     # unflatten patches to reconstruct the grid
     return grid.reshape(shape)
 
@@ -131,6 +137,13 @@ def symbolic(state: State) -> Array:
     floor_symbol = jnp.array([EntityIds.FLOOR, 0, 0], dtype=jnp.uint8)
     obs = jnp.where(state.grid[..., None] == -1, wall_symbol, floor_symbol)
 
+    # append a discard-pile sink column: a picked-up entity's position
+    # (DISCARD_PILE_COORDS = (0, -1)) has its column wrap around to the
+    # *last* column rather than being dropped - same pattern as rgb()'s
+    # cache.patches, so that wraparound lands on this dedicated extra
+    # column instead of the real top-right cell.
+    obs = jnp.pad(obs, ((0, 0), (0, 1), (0, 0)))
+
     # place entities
     for entity_class in state.entities:
         entity = state.entities[entity_class]
@@ -147,7 +160,7 @@ def symbolic(state: State) -> Array:
         # collate
         entity_symbol = jnp.stack([tag, colour, entity_state], axis=-1, dtype=jnp.uint8)
         obs = obs.at[tuple(entity.position.T)].set(entity_symbol)
-    return obs
+    return obs[:, :W]  # drop the sink column
 
 
 def symbolic_first_person(state: State) -> Array:
