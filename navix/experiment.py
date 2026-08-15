@@ -93,8 +93,12 @@ class Experiment:
             # each seed's wandb.init -> log -> finish cycle is
             # independent, network-I/O-bound work - run them
             # concurrently so wall-clock time doesn't scale with the
-            # number of seeds
-            with ThreadPoolExecutor(max_workers=len(self.seeds)) as executor:
+            # number of seeds. wandb.init() itself being called
+            # concurrently from multiple threads is unverified beyond
+            # wandb's own multiprocessing-oriented docs - if this ever
+            # shows up as misattributed/corrupted runs rather than an
+            # exception, that's the first place to look.
+            with ThreadPoolExecutor(max_workers=max(len(self.seeds), 1)) as executor:
                 list(executor.map(log_seed, self.seeds))
 
             logging_time = time.time() - start_time
@@ -189,7 +193,7 @@ class Experiment:
             self.agent.log_on_train_end(log, run=run)
             run.finish()
 
-        with ThreadPoolExecutor(max_workers=len_search_set) as executor:
+        with ThreadPoolExecutor(max_workers=max(len_search_set, 1)) as executor:
             list(executor.map(log_hparam_set, range(len_search_set)))
 
         logging_time = time.time() - start_time

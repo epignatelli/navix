@@ -160,7 +160,8 @@ def plot_metrics(
     Args:
         logs (Dict[str, Array]): The `logs` pytree (see `plot_metric`).
         metrics (Dict[str, str]): A mapping of `logs` key to plot title,
-            e.g. `MANDATORY_METRICS` or an agent's `DIAGNOSTIC_METRICS`.
+            e.g. `MANDATORY_METRICS`, or a leaderboard-side mapping of
+            algorithm -> diagnostic keys.
         x_key (str): The key in `logs` to use as the x-axis.
         xlabel (str): The x-axis label.
 
