@@ -94,7 +94,7 @@ def categorical_first_person(state: State) -> Array:
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
     transparent = state.get_transparency()
-    transparency_map = transparency_map.at[tuple(positions.T)].set(~transparent)
+    transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
 
     # apply view mask
     player = state.get_player()
