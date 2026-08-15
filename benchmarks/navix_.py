@@ -61,7 +61,7 @@ if __name__ == "__main__":
         seeds=tuple(range(args.seeds_offset, args.seeds_offset + args.n_seeds)),
         group="navix",
     )
-    train_state, logs = experiment.run(do_log=False)
+    train_state, logs = experiment.run(log_to_wandb=False)
 
     print("Logging final results to wandb...")
     start_time = time.time()
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     logs_avg = jax.tree.map(lambda x: x.mean(axis=0), logs)
     config = {**vars(experiment), **asdict(agent.hparams)}
     wandb.init(project=experiment.name, config=config, group=experiment.group)
-    agent.log_on_train_end(logs_avg)
+    agent.log_to_wandb_on_train_end(logs_avg)
     wandb.finish()
     logging_time = time.time() - start_time
     print(f"Logging time cost: {logging_time}")

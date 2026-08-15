@@ -19,8 +19,8 @@
 
 """Plotting utilities for the `logs` pytree returned by `Experiment.run()`
 and `Experiment.run_hparam_search()`, so training can be inspected without
-wandb (see `Agent.log`'s docstring and issue #60: disabling wandb logging
-and reading `logs` directly is the fast path).
+wandb (see `Agent`'s docstring and issue #60: `Experiment.run(log_to_wandb=
+False)` and reading `logs` directly is the fast path).
 
 `MANDATORY_METRICS` is a fixed, deliberately-chosen set of plots, rather
 than auto-detecting whatever keys happen to be in `logs`. Each entry is
@@ -69,9 +69,9 @@ def derive_scalar_metrics(logs: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray
     per-step buffers (`done_mask`, `lengths`, `returns`) that `Agent.train`
     returns, for every seed and update at once.
 
-    `Agent.log` computes the same values, but one training update at a
-    time (for live wandb logging); this is the batched equivalent, for
-    plotting an entire already-finished `logs` history in one call.
+    `Agent.log_to_wandb` computes the same values, but one training update
+    at a time (for live wandb logging); this is the batched equivalent,
+    for plotting an entire already-finished `logs` history in one call.
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree returned by

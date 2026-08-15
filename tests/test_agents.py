@@ -19,22 +19,23 @@
 
 from unittest.mock import patch
 
+import pytest
 import numpy as np
 import jax.numpy as jnp
 
 from navix.agents.agent import Agent, HParams
 
 
-def test_log_on_train_end_respects_log_frequency():
+def test_log_to_wandb_on_train_end_respects_log_frequency():
     # https://github.com/epignatelli/navix/issues/60
-    # log_on_train_end used to index into every field of `logs` (a
-    # device-to-host transfer per field) for every single recorded step,
-    # even though self.log() would immediately discard most of them via
-    # the log_frequency check - wandb.log() was correctly only called for
-    # the kept steps, but the expensive tree indexing happened regardless.
-    # This asserts the *set of steps actually logged* is unchanged by
-    # hoisting that check earlier: still exactly the steps where
-    # iter/updates % log_frequency == 0.
+    # log_to_wandb_on_train_end used to index into every field of `logs`
+    # (a device-to-host transfer per field) for every single recorded
+    # step, even though log_to_wandb() would immediately discard most of
+    # them via the log_frequency check - wandb.log() was correctly only
+    # called for the kept steps, but the expensive tree indexing happened
+    # regardless. This asserts the *set of steps actually logged* is
+    # unchanged by hoisting that check earlier: still exactly the steps
+    # where iter/updates % log_frequency == 0.
     n_steps = 10
     log_frequency = 3
     logs = {
@@ -44,7 +45,7 @@ def test_log_on_train_end_respects_log_frequency():
     agent = Agent(hparams=HParams(log_frequency=log_frequency))
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
-        agent.log_on_train_end(logs)
+        agent.log_to_wandb_on_train_end(logs)
 
     logged_steps = [int(call.kwargs["step"]) for call in mock_log.call_args_list]
     expected_steps = [s for s in range(n_steps) if s % log_frequency == 0]
@@ -54,7 +55,25 @@ def test_log_on_train_end_respects_log_frequency():
     )
 
 
-def test_log_masked_mean_matches_boolean_indexing():
+def test_log_on_train_end_is_deprecated_but_still_works():
+    # the pre-rename name must keep working (delegating to
+    # log_to_wandb_on_train_end) so existing callers aren't broken by the
+    # rename, just warned.
+    n_steps = 4
+    logs = {
+        "iter/updates": jnp.arange(n_steps),
+        "iter/frames": jnp.arange(n_steps) * 100,
+    }
+    agent = Agent(hparams=HParams(log_frequency=1))
+
+    with patch("navix.agents.agent.wandb.log") as mock_log:
+        with pytest.warns(DeprecationWarning, match="log_to_wandb_on_train_end"):
+            agent.log_on_train_end(logs)
+
+    assert mock_log.call_count == n_steps
+
+
+def test_log_to_wandb_masked_mean_matches_boolean_indexing():
     # https://github.com/epignatelli/navix/issues/60
     # `lengths[mask]` / `returns[mask]` (boolean-indexing a variable number
     # of completed episodes per step) produce a *dynamically*-shaped
@@ -90,7 +109,7 @@ def test_log_masked_mean_matches_boolean_indexing():
     agent = Agent(hparams=HParams())
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
-        agent.log(dict(logs))
+        agent.log_to_wandb(dict(logs))
 
     logged = mock_log.call_args.args[0]
     assert np.allclose(logged["perf/episode_length"], expected_length)
@@ -98,6 +117,24 @@ def test_log_masked_mean_matches_boolean_indexing():
     assert np.allclose(logged["perf/success_rate"], expected_success_rate)
 
 
+def test_log_is_deprecated_but_still_works():
+    # the pre-rename name must keep working (delegating to log_to_wandb)
+    # so existing callers aren't broken by the rename, just warned.
+    logs = {
+        "iter/updates": jnp.asarray(0),
+        "iter/frames": jnp.asarray(0),
+    }
+    agent = Agent(hparams=HParams())
+
+    with patch("navix.agents.agent.wandb.log") as mock_log:
+        with pytest.warns(DeprecationWarning, match="log_to_wandb"):
+            agent.log(dict(logs))
+
+    assert mock_log.call_count == 1
+
+
 if __name__ == "__main__":
-    test_log_on_train_end_respects_log_frequency()
-    test_log_masked_mean_matches_boolean_indexing()
+    test_log_to_wandb_on_train_end_respects_log_frequency()
+    test_log_on_train_end_is_deprecated_but_still_works()
+    test_log_to_wandb_masked_mean_matches_boolean_indexing()
+    test_log_is_deprecated_but_still_works()

@@ -296,7 +296,7 @@ class PPO(Agent):
 
         # Debugging mode
         if self.hparams.debug:
-            jax.debug.callback(self.log, logs, experience)
+            jax.debug.callback(self.log_to_wandb, logs, experience)
 
         return train_state, logs
 

@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import wandb
 import jax.numpy as jnp
 
@@ -72,10 +73,42 @@ def test_experiment_run_logs_every_seed_via_its_own_run(monkeypatch):
         env=None,  # type: ignore[arg-type]
         seeds=seeds,
     )
-    experiment.run(do_log=True)
+    experiment.run(log_to_wandb=True)
 
     assert set(finished) == set(seeds)
     assert set(logged) == set(seeds)
+
+
+def test_experiment_run_do_log_is_deprecated_but_still_works(monkeypatch):
+    # the pre-rename `do_log` kwarg must keep working (mapped onto
+    # log_to_wandb) so existing callers aren't broken by the rename, just
+    # warned.
+    logged, finished = [], []
+
+    def fake_init(project, config, group):
+        return _FakeRun(config["seed"], logged, finished)
+
+    monkeypatch.setattr(wandb, "init", fake_init)
+
+    seeds = (0, 1)
+    experiment = Experiment(
+        name="test",
+        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
+        env=None,  # type: ignore[arg-type]
+        seeds=seeds,
+    )
+
+    with pytest.warns(DeprecationWarning, match="log_to_wandb"):
+        experiment.run(do_log=True)
+
+    assert set(finished) == set(seeds)
+
+    logged.clear()
+    finished.clear()
+    with pytest.warns(DeprecationWarning, match="log_to_wandb"):
+        experiment.run(do_log=False)
+
+    assert finished == []
 
 
 def test_experiment_run_with_no_seeds_does_not_crash(monkeypatch):
@@ -93,15 +126,14 @@ def test_experiment_run_with_no_seeds_does_not_crash(monkeypatch):
         env=None,  # type: ignore[arg-type]
         seeds=(),
     )
-    experiment.run(do_log=True)
+    experiment.run(log_to_wandb=True)
 
 
 if __name__ == "__main__":
-    from unittest.mock import MagicMock
-
     class _Monkeypatch:
         def setattr(self, obj, name, value):
             setattr(obj, name, value)
 
     test_experiment_run_logs_every_seed_via_its_own_run(_Monkeypatch())
+    test_experiment_run_do_log_is_deprecated_but_still_works(_Monkeypatch())
     test_experiment_run_with_no_seeds_does_not_crash(_Monkeypatch())

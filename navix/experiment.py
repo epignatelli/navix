@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace, fields
 import time
-from typing import Dict, Tuple
+import warnings
+from typing import Dict, Optional, Tuple
 
 import distrax
 import jax
@@ -49,18 +50,38 @@ class Experiment:
         self.seeds = seeds
         self.group = group
 
-    def run(self, do_log: bool = True):
+    def run(self, log_to_wandb: bool = True, do_log: Optional[bool] = None):
         """Default function to run the experiment. This function compiles the training function, trains the agent, and logs the results.
 
+        Two strategies exist for looking at the results, and they trade off
+        against each other:
+
+        - `log_to_wandb=True` (the default) streams metrics to Weights &
+          Biases as training progresses. This is the slow path - real
+          network I/O, roughly linear in the number of seeds.
+        - `log_to_wandb=False` skips wandb entirely; `logs` (this
+          method's second return value) is returned either way, so with
+          wandb off you get it back much faster, with no network calls at
+          all. Pair it with `navix.plotting` to get a local matplotlib
+          dashboard from `logs` instead of a wandb one. See issue #60.
+
         Args:
-            do_log (bool): Whether to log the results to wandb.
-        !!! Warning
-            Logging to `wandb` is usually much slower than training the agent itself.
-            The time is linear in the number of seeds.
+            log_to_wandb (bool): Whether to log the results to wandb.
+            do_log (bool, optional): Deprecated alias for `log_to_wandb`.
 
         Returns:
             Tuple: A tuple containing the final training state and the logs.
         """
+        if do_log is not None:
+            warnings.warn(
+                "Experiment.run's `do_log` is deprecated, use "
+                "`log_to_wandb` instead - the old name didn't say what "
+                "it was actually turning on/off.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            log_to_wandb = do_log
+
         print("Running experiment with the following configuration:")
         print(vars(self))
         rng = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -77,7 +98,7 @@ class Experiment:
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
 
-        if not self.agent.hparams.debug and do_log:
+        if not self.agent.hparams.debug and log_to_wandb:
             print("Logging final results to wandb...")
             start_time = time.time()
 
@@ -87,7 +108,7 @@ class Experiment:
                 run = wandb.init(project=self.name, config=config, group=self.group)
                 print("Logging results for seed:", seed)
                 log = jax.tree.map(lambda x: x[seed], logs)
-                self.agent.log_on_train_end(log, run=run)
+                self.agent.log_to_wandb_on_train_end(log, run=run)
                 run.finish()
 
             # each seed's wandb.init -> log -> finish cycle is
@@ -110,7 +131,7 @@ class Experiment:
         total_time += compilation_time
         print(f"Training time cost: {training_time}")
         total_time += training_time
-        if not self.agent.hparams.debug and do_log:
+        if not self.agent.hparams.debug and log_to_wandb:
             print(f"Logging time cost: {logging_time}")
             total_time += logging_time
         print(f"Total time cost: {total_time}")
@@ -190,7 +211,7 @@ class Experiment:
             run = wandb.init(project=self.name, config=config, group=self.group)
             # average over seeds
             log = jax.tree.map(lambda x: jnp.mean(x[i], axis=0), logs)
-            self.agent.log_on_train_end(log, run=run)
+            self.agent.log_to_wandb_on_train_end(log, run=run)
             run.finish()
 
         with ThreadPoolExecutor(max_workers=max(len_search_set, 1)) as executor:

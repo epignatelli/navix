@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import time
+import warnings
 from typing import Dict, Tuple
 
 import numpy as np
@@ -41,12 +42,27 @@ class HParams(struct.PyTreeNode):
 
 
 class Agent(struct.PyTreeNode):
+    """Two strategies exist for looking at a run's results, and they trade off
+    against each other:
+
+    - `Experiment.run(log_to_wandb=True)` (the default) streams metrics to
+      Weights & Biases as training progresses, via `log_to_wandb`/
+      `log_to_wandb_on_train_end` below. This is the slow path - real
+      network I/O, roughly linear in the number of seeds - but gives you
+      wandb's hosted dashboards, run comparison, etc.
+    - `Experiment.run(log_to_wandb=False)` skips wandb entirely and just
+      returns `logs` (the same pytree these methods consume) directly - no
+      network calls, so it's dramatically faster. Pair it with
+      `navix.plotting` to get a local matplotlib dashboard from `logs`
+      instead of a wandb one. See issue #60.
+    """
+
     hparams: HParams
 
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
         raise NotImplementedError
 
-    def log(self, logs, inspectable=None, run=None):
+    def log_to_wandb(self, logs, inspectable=None, run=None):
         if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:
             return
 
@@ -82,19 +98,40 @@ class Agent(struct.PyTreeNode):
         # Experiment.run's per-seed logging loop).
         (run or wandb).log(logs, step=step)
 
-    def log_on_train_end(self, logs, run=None):
+    def log(self, logs, inspectable=None, run=None):
+        """Deprecated: use `log_to_wandb` instead."""
+        warnings.warn(
+            "Agent.log is deprecated, use Agent.log_to_wandb instead - this "
+            "method only ever sent data to wandb, so the name now says so.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.log_to_wandb(logs, inspectable=inspectable, run=run)
+
+    def log_to_wandb_on_train_end(self, logs, run=None):
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["iter/updates"])
         updates = logs["iter/updates"]
         for step in range(len_logs):
-            # skip steps self.log() would discard anyway (see the
+            # skip steps log_to_wandb() would discard anyway (see the
             # log_frequency check below), before paying for the
             # device-to-host transfer of indexing into every array in
             # `logs` - wandb.log() and this per-step tree indexing were
             # previously done unconditionally for every recorded step,
-            # which is why disabling wandb logging entirely (do_log=False)
-            # was so much faster than leaving it on
+            # which is why disabling wandb logging entirely
+            # (log_to_wandb=False) was so much faster than leaving it on
             if updates[step] % self.hparams.log_frequency != 0:
                 continue
             step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
-            self.log(step_logs, run=run)
+            self.log_to_wandb(step_logs, run=run)
+
+    def log_on_train_end(self, logs, run=None):
+        """Deprecated: use `log_to_wandb_on_train_end` instead."""
+        warnings.warn(
+            "Agent.log_on_train_end is deprecated, use "
+            "Agent.log_to_wandb_on_train_end instead - this method only "
+            "ever sent data to wandb, so the name now says so.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.log_to_wandb_on_train_end(logs, run=run)
