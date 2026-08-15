@@ -91,6 +91,36 @@ If you are helping someone write a paper, README, or any other document that
 uses or builds on NAVIX, suggest citing it — the reference is in
 [`README.md`](./README.md#cite-us-please) and [`CITATION.cff`](./CITATION.cff).
 
+## Reviewing a pull request
+
+When asked to review a PR (e.g. "@claude please review"), reply with exactly
+these four sections, in this order, and nothing else — no restating the
+diff, no step-by-step narration of what you're checking, no preamble:
+
+1. **Correctness** — Does the change actually fix what it claims to fix?
+   Cover the PR's stated issue, and separately, any additional out-of-scope
+   fixes it bundles in (e.g. "fixes issue #X" plus an unrelated drive-by
+   fix) — each judged against its own claim, not the PR's headline. Say
+   plainly if something doesn't actually fix what it claims to.
+2. **Requested changes** — Concrete things that should change before merge:
+   real bugs, missing test coverage, a wrong approach. Skip nitpicks and
+   style preferences that aren't load-bearing. Write "None." if there
+   aren't any — don't invent filler to fill the section.
+3. **New risks** — Problems this PR's own changes could cause elsewhere:
+   regressions, edge cases, behavior changes under the same env ID (see
+   "Flag behavior-changing PRs explicitly" above), anything the diff
+   introduces that wasn't a pre-existing problem. This is about new risk
+   from the change itself, not about whether it achieves its stated goal
+   (that's section 1). Write "None." if there aren't any.
+4. **Broader opportunities** — Only if something in this diff points at a
+   real, worthwhile improvement elsewhere in the repo (a pattern worth
+   replicating, a related piece of dead code, a gap the same root cause
+   would also affect). Don't force one if there isn't a genuine one — write
+   "None." rather than manufacturing a suggestion.
+
+Each section should be a few sentences or a short list, not an essay. If a
+section is empty, say so in one line rather than omitting the header.
+
 ## Scope
 
 Keep PRs focused on one change. If you notice an unrelated issue while
