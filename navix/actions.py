@@ -269,21 +269,30 @@ def open(state: State) -> State:
     is_open = jnp.asarray(doors.open, dtype=jnp.bool_)
     locked = doors.requires != -1
     key_match = player.pocket == doors.requires
-    can_unlock = door_found & locked & key_match
-    can_open = door_found & (can_unlock | ~locked)
+    can_open = door_found & (key_match | ~locked)
 
-    # update doors if closed and can_open
+    # update doors if closed and can_open. Note: `is_open` is only used for
+    # the boolean predicate above - the write-back uses `doors.open` itself,
+    # not `is_open`, so `doors.open`'s original dtype (int or bool,
+    # depending on which environment constructed the door) is preserved via
+    # jnp.where's weak-type promotion. Writing back `is_open` instead would
+    # silently force every door to bool, which breaks jax.lax.switch's
+    # requirement that every action branch produce identical output dtypes.
     do_open = ~is_open & can_open
-    open = jnp.where(do_open, True, is_open)
+    open = jnp.where(do_open, True, doors.open)
     requires = jnp.where(do_open, -1, doors.requires)
     doors = doors.replace(open=open, requires=requires)
 
-    # remove key from player's pocket, but only when it was actually used to
-    # unlock a locked door - not merely because the door in front happened to
-    # be open or unlocked already
-    pocket = jnp.where(jnp.any(can_unlock), EMPTY_POCKET_ID, player.pocket)
+    # remove key from player's pocket, but only when this action actually
+    # unlocked a previously-closed, locked door with a matching key - not
+    # merely because the door in front happened to already be open (some
+    # environments, e.g. KeyCorridor, construct a door that is already open
+    # while still marked locked; `do_open` is False there, so the key is
+    # correctly left untouched)
+    unlocked = do_open & locked & key_match
+    pocket = jnp.where(jnp.any(unlocked), EMPTY_POCKET_ID, player.pocket)
     player = jax.lax.cond(
-        jnp.any(can_unlock), lambda: player.replace(pocket=pocket), lambda: player
+        jnp.any(unlocked), lambda: player.replace(pocket=pocket), lambda: player
     )
 
     # update events
