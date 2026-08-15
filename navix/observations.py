@@ -115,9 +115,13 @@ def categorical_first_person(state: State) -> Array:
     col = jnp.where(on_grid, col, W)
     transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
-    # apply view mask
+    # apply view mask. crop() places the agent at the *bottom* row of
+    # the 2*RADIUS+1 view, so the far row is 2*RADIUS cells forward of
+    # the agent, not RADIUS - view_cone's diffusion needs to reach that
+    # far, or the forward half of the view is permanently marked
+    # unseen regardless of whether real walls are there.
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, RADIUS)
+    view = view_cone(transparency_map, player.position, RADIUS * 2)
 
     # get categorical representation
     tags = state.get_tags()
@@ -282,13 +286,21 @@ def rgb_first_person(state: State) -> Array:
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
 
-    # apply fov
-    dark_cell_colour = 0  # dark color for unseen tiles
+    # apply fov. Unseen/out-of-map tiles use MiniGrid's wall grey
+    # (100, 100, 100) rather than black - a scalar works for both the
+    # jnp.where fill below and crop()'s padding_value, since grey has
+    # equal R/G/B and both broadcast it across the full (..., 3) tile.
+    dark_cell_colour = 100
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
-    view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
+    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
+    # view, so the far row is 2*RADIUS cells forward of the agent, not
+    # RADIUS - view_cone's diffusion needs to reach that far, or the
+    # forward half of the view is permanently marked unseen regardless
+    # of whether real walls are there.
+    view = view_cone(transparency_map, player.position, RADIUS * 2)  # (H, W)
     view = jnp.asarray(view, dtype=jnp.bool)
     patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 

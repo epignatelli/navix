@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 import navix as nx
 from navix import observations
@@ -219,9 +220,61 @@ def test_146():
     )
 
 
+def test_147():
+    # https://github.com/epignatelli/navix/issues/147
+    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
+    # first-person view, so the far row is 2*RADIUS cells forward of
+    # the agent - but categorical_first_person()/rgb_first_person()
+    # only diffused view_cone's visibility RADIUS cells, so the
+    # forward half of every first-person view was permanently marked
+    # unseen regardless of whether real walls were there. Verified
+    # against a real MiniGrid render of the identical scenario (open
+    # room, agent centred, no walls within 2*RADIUS in any direction):
+    # pre-fix, Navix's forward half is solid black where MiniGrid
+    # shows open floor; post-fix they closely match.
+    import gymnasium as gym
+    import minigrid  # noqa: F401 - registers MiniGrid-* env ids
+
+    radius = observations.RADIUS
+    tile_size = 8
+    centre = 8  # Navix-Empty-16x16-v0 / MiniGrid-Empty-16x16-v0 interior
+
+    env = nx.make(
+        "Navix-Empty-16x16-v0", observation_fn=observations.rgb_first_person
+    )
+    timestep = env.reset(jax.random.PRNGKey(0))
+    player = timestep.state.entities[Entities.PLAYER]
+    player = player.replace(
+        position=jnp.asarray([[centre, centre]]), direction=jnp.asarray([0])
+    )
+    state = timestep.state.replace(
+        entities={**timestep.state.entities, Entities.PLAYER: player}
+    )
+    navix_img = np.asarray(observations.rgb_first_person(state))
+
+    mg_env = gym.make(
+        "MiniGrid-Empty-16x16-v0",
+        agent_view_size=2 * radius + 1,
+        tile_size=tile_size,
+    )
+    mg_env.reset(seed=0)
+    mg_env.unwrapped.agent_pos = (centre, centre)
+    mg_env.unwrapped.agent_dir = 0
+    mg_img = mg_env.unwrapped.get_frame(agent_pov=True, tile_size=tile_size)
+
+    diff = np.abs(navix_img.astype(int) - mg_img.astype(int))
+    assert diff.mean() < 20, (
+        "Expected Navix's rgb_first_person to closely match a real MiniGrid "
+        "render in an open room with no walls within reach, got mean "
+        f"abs pixel diff {diff.mean():.1f} (max {diff.max()}) - the forward "
+        "half of the view is likely still being marked unseen"
+    )
+
+
 if __name__ == "__main__":
     test_82()
     test_91()
     test_98()
     test_135()
     test_146()
+    test_147()
