@@ -456,12 +456,13 @@ def draw_grid_lines(
     (e.g. `~32`, empirically matched against a real MiniGrid render -
     see `rendering/cache.py::render_background`) to compensate.
 
-    `corner_luminosity`, if given, fills just the `line_thickness` x
-    `line_thickness` corner block with a separate value. In MiniGrid,
-    the top and left line strips are drawn independently and both get
-    anti-aliased, so the corner - covered by both - ends up brighter
-    than either strip alone; a single flat `luminosity` for the whole
-    line can't reproduce that without also being tuned to a
+    `corner_luminosity` fills just the `line_thickness` x
+    `line_thickness` corner block with a separate value, defaulting to
+    `luminosity` (i.e. no distinct corner treatment) when omitted. In
+    MiniGrid, the top and left line strips are drawn independently and
+    both get anti-aliased, so the corner - covered by both - ends up
+    brighter than either strip alone; a single flat `luminosity` for
+    the whole line can't reproduce that without also being tuned to a
     higher value at just the corner.
 
     Args:
@@ -478,10 +479,10 @@ def draw_grid_lines(
     # raises `TypeError: Only integer scalar arrays can be converted
     # to a scalar index`).
     line_thickness = math.ceil(TILE_SIZE * 0.031)
+    corner_luminosity = luminosity if corner_luminosity is None else corner_luminosity
     tile = tile.at[:line_thickness, :].set(luminosity)
     tile = tile.at[:, :line_thickness].set(luminosity)
-    if corner_luminosity is not None:
-        tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
+    tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
     return tile
 
 
