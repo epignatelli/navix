@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 from functools import partial
+import math
 
 
 from typing import Callable, Dict, List, Tuple
@@ -440,6 +441,17 @@ def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> A
 def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
     """Draws grid lines on the given tile.
 
+    `luminosity` defaults to MiniGrid's own raw grey constant
+    (`COLORS["grey"]`), used as-is for e.g. walls. But MiniGrid's grid
+    lines specifically are drawn as a sub-pixel-width, anti-aliased
+    strip - at typical tile sizes only *partially* covered by that raw
+    colour, blending it with the background - whereas this function
+    does a hard, fully-opaque fill of `line_thickness` whole pixels
+    with no antialiasing. Using the raw `100` here renders visibly
+    bolder/brighter than MiniGrid's actual output; pass a lower value
+    (e.g. `~32`, empirically matched against a real MiniGrid render -
+    see `rendering/cache.py::render_background`) to compensate.
+
     Args:
         tile (Array): The input tile to which grid lines are drawn.
 
@@ -447,8 +459,13 @@ def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
         Array: The tile with drawn grid lines.
     """
     # Draw lines (top and left edges) at 3.1% of the tile size as per
-    # minigrid.core.Grid.render_tile
-    line_thickness = jnp.ceil(TILE_SIZE * 0.031)
+    # minigrid.core.Grid.render_tile. TILE_SIZE is a static Python int
+    # (not a runtime/traced value), so line_thickness must be a plain
+    # Python int too - jnp.ceil() returns a float-dtype array, which
+    # can't be used as a slice bound (`tile.at[:line_thickness, :]`
+    # raises `TypeError: Only integer scalar arrays can be converted
+    # to a scalar index`).
+    line_thickness = math.ceil(TILE_SIZE * 0.031)
     tile = tile.at[:line_thickness, :].set(luminosity)
     tile = tile.at[:, :line_thickness].set(luminosity)
     return tile
