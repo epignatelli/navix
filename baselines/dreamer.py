@@ -36,7 +36,12 @@ if __name__ == "__main__":
             env=env,
             world=WorldModel(obs_dim=obs_dim, act_dim=act_dim, hparams=args.dreamer),
             actor=DreamerActor(act_dim=act_dim, hidden=args.dreamer.hidden_size),
-            critic=DreamerCritic(hidden=args.dreamer.hidden_size),
+            critic=DreamerCritic(
+                hidden=args.dreamer.hidden_size,
+                bins=args.dreamer.bins,
+                low=args.dreamer.bins_low,
+                high=args.dreamer.bins_high,
+            ),
         )
 
         experiment = nx.Experiment(

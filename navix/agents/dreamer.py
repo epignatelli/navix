@@ -17,16 +17,51 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# A lightweight, MLP-based Dreamer-style world-model agent (RSSM + actor +
-# critic trained on imagined rollouts). This is a simplified reproduction
-# inspired by Dreamer/DreamerV2/DreamerV3 (Hafner et al.), not a faithful
-# port of any single one of those papers - the world model uses a unit
-# -variance Gaussian decoder and a single free-bits KL scalar rather than
-# per-dimension free bits, categorical latents, symlog transforms, or
-# their two-hot reward/value heads. Originally written for a NeurIPS
-# rebuttal on the `neurips` research branch; ported here as a first-class
-# `navix.agents` module per issue #142, with three correctness fixes made
-# during the port (see below).
+# A from-scratch DreamerV3 (Hafner et al., "Mastering Diverse Domains
+# through World Models", https://arxiv.org/abs/2301.04104) agent: an RSSM
+# world model with categorical latents, trained jointly with an actor and
+# critic on imagined rollouts. Implements the paper's five headline
+# robustness techniques, cross-checked directly against the official
+# implementation (github.com/danijar/dreamerv3, dreamerv3/rssm.py and
+# embodied/jax/agent.py) rather than assumed from the paper text alone:
+#
+#   1. Symlog inputs/reconstruction (`symlog`/`symexp` below).
+#   2. Categorical latents (`stoch` independent categoricals of `classes`
+#      each) with straight-through gradients and 1% "unimix" - mixing a
+#      little uniform mass into every categorical, so no class ever gets
+#      a literal zero probability - for both the prior and posterior.
+#   3. KL balancing with free bits: two separate KL terms with different
+#      stop-gradient placement and independent free-nats floors, not one
+#      combined KL clamped by a single scalar.
+#   4. Symexp-twohot regression for reward and value (`TwoHotHead`), not
+#      a Gaussian/MSE head - a discrete classification loss over an
+#      exponentially-spaced grid of bins, which is far less sensitive to
+#      reward-scale outliers than a Gaussian likelihood.
+#   5. Return normalization: an EMA-tracked 5th-95th percentile range of
+#      returns rescales advantages, so the policy gradient's magnitude
+#      stays stable across environments with very different reward
+#      scales, without per-environment tuning.
+#
+# Also matches the official implementation's actor loss shape: REINFORCE
+# (log_prob(action) * advantage + entropy bonus), not backpropagation
+# through sampled discrete actions - discrete distrax.Categorical.sample()
+# has no gradient path back to its logits, so naively differentiating an
+# imagined-rollout return through a *sampled* discrete action (as an
+# earlier draft of this agent did) trains nothing through that path at
+# all - and an EMA "slow" target critic that the online critic is
+# regularized toward, for training stability.
+#
+# Deliberate simplifications, kept for navix's small grid-world
+# observations rather than image-scale ones: a plain nn.GRUCell for the
+# deterministic recurrent state (not the official "block GRU", a
+# parameter-efficiency optimization for much larger deter sizes); a plain
+# symlog+MSE decoder for observation reconstruction (not the official
+# implementation's image-specific CNN decoder); ELU activations and no
+# RMSNorm (not load-bearing for correctness, just a smaller/simpler net);
+# `stoch`/`classes` default to 8x8 rather than the paper's 32x32, sized
+# for navix's small grids rather than Atari-scale observations. None of
+# these are the algorithmic identity of DreamerV3 - the five techniques
+# above are.
 
 from __future__ import annotations
 import time
@@ -39,7 +74,6 @@ import jax.numpy as jnp
 from jax import Array
 import optax
 import flax.linen as nn
-from flax.linen.initializers import constant, orthogonal
 from flax.training.train_state import TrainState
 from flax import struct
 
@@ -47,6 +81,128 @@ from .agent import Agent, HParams
 from ..environments import Environment
 from ..environments.environment import Timestep
 from ..states import State
+
+
+# -------------------------
+# Symlog / symexp
+# -------------------------
+
+
+def symlog(x: Array) -> Array:
+    """`sign(x) * log(1 + |x|)` - compresses large magnitudes so a network
+    doesn't need to represent, e.g., both a reward of 1 and one of 1000 on
+    the same linear scale. Self-inverse with `symexp`."""
+    return jnp.sign(x) * jnp.log1p(jnp.abs(x))
+
+
+def symexp(x: Array) -> Array:
+    """Inverse of `symlog`: `sign(x) * (exp(|x|) - 1)`."""
+    return jnp.sign(x) * jnp.expm1(jnp.abs(x))
+
+
+# -------------------------
+# Categorical latents: unimix + straight-through sampling
+# -------------------------
+
+
+def unimix_categorical(logits: Array, unimix: float) -> distrax.Categorical:
+    """Builds a `distrax.Categorical` from `logits` after mixing in a
+    `unimix` fraction of uniform probability mass across the last axis -
+    the "unimix" trick (1% by default in the paper): guarantees every
+    class keeps at least `unimix / classes` probability, so neither the
+    KL term nor the entropy can collapse to exactly zero, which keeps the
+    prior from ever fully committing and losing gradient signal."""
+    probs = jax.nn.softmax(logits, axis=-1)
+    uniform = jnp.ones_like(probs) / probs.shape[-1]
+    probs = (1.0 - unimix) * probs + unimix * uniform
+    return distrax.Categorical(probs=probs)
+
+
+def straight_through_sample(dist: distrax.Categorical, rng: Array) -> Array:
+    """Samples a one-hot vector from `dist`, with a straight-through
+    gradient: the forward value is a genuine (discrete) sample, but the
+    backward gradient flows as if the output were `dist.probs` directly
+    (`sg(onehot - probs) + probs` has forward value `onehot`, since
+    `onehot - probs` is stop-gradiented, but its Jacobian w.r.t. upstream
+    parameters is `probs`'s). This is what makes the RSSM's own latent
+    trainable end-to-end despite being discrete - distinct from the
+    *actor's* action sampling below, which deliberately does NOT use
+    this (see the module docstring)."""
+    idx = dist.sample(seed=rng)
+    onehot = jax.nn.one_hot(idx, dist.probs.shape[-1])
+    return jax.lax.stop_gradient(onehot - dist.probs) + dist.probs
+
+
+def categorical_kl(post: distrax.Categorical, prior: distrax.Categorical) -> Array:
+    """Sum of `KL(post_i || prior_i)` over the `stoch` independent
+    categoricals (the second-to-last axis) - each categorical's own KL,
+    summed, matching how DreamerV3 treats the full stochastic latent
+    (`stoch` categoricals of `classes` each) as one joint distribution
+    for the purposes of the free-nats floor."""
+    return post.kl_divergence(prior).sum(axis=-1)
+
+
+# -------------------------
+# Symexp-twohot head (reward, value)
+# -------------------------
+
+
+def twohot_encode(x: Array, bin_centers: Array) -> Array:
+    """Encodes scalar `x` (already in symlog space) as a soft one-hot
+    vector over `bin_centers` (ascending, evenly spaced): all mass on the
+    two bins bracketing `x`, split by linear interpolation. This is the
+    "twohot" target the classification loss is computed against - lets a
+    discrete softmax head represent a continuous value to sub-bin
+    precision, rather than being limited to `bins`-many exact outputs."""
+    K = bin_centers.shape[0]
+    x = jnp.clip(x, bin_centers[0], bin_centers[-1])
+    below = jnp.sum(bin_centers[None, ...] <= x[..., None], axis=-1) - 1
+    below = jnp.clip(below, 0, K - 2)
+    above = below + 1
+    lo, hi = bin_centers[below], bin_centers[above]
+    weight_hi = jnp.where(hi > lo, (x - lo) / (hi - lo), 0.0)
+    onehot_lo = jax.nn.one_hot(below, K)
+    onehot_hi = jax.nn.one_hot(above, K)
+    return onehot_lo * (1.0 - weight_hi)[..., None] + onehot_hi * weight_hi[..., None]
+
+
+class TwoHotHead(nn.Module):
+    """A scalar-valued prediction head (reward, value) implemented as
+    classification over `bins` evenly-spaced bins in symlog space, with a
+    twohot cross-entropy loss - the "symexp twohot" head from the paper.
+    Far more robust to reward/value outliers than a Gaussian/MSE head,
+    since an extreme target only ever saturates the loss for its two
+    nearest bins, not the whole (unbounded) squared-error term."""
+
+    hidden_size: int
+    bins: int = 255
+    low: float = -20.0
+    high: float = 20.0
+
+    @nn.compact
+    def __call__(self, feat: Array) -> Array:
+        net = nn.Sequential(
+            [
+                nn.Dense(self.hidden_size),
+                nn.elu,
+                nn.Dense(self.hidden_size),
+                nn.elu,
+                nn.Dense(self.bins),
+            ]
+        )
+        return net(feat)  # logits, (..., bins)
+
+    def loss(self, logits: Array, target: Array) -> Array:
+        bin_centers = jnp.linspace(self.low, self.high, self.bins)
+        twohot = twohot_encode(symlog(target), bin_centers)
+        logp = jax.nn.log_softmax(logits, axis=-1)
+        return -jnp.sum(twohot * logp, axis=-1)
+
+    def mean(self, logits: Array) -> Array:
+        bin_centers = jnp.linspace(self.low, self.high, self.bins)
+        probs = jax.nn.softmax(logits, axis=-1)
+        return symexp(jnp.sum(probs * bin_centers, axis=-1))
+
 
 # -------------------------
 # Hyperparameters
@@ -78,12 +234,48 @@ class DreamerHparams(HParams):
     lam: float = 0.95
     """Lambda parameter of the imagined-rollout lambda-returns."""
 
-    # Loss scales
-    kl_scale: float = 1.0
-    """Weight of the KL term in the world-model loss."""
-    free_kl: float = 1.0
-    """Free-bits floor on the (batch-mean) KL term - the model isn't
-    penalised for KL below this value."""
+    # World model: categorical latent + KL balancing (paper defaults:
+    # stoch=32, classes=32/64, unimix=0.01, free_nats=1.0, dyn_scale=1.0,
+    # rep_scale=0.1 - dims reduced here for navix's small grids).
+    stoch: int = struct.field(pytree_node=False, default=8)
+    """Number of independent categorical latent variables."""
+    classes: int = struct.field(pytree_node=False, default=8)
+    """Number of classes per categorical latent variable."""
+    unimix: float = 0.01
+    """Fraction of uniform probability mixed into every categorical."""
+    free_nats: float = 1.0
+    """Per-(batch,time) KL floor - below this, dyn/rep loss is zero."""
+    dyn_scale: float = 1.0
+    """Weight of the KL(sg(post)||prior) ("dynamics") term."""
+    rep_scale: float = 0.1
+    """Weight of the KL(post||sg(prior)) ("representation") term."""
+
+    # Reward/value heads (symexp twohot).
+    bins: int = struct.field(pytree_node=False, default=41)
+    """Number of bins for the reward/value symexp-twohot heads (paper:
+    255; reduced here since navix's rewards/returns span a far smaller
+    dynamic range than Atari's)."""
+    bins_low: float = -20.0
+    """Lower edge of the symlog-space bin range."""
+    bins_high: float = 20.0
+    """Upper edge of the symlog-space bin range."""
+
+    # Actor: REINFORCE + entropy bonus + return normalization.
+    actor_entropy: float = 3e-4
+    """Entropy bonus coefficient in the actor's REINFORCE loss."""
+    return_norm_rate: float = 0.01
+    """EMA rate for the return-normalization percentile tracker."""
+    return_norm_limit: float = 1.0
+    """Floor on the return-normalization scale (perc95 - perc5), so a
+    near-constant reward signal doesn't blow the advantage up by dividing
+    by a near-zero scale."""
+
+    # Slow (EMA target) critic.
+    slow_critic_rate: float = 0.02
+    """EMA rate the slow critic's params track the online critic at."""
+    slow_critic_reg: float = 1.0
+    """Weight of the online critic's regularization loss toward the slow
+    critic's prediction, on top of its lambda-return regression loss."""
 
     # Opt/grad
     model_lr: float = 3e-4
@@ -101,23 +293,19 @@ class DreamerHparams(HParams):
     """Size of the encoder's output embedding."""
     deter_size: int = 200
     """Size of the RSSM's deterministic (GRU) hidden state."""
-    stoch_size: int = 30
-    """Size of the RSSM's stochastic latent."""
     hidden_size: int = 200
     """Hidden layer size used throughout the model/actor/critic MLPs."""
 
+    @property
+    def stoch_flat(self) -> int:
+        """Flattened size of the categorical latent (`stoch * classes`),
+        i.e. how much of `feat = concat([h, z_flat])` the latent occupies."""
+        return self.stoch * self.classes
+
 
 # -------------------------
-# World Model (lightweight Dreamer-style RSSM)
+# World model: RSSM with categorical latents
 # -------------------------
-
-
-def _diag_gaussian(loc: Array, scale: Array) -> distrax.MultivariateNormalDiag:
-    return distrax.MultivariateNormalDiag(loc=loc, scale_diag=scale)
-
-
-def _softplus_std(x: Array, min_std: float = 0.1) -> Array:
-    return nn.softplus(x) + min_std
 
 
 class Encoder(nn.Module):
@@ -135,7 +323,7 @@ class Encoder(nn.Module):
                 nn.Dense(self.embed_size),
             ]
         )
-        return net(obs)
+        return net(symlog(obs))
 
 
 class Decoder(nn.Module):
@@ -143,7 +331,12 @@ class Decoder(nn.Module):
     obs_dim: int
 
     @nn.compact
-    def __call__(self, feat: Array) -> distrax.MultivariateNormalDiag:
+    def __call__(self, feat: Array) -> Array:
+        """Returns a prediction of `symlog(obs)` directly (not a
+        distribution) - reconstruction loss is plain MSE against
+        `symlog(obs)`, the paper's "symlog MSE" observation head, simpler
+        than the image-specific decoder the official implementation uses
+        since navix's observations here are flat vectors, not pixels."""
         net = nn.Sequential(
             [
                 nn.Dense(self.hidden_size),
@@ -153,84 +346,46 @@ class Decoder(nn.Module):
                 nn.Dense(self.obs_dim),
             ]
         )
-        mean = net(feat)
-        scale = jnp.ones_like(mean)  # unit-variance decoder (simple & stable)
-        return _diag_gaussian(mean, scale)
-
-
-class RewardHead(nn.Module):
-    hidden_size: int
-
-    @nn.compact
-    def __call__(self, feat: Array) -> distrax.Normal:
-        net = nn.Sequential(
-            [
-                nn.Dense(self.hidden_size),
-                nn.elu,
-                nn.Dense(self.hidden_size),
-                nn.elu,
-                nn.Dense(1),
-            ]
-        )
-        mean = jnp.squeeze(net(feat), -1)
-        scale = jnp.ones_like(mean)
-        return distrax.Normal(loc=mean, scale=scale)
-
-
-class TermHead(nn.Module):
-    hidden_size: int
-
-    @nn.compact
-    def __call__(self, feat: Array) -> distrax.Bernoulli:
-        net = nn.Sequential(
-            [
-                nn.Dense(self.hidden_size),
-                nn.elu,
-                nn.Dense(self.hidden_size),
-                nn.elu,
-                nn.Dense(1),
-            ]
-        )
-        logits = jnp.squeeze(net(feat), -1)
-        return distrax.Bernoulli(logits=logits)
-
-
-class PriorNet(nn.Module):
-    hidden_size: int
-    stoch_size: int
-
-    @nn.compact
-    def __call__(self, h: Array) -> distrax.MultivariateNormalDiag:
-        x = nn.elu(nn.Dense(self.hidden_size)(h))
-        loc = nn.Dense(self.stoch_size)(x)
-        pre = nn.Dense(self.stoch_size)(x)
-        scale = _softplus_std(pre)
-        return _diag_gaussian(loc, scale)
-
-
-class PostNet(nn.Module):
-    hidden_size: int
-    stoch_size: int
-
-    @nn.compact
-    def __call__(self, h: Array, embed: Array) -> distrax.MultivariateNormalDiag:
-        x = jnp.concatenate([h, embed], axis=-1)
-        x = nn.elu(nn.Dense(self.hidden_size)(x))
-        loc = nn.Dense(self.stoch_size)(x)
-        pre = nn.Dense(self.stoch_size)(x)
-        scale = _softplus_std(pre)
-        return _diag_gaussian(loc, scale)
+        return net(feat)
 
 
 class RSSM(nn.Module):
     deter_size: int
 
     @nn.compact
-    def __call__(self, h_prev: Array, z_prev: Array, a_prev_oh: Array) -> Array:
-        x = jnp.concatenate([z_prev, a_prev_oh], axis=-1)
+    def __call__(self, h_prev: Array, z_prev_flat: Array, a_prev_oh: Array) -> Array:
+        x = jnp.concatenate([z_prev_flat, a_prev_oh], axis=-1)
         gru = nn.GRUCell(features=self.deter_size)
         h, _ = gru(h_prev, x)  # GRUCell returns (new_carry, y); y == new_carry
         return h
+
+
+class PriorNet(nn.Module):
+    hidden_size: int
+    stoch: int
+    classes: int
+
+    @nn.compact
+    def __call__(self, h: Array) -> Array:
+        """Returns raw logits, `(..., stoch, classes)` - unimix is applied
+        by the caller (`unimix_categorical`), not baked in here, so every
+        caller treats prior and posterior identically."""
+        x = nn.elu(nn.Dense(self.hidden_size)(h))
+        logits = nn.Dense(self.stoch * self.classes)(x)
+        return logits.reshape(*h.shape[:-1], self.stoch, self.classes)
+
+
+class PostNet(nn.Module):
+    hidden_size: int
+    stoch: int
+    classes: int
+
+    @nn.compact
+    def __call__(self, h: Array, embed: Array) -> Array:
+        x = jnp.concatenate([h, embed], axis=-1)
+        x = nn.elu(nn.Dense(self.hidden_size)(x))
+        logits = nn.Dense(self.stoch * self.classes)(x)
+        return logits.reshape(*h.shape[:-1], self.stoch, self.classes)
 
 
 class WorldModel(nn.Module):
@@ -242,29 +397,34 @@ class WorldModel(nn.Module):
         hp = self.hparams
         self.encoder = Encoder(hp.hidden_size, hp.embed_size)
         self.rssm = RSSM(hp.deter_size)
-        self.prior = PriorNet(hp.hidden_size, hp.stoch_size)
-        self.post = PostNet(hp.hidden_size, hp.stoch_size)
+        self.prior = PriorNet(hp.hidden_size, hp.stoch, hp.classes)
+        self.post = PostNet(hp.hidden_size, hp.stoch, hp.classes)
         self.decoder = Decoder(hp.hidden_size, self.obs_dim)
-        self.reward = RewardHead(hp.hidden_size)
-        self.term = TermHead(hp.hidden_size)
+        self.reward = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        self.term = nn.Sequential(
+            [
+                nn.Dense(hp.hidden_size),
+                nn.elu,
+                nn.Dense(hp.hidden_size),
+                nn.elu,
+                nn.Dense(1),
+            ]
+        )
 
     def init_state(self, batch_size: int) -> Tuple[Array, Array, Array]:
         h = jnp.zeros((batch_size, self.hparams.deter_size))
-        z = jnp.zeros((batch_size, self.hparams.stoch_size))
+        z_flat = jnp.zeros((batch_size, self.hparams.stoch_flat))
         a0 = jnp.zeros((batch_size, self.act_dim))
-        return h, z, a0
+        return h, z_flat, a0
 
-    def feat(self, h: Array, z: Array) -> Array:
-        return jnp.concatenate([h, z], axis=-1)
+    def feat(self, h: Array, z_flat: Array) -> Array:
+        return jnp.concatenate([h, z_flat], axis=-1)
 
     def observe(self, obs_seq: Array, act_seq: Array) -> Tuple[
-        Tuple[Array, Array],
-        Array,
-        Tuple[distrax.Distribution, distrax.Distribution, distrax.Distribution],
-        Array,
+        Tuple[Array, Array], Tuple[Array, Array], Array, Array, Array, Array
     ]:
         """Runs the RSSM over an observed sequence, computing the posterior
-        latent at every step and decoding obs/reward/termination from it.
+        latent at every step and decoding obs/reward/term from it.
 
         Args:
             obs_seq (Array): `f32[B, L+1, obs_dim]`, flattened observations.
@@ -272,18 +432,18 @@ class WorldModel(nn.Module):
                 observations.
 
         Returns:
-            `((h_seq, z_seq), kls, (obs_dist, rew_dist, term_dist), feats)`,
-            all aligned with `obs_seq[:, 1:]` (i.e. `L` steps, `t=0..L-1`).
-            `kls` is `f32[B, L]`, the per-step `KL(post || prior)` - computed
-            inside the scan body rather than returned as `(priors, posts)`
-            distribution objects, because jax.lax.scan only restacks a
+            `((h_seq, z_seq), (dyn_kls, rep_kls), feats, obs_pred, rew_logits,
+            term_logits)`, all aligned with `obs_seq[:, 1:]` (`L` steps,
+            `t=0..L-1`) except `(h_seq, z_seq)` and `feats`, which keep
+            their own `(B, L, ...)` shape. `dyn_kls`/`rep_kls` are
+            `f32[B, L]`, computed inside the scan body (not returned as
+            distribution objects) because jax.lax.scan only restacks a
             distrax.Distribution's array *leaves* across the new leading
-            (L) axis; its batch_shape/event_shape (computed once from the
-            un-stacked per-step arrays) go stale, so calling
-            post.kl_divergence(prior) *after* the scan raises a shape
-            mismatch deep inside distrax/tfp. Computing it per-step, while
-            the distributions' shapes are still consistent with their own
-            metadata, sidesteps that entirely."""
+            axis; its batch_shape/event_shape (computed once from the
+            un-stacked per-step arrays) go stale, so calling e.g.
+            .kl_divergence() *after* the scan raises a shape mismatch deep
+            inside distrax/tfp."""
+        hp = self.hparams
         B, Lp1, _ = obs_seq.shape
         L = Lp1 - 1
 
@@ -302,55 +462,64 @@ class WorldModel(nn.Module):
         # xs)` - passing a plain closure that way makes Flax's transform
         # machinery treat `carry` itself as the (missing) `self` argument,
         # failing deep inside with a confusing `'tuple' object has no
-        # attribute '_state'`. `imagine()` below already uses plain
-        # jax.lax.scan correctly for the same reason; this mirrors it.
-        # Since setup() already built every submodule once, calling them
-        # repeatedly inside a plain scan just reuses their closed-over
-        # params - no Flax-level parameter broadcasting is needed here.
-        # The per-step posterior sample rng is threaded through the scan
-        # carry explicitly instead of nn.scan's split_rngs, since plain
-        # jax.lax.scan doesn't auto-split Flax's rng streams.
+        # attribute '_state'`. Since setup() already built every submodule
+        # once, calling them repeatedly inside a plain scan just reuses
+        # their closed-over params - no Flax-level parameter broadcasting
+        # is needed here. The per-step sample rng is threaded through the
+        # scan carry explicitly instead of nn.scan's split_rngs, since
+        # plain jax.lax.scan doesn't auto-split Flax's rng streams.
         def step(carry, inputs):
-            h_prev, z_prev, rng = carry
+            h_prev, z_prev_flat, rng = carry
             a_prev_t, embed_t = inputs
             rng, key = jax.random.split(rng)
-            h_t = self.rssm(h_prev, z_prev, a_prev_t)
-            prior_t = self.prior(h_t)
-            post_t = self.post(h_t, embed_t)
-            kl_t = post_t.kl_divergence(prior_t)  # (B,) - see observe()'s docstring
-            z_t = post_t.sample(seed=key)
-            feat_t = self.feat(h_t, z_t)
-            return (h_t, z_t, rng), (h_t, z_t, kl_t, feat_t)
+            h_t = self.rssm(h_prev, z_prev_flat, a_prev_t)
+            prior_logits = self.prior(h_t)
+            post_logits = self.post(h_t, embed_t)
+            prior_dist = unimix_categorical(prior_logits, hp.unimix)
+            post_dist = unimix_categorical(post_logits, hp.unimix)
+            prior_dist_sg = distrax.Categorical(
+                probs=jax.lax.stop_gradient(prior_dist.probs)
+            )
+            post_dist_sg = distrax.Categorical(
+                probs=jax.lax.stop_gradient(post_dist.probs)
+            )
+            dyn_kl_t = categorical_kl(post_dist_sg, prior_dist)
+            rep_kl_t = categorical_kl(post_dist, prior_dist_sg)
+            z_t = straight_through_sample(post_dist, key)
+            z_t_flat = z_t.reshape(*z_t.shape[:-2], -1)
+            feat_t = self.feat(h_t, z_t_flat)
+            return (h_t, z_t_flat, rng), (h_t, z_t_flat, dyn_kl_t, rep_kl_t, feat_t)
 
         # jax.lax.scan always scans over axis 0, but our sequences are
         # batch-major (B, L, ...) - swap to (L, B, ...) going in, and swap
-        # the stacked outputs back to (B, L, ...) coming out, since
-        # downstream code (feats.reshape(B * L, -1) below,
-        # start_feats = feats[:, :-1]... in update()) expects batch-major.
+        # the stacked outputs back to (B, L, ...) coming out.
         inputs = jax.tree.map(
             lambda x: jnp.swapaxes(x, 0, 1), (a_prev[:, :L], embed_all[:, 1:])
         )
-        hp = self.hparams
         init_rng = self.make_rng("sample")
-        (h_last, z_last, _), (hs, zs, kls, feats) = jax.lax.scan(
+        (h_last, z_last, _), (hs, zs, dyn_kls, rep_kls, feats) = jax.lax.scan(
             step,
-            (jnp.zeros((B, hp.deter_size)), jnp.zeros((B, hp.stoch_size)), init_rng),
+            (
+                jnp.zeros((B, hp.deter_size)),
+                jnp.zeros((B, hp.stoch_flat)),
+                init_rng,
+            ),
             inputs,
             length=L,
         )
-        hs, zs, kls, feats = jax.tree.map(
-            lambda x: jnp.swapaxes(x, 0, 1), (hs, zs, kls, feats)
+        hs, zs, dyn_kls, rep_kls, feats = jax.tree.map(
+            lambda x: jnp.swapaxes(x, 0, 1), (hs, zs, dyn_kls, rep_kls, feats)
         )
 
         feats_flat = feats.reshape(B * L, -1)
-        obs_dist = self.decoder(feats_flat)
-        rew_dist = self.reward(feats_flat)
-        term_dist = self.term(feats_flat)
+        obs_pred = self.decoder(feats_flat)
+        rew_logits = self.reward(feats_flat)
+        term_logits = self.term(feats_flat)
 
-        return (hs, zs), kls, (obs_dist, rew_dist, term_dist), feats
+        return (hs, zs), (dyn_kls, rep_kls), feats, obs_pred, rew_logits, term_logits
 
     def posterior_step(
-        self, h: Array, z: Array, a_prev_oh: Array, obs: Array, rng: Array
+        self, h: Array, z_flat: Array, a_prev_oh: Array, obs: Array, rng: Array
     ) -> Tuple[Array, Array]:
         """One environment-collection step: advances the RSSM's belief with
         the previous action, then updates it to the posterior given the new
@@ -359,11 +528,12 @@ class WorldModel(nn.Module):
         they can only be called from inside a WorldModel.apply() trace,
         which is what this method (called via `self.world.apply(...,
         method=WorldModel.posterior_step)`) provides for `_collect`."""
-        h_next = self.rssm(h, z, a_prev_oh)
+        h_next = self.rssm(h, z_flat, a_prev_oh)
         embed = self.encoder(obs)
-        post = self.post(h_next, embed)
-        z_next = post.sample(seed=rng)
-        return h_next, z_next
+        post_dist = unimix_categorical(self.post(h_next, embed), self.hparams.unimix)
+        z_next = straight_through_sample(post_dist, rng)
+        z_next_flat = z_next.reshape(*z_next.shape[:-2], -1)
+        return h_next, z_next_flat
 
     def init_probe(self, obs: Array, a_prev_oh: Array) -> None:
         """Touches every submodule exactly once, purely so `WorldModel.
@@ -376,13 +546,16 @@ class WorldModel(nn.Module):
         safely with tracing through observe()'s internal jax.lax.scan
         while already inside an outer jax.jit (surfaces as a confusing
         `UnexpectedTracerError` pointing at an unrelated submodule)."""
-        h = jnp.zeros((obs.shape[0], self.hparams.deter_size))
-        z = jnp.zeros((obs.shape[0], self.hparams.stoch_size))
-        h_t = self.rssm(h, z, a_prev_oh)
+        hp = self.hparams
+        h = jnp.zeros((obs.shape[0], hp.deter_size))
+        z_flat = jnp.zeros((obs.shape[0], hp.stoch_flat))
+        h_t = self.rssm(h, z_flat, a_prev_oh)
         self.prior(h_t)
         embed = self.encoder(obs)
-        post_t = self.post(h_t, embed)
-        feat_t = self.feat(h_t, post_t.mean())
+        post_logits = self.post(h_t, embed)
+        z_t = jax.nn.one_hot(jnp.zeros(obs.shape[0], dtype=jnp.int32), hp.classes)
+        z_t = jnp.broadcast_to(z_t[:, None, :], (obs.shape[0], hp.stoch, hp.classes))
+        feat_t = self.feat(h_t, z_t.reshape(obs.shape[0], -1))
         self.decoder(feat_t)
         self.reward(feat_t)
         self.term(feat_t)
@@ -390,46 +563,55 @@ class WorldModel(nn.Module):
     def imagine(
         self,
         start_h: Array,
-        start_z: Array,
+        start_z_flat: Array,
         actor_logits_fn: Callable[[Array], Array],
         horizon: int,
         rng: Array,
-    ) -> Tuple[Array, Array, Array]:
+    ) -> Tuple[Array, Array, Array, Array, Array]:
         """Rolls the RSSM forward purely through its own prior (no real
         observations), sampling actions from `actor_logits_fn` at each
         step - the "imagined" trajectories the actor and critic train on.
 
-        Returns `(feats, rewards, terms)`, all `(B, H, ...)` (batch-major).
-        `rewards`/`terms` are plain arrays (each step's reward/term
-        distribution mean), not distrax.Distribution objects - as in
-        observe(), a distrax.Distribution's batch_shape/event_shape are
-        computed once from its un-stacked per-step arrays, and go stale
-        under jax.lax.scan's leaf-only restacking, so any post-scan method
-        call on it (including .mean()) is unsafe. Reducing to a mean
-        before accumulating sidesteps that."""
+        Returns `(feats, rewards, terms, actions, action_logps)`, all
+        `(B, H, ...)` (batch-major). `rewards` is the reward head's
+        decoded mean (plain array, not a TwoHotHead logits tensor);
+        `actions`/`action_logps` are returned because the actor loss
+        needs `log_prob(action)` under the *current* actor params for its
+        REINFORCE term - recomputed at loss-value-and-grad time from the
+        stored actions, not reused from here (this rollout's actor calls
+        may run in a different tracing context)."""
 
         def rollout_step(carry, _):
-            h, z, rng = carry
-            feat = jnp.concatenate([h, z], axis=-1)
+            h, z_flat, rng = carry
+            feat = jnp.concatenate([h, z_flat], axis=-1)
             logits = actor_logits_fn(feat)
-            rng, key = jax.random.split(rng)
-            a = distrax.Categorical(logits=logits).sample(seed=key)
+            rng, key_a, key_z = jax.random.split(rng, 3)
+            a = distrax.Categorical(logits=logits).sample(seed=key_a)
+            logp = distrax.Categorical(logits=logits).log_prob(a)
             a_oh = jax.nn.one_hot(a, logits.shape[-1])
-            h_next = self.rssm(h, z, a_oh)
-            prior = self.prior(h_next)
-            rng, key = jax.random.split(rng)
-            z_next = prior.sample(seed=key)
-            feat_next = jnp.concatenate([h_next, z_next], axis=-1)
-            rew_mean = self.reward(feat_next).mean()
-            term_mean = self.term(feat_next).mean()
-            return (h_next, z_next, rng), (feat_next, rew_mean, term_mean)
+            h_next = self.rssm(h, z_flat, a_oh)
+            prior_dist = unimix_categorical(self.prior(h_next), self.hparams.unimix)
+            z_next = straight_through_sample(prior_dist, key_z)
+            z_next_flat = z_next.reshape(*z_next.shape[:-2], -1)
+            feat_next = jnp.concatenate([h_next, z_next_flat], axis=-1)
+            rew_mean = self.reward.mean(self.reward(feat_next))
+            term_logit = jnp.squeeze(self.term(feat_next), -1)
+            return (h_next, z_next_flat, rng), (
+                feat_next,
+                rew_mean,
+                term_logit,
+                a,
+                logp,
+            )
 
-        (hT, zT, _), (feats, rews, terms) = jax.lax.scan(
-            rollout_step, (start_h, start_z, rng), None, length=horizon
+        (hT, zT, _), (feats, rews, term_logits, actions, logps) = jax.lax.scan(
+            rollout_step, (start_h, start_z_flat, rng), None, length=horizon
         )
         # (H, B, ...) -> (B, H, ...)
-        feats, rews, terms = jax.tree.map(lambda x: jnp.swapaxes(x, 0, 1), (feats, rews, terms))
-        return feats, rews, terms
+        feats, rews, term_logits, actions, logps = jax.tree.map(
+            lambda x: jnp.swapaxes(x, 0, 1), (feats, rews, term_logits, actions, logps)
+        )
+        return feats, rews, term_logits, actions, logps
 
 
 # -------------------------
@@ -449,9 +631,7 @@ class Actor(nn.Module):
                 nn.elu,
                 nn.Dense(self.hidden),
                 nn.elu,
-                nn.Dense(
-                    self.act_dim, kernel_init=orthogonal(0.01), bias_init=constant(0.0)
-                ),
+                nn.Dense(self.act_dim),
             ]
         )
         return net(feat)
@@ -462,19 +642,13 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     hidden: int = 200
+    bins: int = 255
+    low: float = -20.0
+    high: float = 20.0
 
     @nn.compact
     def __call__(self, feat: Array) -> Array:
-        net = nn.Sequential(
-            [
-                nn.Dense(self.hidden),
-                nn.elu,
-                nn.Dense(self.hidden),
-                nn.elu,
-                nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-            ]
-        )
-        return jnp.squeeze(net(feat), -1)
+        return TwoHotHead(self.hidden, self.bins, self.low, self.high)(feat)
 
 
 # -------------------------
@@ -499,34 +673,41 @@ class Buffer(struct.PyTreeNode):
 
 
 class DreamerTrainState(struct.PyTreeNode):
-    """Unlike `flax.training.train_state.TrainState` (used by `PPO`), this
-    wraps three *independent* `TrainState`s, one per network - the world
-    model, actor, and critic each have their own optimizer, learning rate
-    and step counter, and are updated via their own `apply_gradients()`.
+    """Wraps three *independent* `TrainState`s, one per network - the
+    world model, actor, and critic each have their own optimizer,
+    learning rate and step counter, and are updated via their own
+    `apply_gradients()`. An earlier draft instead subclassed `TrainState`
+    directly and shared one `tx`/`step` field meant to be swapped between
+    the three networks' updates; the swap never actually took effect
+    before each network's update ran, so actor and critic gradients were
+    silently applied through the model's optimizer (and learning rate)
+    instead of their own, and the step counter never incremented since
+    `apply_gradients()` was never called. Three separate `TrainState`s
+    make both bugs structurally impossible instead of relying on
+    remembering to swap a shared field correctly.
 
-    An earlier draft of this agent instead subclassed `TrainState` directly
-    and hand-rolled `tx.update()` + `optax.apply_updates()` for all three
-    networks while sharing a single `tx`/`step` field meant to be swapped
-    between updates - the swap never actually took effect before each
-    network's update ran, so actor and critic gradients were silently
-    applied through the model's optimizer (and learning rate) instead of
-    their own, and since `apply_gradients()` was never called, the step
-    counter never incremented at all. Three separate `TrainState`s make
-    both bugs structurally impossible instead of relying on remembering to
-    swap a shared field correctly."""
+    `slow_critic_params` is a plain EMA-tracked copy of the critic's
+    params (not a fourth optimized TrainState - nothing ever computes a
+    gradient w.r.t. it, it only ever gets updated by exponential
+    averaging toward `critic.params`), used both to regularize the online
+    critic's training and to compute the return-normalization statistics.
+    """
 
     model: TrainState
     actor: TrainState
     critic: TrainState
+    slow_critic_params: dict
 
     env_state: Timestep
     rng: Array
     frames: Array
     updates: Array
+    return_norm_lo: Array  # EMA of the 5th percentile of returns
+    return_norm_hi: Array  # EMA of the 95th percentile of returns
 
     # Latents per-env, carried across collection steps.
     h: Array  # (N, deter_size)
-    z: Array  # (N, stoch_size)
+    z: Array  # (N, stoch_flat)
     a_prev_oh: Array  # (N, act_dim)
 
 
@@ -554,48 +735,33 @@ class Dreamer(Agent):
         return obs.reshape(obs.shape[0], -1)
 
     @staticmethod
-    def _discount_weights(gamma: float, length: int) -> Array:
-        if length <= 0:
-            return jnp.ones((0,), dtype=jnp.float32)
-        d = jnp.cumprod(jnp.full((length - 1,), gamma, dtype=jnp.float32))
-        return jnp.concatenate([jnp.ones((1,), dtype=jnp.float32), d], axis=0)
-
-    @staticmethod
-    def _compute_lambda_values(
-        next_values: Array,
-        rewards: Array,
-        terminals: Array,
-        discount: float,
-        lam: float,
+    def _lambda_returns(
+        next_values: Array, rewards: Array, continues: Array, discount: float, lam: float
     ) -> Array:
-        # shapes: (B, H), (B, H), (B, H) - batch-major, but jax.lax.scan
-        # only ever scans axis 0, so time (H, the axis this function
-        # actually recurs over) needs to be axis 0 for the scan itself;
-        # swap in and back out around it.
+        """shapes: (B, H), (B, H), (B, H) -> (B, H). `continues` is
+        `1 - terminal`. jax.lax.scan only ever scans axis 0, but these are
+        batch-major (B, H) with H (time) as axis 1 - swap to (H, B) in and
+        out around the scan itself."""
+
         def scan_fn(carry, inputs):
             v_lambda_next = carry
-            r_t, term_t, v_tp1 = inputs
-            td = r_t + (1.0 - term_t) * (1.0 - lam) * discount * v_tp1
-            v_lambda = td + v_lambda_next * lam * discount
+            r_t, cont_t, v_tp1 = inputs
+            td = r_t + cont_t * (1.0 - lam) * discount * v_tp1
+            v_lambda = td + cont_t * v_lambda_next * lam * discount
             return v_lambda, v_lambda
 
-        init = jnp.zeros_like(next_values[:, -1])
-        rewards_t, terminals_t, next_values_t = jax.tree.map(
-            lambda x: jnp.swapaxes(x, 0, 1)[::-1], (rewards, terminals, next_values)
+        init = next_values[:, -1]
+        rewards_t, continues_t, next_values_t = jax.tree.map(
+            lambda x: jnp.swapaxes(x, 0, 1)[::-1], (rewards, continues, next_values)
         )
         _, vals_t = jax.lax.scan(
-            scan_fn,
-            init,
-            (rewards_t, terminals_t, next_values_t),
-            length=next_values.shape[1],
+            scan_fn, init, (rewards_t, continues_t, next_values_t), length=rewards.shape[1]
         )
         return jnp.swapaxes(vals_t[::-1], 0, 1)
 
     # ---------- Collection ----------
 
-    def _collect(
-        self, ts: DreamerTrainState
-    ) -> Tuple[DreamerTrainState, Buffer]:
+    def _collect(self, ts: DreamerTrainState) -> Tuple[DreamerTrainState, Buffer]:
         """Runs `hparams.num_steps` steps in `hparams.num_envs` parallel
         envs, carrying the per-env posterior latent (h, z, a_prev_oh)
         across steps so the policy always acts on an up-to-date belief."""
@@ -697,36 +863,64 @@ class Dreamer(Agent):
     # ---------- Losses ----------
 
     def _model_loss(self, params, obs_seq, act_seq, rew_seq, term_seq, rng):
-        (hs, zs), kls, (obs_dist, rew_dist, term_dist), feats = self.world.apply(
-            {"params": params},
-            obs_seq,
-            act_seq,
-            method=WorldModel.observe,
-            rngs={"sample": rng},
+        (hs, zs), (dyn_kls, rep_kls), feats, obs_pred, rew_logits, term_logits = (
+            self.world.apply(
+                {"params": params},
+                obs_seq,
+                act_seq,
+                method=WorldModel.observe,
+                rngs={"sample": rng},
+            )
         )
+        hp = self.hparams
         B, L = act_seq.shape
-        kl = jnp.mean(kls)
-        kl = jnp.maximum(kl, self.hparams.free_kl)
-        obs_ll = jnp.mean(obs_dist.log_prob(obs_seq[:, 1:].reshape(B * L, -1)))
-        rew_ll = jnp.mean(rew_dist.log_prob(rew_seq.reshape(-1)))
-        term_ll = jnp.mean(term_dist.log_prob(term_seq.reshape(-1)))
-        loss = self.hparams.kl_scale * kl - obs_ll - rew_ll - term_ll
+        dyn_loss = jnp.mean(jnp.maximum(dyn_kls, hp.free_nats))
+        rep_loss = jnp.mean(jnp.maximum(rep_kls, hp.free_nats))
+
+        obs_target = symlog(obs_seq[:, 1:].reshape(B * L, -1))
+        obs_loss = jnp.mean(jnp.square(obs_pred - obs_target))
+
+        # TwoHotHead.loss/.mean are plain array math (no nn.Dense/params
+        # of their own beyond what already produced `rew_logits` inside
+        # observe()'s .apply() context above), so a standalone instance -
+        # not bound to any params - can call them directly, the same
+        # pattern _actor_loss/_critic_loss use.
+        reward_head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        rew_loss = jnp.mean(reward_head.loss(rew_logits, rew_seq.reshape(-1)))
+        term_loss = jnp.mean(
+            optax.sigmoid_binary_cross_entropy(
+                jnp.squeeze(term_logits, -1), term_seq.reshape(-1)
+            )
+        )
+
+        loss = (
+            hp.dyn_scale * dyn_loss
+            + hp.rep_scale * rep_loss
+            + obs_loss
+            + rew_loss
+            + term_loss
+        )
         logs = {
-            "agent/model/kl": kl,
-            "agent/model/log_p_obs": -obs_ll,
-            "agent/model/log_p_rew": -rew_ll,
-            "agent/model/log_p_term": -term_ll,
+            "agent/model/dyn_kl": dyn_loss,
+            "agent/model/rep_kl": rep_loss,
+            "agent/model/obs_loss": obs_loss,
+            "agent/model/rew_loss": rew_loss,
+            "agent/model/term_loss": term_loss,
         }
         return loss, (feats, logs)
 
-    def _actor_loss(self, actor_params, model_params, critic_params, start_feats, rng):
+    def _actor_critic_rollout(self, model_params, actor_params, start_feats, rng):
+        """Shared imagination rollout for both the actor and critic
+        losses - both need the same `(feats, rewards, continues, actions,
+        logps)`, so this factors it out rather than re-running `imagine()`
+        (a full `imag_horizon`-step scan) twice per Dreamer.update()."""
         hp = self.hparams
         h0, z0 = start_feats[:, : hp.deter_size], start_feats[:, hp.deter_size :]
 
         def actor_logits_fn(feat):
             return self.actor.apply({"params": actor_params}, feat)
 
-        feats, rews, terms = self.world.apply(
+        feats, rews, term_logits, actions, logps = self.world.apply(
             {"params": model_params},
             h0,
             z0,
@@ -735,62 +929,92 @@ class Dreamer(Agent):
             rng,
             method=WorldModel.imagine,
         )
-        # vals_tp1 = V(feats[1:]) bootstraps each reward with the *next*
-        # imagined state's value, so it only covers H-1 pairs (there's no
-        # feats[H] within this rollout to bootstrap the last reward with)
-        # - truncate rews/terms to match rather than the full H-length
-        # rollout.
-        vals_tp1 = jax.vmap(self.critic.apply, in_axes=(None, 0))(
-            {"params": critic_params}, feats[:, 1:]
+        continues = 1.0 - jax.nn.sigmoid(term_logits)
+        return feats, rews, continues, actions, logps
+
+    def _actor_loss(
+        self, actor_params, model_params, critic_params, start_feats, return_norm_scale, rng
+    ):
+        hp = self.hparams
+        feats, rews, continues, actions, _ = self._actor_critic_rollout(
+            model_params, actor_params, start_feats, rng
         )
-        lam_vals = self._compute_lambda_values(
-            vals_tp1, rews[:, :-1], terms[:, :-1], hp.discount, hp.lam
+        # vals covers the full imagined horizon including the start state
+        # (feats[:, 0] is the real posterior feature the rollout began
+        # from), so lambda-returns/advantages align 1:1 with each
+        # imagined transition, unlike bootstrapping from feats[:, 1:]
+        # only (which would drop the last transition's target entirely).
+        head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
+            {"params": critic_params}, feats
         )
-        disc = self._discount_weights(hp.discount, hp.imag_horizon - 1)
-        loss = -(lam_vals * disc).mean()
-        entropy = (
-            distrax.Categorical(
-                logits=self.actor.apply({"params": actor_params}, start_feats)
-            )
-            .entropy()
-            .mean()
+        vals = head.mean(vals_logits)
+        targets = jax.lax.stop_gradient(
+            self._lambda_returns(vals[:, 1:], rews[:, :-1], continues[:, :-1], hp.discount, hp.lam)
         )
-        logs = {"agent/actor/loss": loss, "agent/actor/entropy": entropy}
+        adv = jax.lax.stop_gradient((targets - vals[:, :-1]) / return_norm_scale)
+
+        # REINFORCE: log_prob(sg(action)) * sg(advantage), not backprop
+        # through the sampled discrete action - distrax.Categorical.
+        # sample() has no gradient w.r.t. its logits (no reparameterization
+        # for discrete distributions), so differentiating an imagined
+        # return through a *sampled* action trains nothing through that
+        # path. Recompute log_prob under the current actor_params (the
+        # rollout's own logps were computed under a frozen snapshot for
+        # the imagination pass, but grad must flow through actor_params
+        # here).
+        actor_logits = jax.vmap(
+            lambda f: self.actor.apply({"params": actor_params}, f)
+        )(feats[:, :-1])
+        dist = distrax.Categorical(logits=actor_logits)
+        logp = dist.log_prob(jax.lax.stop_gradient(actions[:, :-1]))
+        entropy = dist.entropy()
+        policy_loss = -(logp * adv + hp.actor_entropy * entropy)
+        loss = policy_loss.mean()
+        logs = {
+            "agent/actor/loss": loss,
+            "agent/actor/entropy": entropy.mean(),
+            "agent/actor/adv": adv.mean(),
+        }
         return loss, logs
 
-    def _critic_loss(self, critic_params, model_params, actor_params, start_feats, rng):
+    def _critic_loss(
+        self, critic_params, model_params, actor_params, slow_critic_params, start_feats, rng
+    ):
         hp = self.hparams
-        h0, z0 = start_feats[:, : hp.deter_size], start_feats[:, hp.deter_size :]
-
-        def actor_logits_fn(feat):
-            return self.actor.apply({"params": actor_params}, feat)
-
-        feats, rews, terms = self.world.apply(
-            {"params": model_params},
-            h0,
-            z0,
-            actor_logits_fn,
-            hp.imag_horizon,
-            rng,
-            method=WorldModel.imagine,
+        feats, rews, continues, actions, _ = self._actor_critic_rollout(
+            model_params, actor_params, start_feats, rng
         )
-        vals_tp1 = jax.vmap(self.critic.apply, in_axes=(None, 0))(
-            {"params": critic_params}, feats[:, 1:]
+        head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
+            {"params": critic_params}, feats
         )
+        vals = jax.vmap(head.mean)(vals_logits)
         targets = jax.lax.stop_gradient(
-            self._compute_lambda_values(
-                vals_tp1, rews[:, :-1], terms[:, :-1], hp.discount, hp.lam
-            )
+            self._lambda_returns(vals[:, 1:], rews[:, :-1], continues[:, :-1], hp.discount, hp.lam)
         )
-        # preds must align with targets' H-1 length, hence feats[:, :-1]
-        # (dropping the last imagined state, which targets has no
-        # lambda-return for - see _actor_loss's vals_tp1 comment).
-        preds = jax.vmap(self.critic.apply, in_axes=(None, 0))(
+
+        pred_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
             {"params": critic_params}, feats[:, :-1]
         )
-        disc = self._discount_weights(hp.discount, hp.imag_horizon - 1)
-        loss = jnp.mean(((preds - targets) ** 2) * disc)
-        return loss, {"agent/critic/loss": loss}
+        regress_loss = jnp.mean(jax.vmap(head.loss)(pred_logits, targets))
+
+        slow_logits = jax.lax.stop_gradient(
+            jax.vmap(self.critic.apply, in_axes=(None, 0))(
+                {"params": slow_critic_params}, feats[:, :-1]
+            )
+        )
+        slow_target = jax.lax.stop_gradient(head.mean(slow_logits))
+        slow_reg_loss = jnp.mean(jax.vmap(head.loss)(pred_logits, slow_target))
+
+        loss = regress_loss + hp.slow_critic_reg * slow_reg_loss
+        logs = {
+            "agent/critic/loss": loss,
+            "agent/critic/regress_loss": regress_loss,
+            "agent/critic/slow_reg_loss": slow_reg_loss,
+            "agent/critic/value": vals.mean(),
+        }
+        return loss, logs
 
     # ---------- One update (collect + model/actor/critic) ----------
 
@@ -827,7 +1051,7 @@ class Dreamer(Agent):
         # rollouts from, reusing the just-updated model.
         rng, key_batch, key_observe = jax.random.split(rng, 3)
         obs_seq, act_seq, _, _ = self._sample_batch(key_batch, experience)
-        _, _, _, feats = self.world.apply(
+        _, _, feats, _, _, _ = self.world.apply(
             {"params": model.params},
             obs_seq,
             act_seq,
@@ -838,12 +1062,38 @@ class Dreamer(Agent):
             feats[:, :-1].reshape(-1, feats.shape[-1])
         )
 
+        # Return-normalization scale: EMA-tracked 5th/95th percentile of
+        # a quick lambda-return estimate under the current critic, so the
+        # actor's advantage is on a comparable scale regardless of the
+        # environment's raw reward magnitude.
+        probe_feats, probe_rews, probe_continues, _, _ = self._actor_critic_rollout(
+            model.params, ts.actor.params, start_feats, rng
+        )
+        head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        probe_vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
+            {"params": ts.critic.params}, probe_feats
+        )
+        probe_vals = jax.vmap(head.mean)(probe_vals_logits)
+        probe_returns = self._lambda_returns(
+            probe_vals[:, 1:], probe_rews[:, :-1], probe_continues[:, :-1], hp.discount, hp.lam
+        )
+        lo = jnp.percentile(probe_returns, 5)
+        hi = jnp.percentile(probe_returns, 95)
+        rate = hp.return_norm_rate
+        return_norm_lo = (1 - rate) * ts.return_norm_lo + rate * lo
+        return_norm_hi = (1 - rate) * ts.return_norm_hi + rate * hi
+        return_norm_scale = jnp.maximum(
+            return_norm_hi - return_norm_lo, hp.return_norm_limit
+        )
+
         def actor_step(carry, _):
             actor, rng = carry
             rng, key = jax.random.split(rng)
 
             def loss_fn(p):
-                return self._actor_loss(p, model.params, ts.critic.params, start_feats, key)
+                return self._actor_loss(
+                    p, model.params, ts.critic.params, start_feats, return_norm_scale, key
+                )
 
             (loss, alogs), grads = jax.value_and_grad(loss_fn, has_aux=True)(
                 actor.params
@@ -864,7 +1114,9 @@ class Dreamer(Agent):
             rng, key = jax.random.split(rng)
 
             def loss_fn(p):
-                return self._critic_loss(p, model.params, actor.params, start_feats, key)
+                return self._critic_loss(
+                    p, model.params, actor.params, ts.slow_critic_params, start_feats, key
+                )
 
             (loss, clogs), grads = jax.value_and_grad(loss_fn, has_aux=True)(
                 critic.params
@@ -880,12 +1132,22 @@ class Dreamer(Agent):
         )
         clogs = jax.tree.map(lambda x: jnp.mean(x), clogs)
 
+        slow_critic_params = jax.tree.map(
+            lambda slow, online: (1 - hp.slow_critic_rate) * slow
+            + hp.slow_critic_rate * online,
+            ts.slow_critic_params,
+            critic.params,
+        )
+
         ts = ts.replace(
             model=model,
             actor=actor,
             critic=critic,
+            slow_critic_params=slow_critic_params,
             rng=rng,
             updates=ts.updates + 1,
+            return_norm_lo=return_norm_lo,
+            return_norm_hi=return_norm_hi,
         )
 
         logs = {}
@@ -900,6 +1162,7 @@ class Dreamer(Agent):
         logs["iter/model_lr"] = self.hparams.model_lr
         logs["iter/actor_lr"] = self.hparams.actor_lr
         logs["iter/critic_lr"] = self.hparams.critic_lr
+        logs["agent/return_norm_scale"] = return_norm_scale
 
         if self.hparams.log_render:
             from ..observations import rgb
@@ -937,8 +1200,8 @@ class Dreamer(Agent):
             jnp.zeros((1, self.world.act_dim)),
             method=WorldModel.init_probe,
         )
-        a_variables = self.actor.init(ak, jnp.zeros((1, hp.deter_size + hp.stoch_size)))
-        c_variables = self.critic.init(ck, jnp.zeros((1, hp.deter_size + hp.stoch_size)))
+        a_variables = self.actor.init(ak, jnp.zeros((1, hp.deter_size + hp.stoch_flat)))
+        c_variables = self.critic.init(ck, jnp.zeros((1, hp.deter_size + hp.stoch_flat)))
 
         model_tx = optax.chain(
             optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.model_lr)
@@ -970,10 +1233,13 @@ class Dreamer(Agent):
             model=model_state,
             actor=actor_state,
             critic=critic_state,
+            slow_critic_params=c_variables["params"],
             env_state=env_state,
             rng=rng,
             frames=jnp.asarray(0, dtype=jnp.int32),
             updates=jnp.asarray(0, dtype=jnp.int32),
+            return_norm_lo=jnp.asarray(0.0, dtype=jnp.float32),
+            return_norm_hi=jnp.asarray(0.0, dtype=jnp.float32),
             h=h0,
             z=z0,
             a_prev_oh=a0,
