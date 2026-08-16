@@ -501,6 +501,20 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
     def fin_diff(array, _):
         array = jnp.roll(array, -1, axis=0) + array + jnp.roll(array, +1, axis=0)
         array = jnp.roll(array, -1, axis=1) + array + jnp.roll(array, +1, axis=1)
+        # this accumulates path *counts*, not just reachability - each
+        # step lets every unit of mass split into up to 9 copies of
+        # itself (a 3x3 neighbourhood sum), so the total grows ~9x per
+        # step and only the downstream `view > 0` threshold is ever
+        # read. In an open area, that overflows int32 (~2.1e9) by
+        # cone radius 12 - beyond that, a wrapped-negative cell is
+        # indistinguishable from a genuinely unreachable one, so
+        # overflow silently *removes* visibility rather than erroring.
+        # Clamping to a boolean flood (min with 1) after every step is
+        # behaviour-preserving below the overflow threshold (verified:
+        # identical `> 0` masks at every radius that doesn't overflow)
+        # and immune to it above, since a boolean value can never
+        # overflow regardless of radius.
+        array = jnp.minimum(array, 1)
         return array * transparency_map, ()
 
     # initialise the field to all zeros, except at the source (agent's position)
