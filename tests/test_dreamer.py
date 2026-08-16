@@ -32,6 +32,7 @@ from navix.agents.dreamer import (
     WorldModel,
     Actor,
     Critic,
+    Replay,
     symlog,
     symexp,
     unimix_categorical,
@@ -265,12 +266,15 @@ def test_dreamer_actor_gradient_is_nonzero():
     dreamer = _make_dreamer()
     ts = dreamer._init_train_state(jax.random.PRNGKey(0))
     ts, experience = dreamer._collect(ts)
-    obs_seq, act_seq, _, term_seq = dreamer._sample_batch(jax.random.PRNGKey(1), experience)
+    replay = dreamer._write_replay(ts.replay, experience)
+    obs_seq, act_seq, _, first_seq, _ = dreamer._sample_batch(
+        jax.random.PRNGKey(1), replay
+    )
     _, _, feats, _, _, _ = dreamer.world.apply(
         {"params": ts.model.params},
         obs_seq,
         act_seq,
-        term_seq,
+        first_seq,
         method=WorldModel.observe,
         rngs={"sample": jax.random.PRNGKey(2)},
     )
@@ -324,6 +328,135 @@ def test_dreamer_actor_entropy_never_reaches_exactly_zero():
     )
 
 
+def test_dreamer_replay_buffer_retains_past_rollouts():
+    # Regression test for a structural divergence from DreamerV3 found
+    # while investigating why learning never consolidated: there was no
+    # replay buffer at all - the world model trained only on the rollout
+    # just collected, so a rare success transition (sparse reward) was
+    # seen by the reward head for exactly one update and then thrown
+    # away, and imagination went straight back to predicting zero reward
+    # everywhere. DreamerV3 is replay-based by design; assert that past
+    # rollouts really accumulate across updates.
+    dreamer = _make_dreamer(budget=8 * 4 * 3)  # -> exactly 3 updates
+    ts, _ = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
+    assert int(ts.replay.size) == 3, (
+        f"expected the replay buffer to hold all 3 collected rollouts, "
+        f"got size={int(ts.replay.size)}"
+    )
+    # capacity is never allocated beyond what the budget can fill
+    assert ts.replay.obs.shape[0] == 3
+
+
+def test_dreamer_imagination_weight_and_states_are_action_aligned():
+    # Regression test for an off-by-one in imagined-rollout credit
+    # assignment: imagine()'s scan emits only *resulting* states, so
+    # actions[t] was taken FROM feats_in[t] (start_feats at t=0), not
+    # from feats[t] - and the per-step loss weight must be the
+    # probability the trajectory is still alive when the action is
+    # *taken* (continues of earlier states only). The old code used
+    # cumprod(discount*continues)/discount over the outcome states,
+    # which multiplied each action's loss by 1 - P(terminal | its own
+    # outcome): the action that reaches the goal - the one gradient
+    # carrying the sparse reward signal - was scaled toward zero exactly
+    # when the term head (correctly!) predicted the goal ends the
+    # episode.
+    dreamer = _make_dreamer()
+    hp = dreamer.hparams
+    ts = dreamer._init_train_state(jax.random.PRNGKey(0))
+    start_feats = jax.random.normal(
+        jax.random.PRNGKey(1), (5, hp.deter_size + hp.stoch_flat)
+    )
+    feats_in, feats, rews, continues, actions, weight = dreamer._actor_critic_rollout(
+        ts.model.params, ts.actor.params, start_feats, jax.random.PRNGKey(2)
+    )
+    # the state each action was taken from: the seed at t=0, then the
+    # previous step's outcome
+    np.testing.assert_allclose(feats_in[:, 0], start_feats, atol=1e-6)
+    np.testing.assert_allclose(feats_in[:, 1:], feats[:, :-1], atol=1e-6)
+    # actions at the (real) seed states always get full weight...
+    np.testing.assert_allclose(weight[:, 0], 1.0, atol=1e-6)
+    # ...and weight[t] accumulates only discount/continuation of states
+    # *before* the action, never the action's own outcome
+    np.testing.assert_allclose(
+        weight[:, 1], hp.discount * continues[:, 0], atol=1e-5
+    )
+    np.testing.assert_allclose(
+        weight[:, 2], hp.discount**2 * continues[:, 0] * continues[:, 1], atol=1e-5
+    )
+
+
+def test_dreamer_untrained_heads_predict_zero_and_near_uniform_policy():
+    # Regression test for a training-collapse mechanism found by
+    # benchmarking: TwoHotHead's bins span symlog +-20, so a *randomly*
+    # initialized reward/value head emits symexp values of garbage
+    # magnitude (up to +-e^20) in the very first imagination rollouts -
+    # advantages built from those slammed the actor into a deterministic
+    # policy (entropy pinned at the unimix floor) within ~64 gradient
+    # steps, before the world model had learned anything real, and
+    # exploration never recovered. The official implementation
+    # zero-initializes these heads' output layers (`outscale: 0.0`) so an
+    # untrained head predicts exactly 0; the actor's output layer is
+    # near-zero-initialized so the initial policy is near-uniform.
+    dreamer = _make_dreamer()
+    hp = dreamer.hparams
+    ts = dreamer._init_train_state(jax.random.PRNGKey(0))
+    feat = jax.random.normal(
+        jax.random.PRNGKey(1), (7, hp.deter_size + hp.stoch_flat)
+    )
+    head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+    vals = head.mean(dreamer.critic.apply({"params": ts.critic.params}, feat))
+    np.testing.assert_allclose(np.asarray(vals), 0.0, atol=1e-5)
+    probs = jax.nn.softmax(
+        dreamer.actor.apply({"params": ts.actor.params}, feat), axis=-1
+    )
+    act_dim = probs.shape[-1]
+    np.testing.assert_allclose(np.asarray(probs), 1.0 / act_dim, atol=0.02)
+
+
+def test_dreamer_sample_batch_shifts_done_into_first_flags():
+    # Regression test for an off-by-one in episode-boundary masking:
+    # navix DEFERS autoreset to the next env.step() call, so done[t] == 1
+    # means obs[t+1] is the genuine terminal observation (the goal
+    # actually reached by act[t], carrying the episode's reward) and it's
+    # obs[t+2] that is the exogenous reset. observe()'s is_first mask for
+    # scan step t must therefore be done[t-1], not done[t] - masking
+    # unshifted zeroed the belief state exactly at the goal-reaching
+    # transition, so the reward/term heads learned to associate the
+    # sparse reward with a blank-context latent that imagination (always
+    # full-context) never produces: imagined rollouts saw no reward at
+    # all, and the actor's advantage signal was identically ~0 while the
+    # policy stayed uniform (verified over full 100k-frame runs).
+    dreamer = _make_dreamer(seq_len=4)
+    L, T, N = 4, 6, 1
+    done = np.zeros((1, T, N), dtype=bool)
+    done[0, 2, 0] = True
+    term = np.zeros((1, T, N), dtype=bool)
+    term[0, 3, 0] = True
+    replay = Replay(
+        obs=jnp.zeros((1, T, N, 3)),
+        action=jnp.zeros((1, T, N), dtype=jnp.int32),
+        reward=jnp.arange(T, dtype=jnp.float32).reshape(1, T, 1),
+        done=jnp.asarray(done),
+        termination=jnp.asarray(term),
+        idx=jnp.asarray(1, dtype=jnp.int32),
+        size=jnp.asarray(1, dtype=jnp.int32),
+    )
+    # T - (seq_len + 1) = 1, so the only valid window start is index 1 -
+    # the sample is fully deterministic despite the random key.
+    obs_seq, act_seq, rew_seq, first_seq, terminal_seq = dreamer._sample_batch(
+        jax.random.PRNGKey(0), replay
+    )
+    np.testing.assert_allclose(
+        np.asarray(first_seq[0]), done[0, 0:L, 0].astype(np.float32)
+    )
+    np.testing.assert_allclose(
+        np.asarray(terminal_seq[0]), term[0, 1 : L + 1, 0].astype(np.float32)
+    )
+    np.testing.assert_allclose(
+        np.asarray(rew_seq[0]), np.arange(1, L + 1, dtype=np.float32)
+    )
+
+
 if __name__ == "__main__":
     test_dreamer_is_an_agent()
     test_dreamer_trains_one_update_without_nans()
@@ -338,3 +471,7 @@ if __name__ == "__main__":
     test_dreamer_slow_critic_tracks_online_critic_via_ema()
     test_dreamer_actor_gradient_is_nonzero()
     test_dreamer_actor_entropy_never_reaches_exactly_zero()
+    test_dreamer_replay_buffer_retains_past_rollouts()
+    test_dreamer_imagination_weight_and_states_are_action_aligned()
+    test_dreamer_untrained_heads_predict_zero_and_near_uniform_policy()
+    test_dreamer_sample_batch_shifts_done_into_first_flags()

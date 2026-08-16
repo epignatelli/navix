@@ -181,13 +181,25 @@ class TwoHotHead(nn.Module):
 
     @nn.compact
     def __call__(self, feat: Array) -> Array:
+        # The output layer is ZERO-initialized (official implementation's
+        # `outscale: 0.0` for the reward/critic heads): all-zero logits ->
+        # uniform bin probabilities -> mean symexp(sum(p*bins)) = symexp(0)
+        # = 0 exactly, so an untrained head predicts 0, not symexp of
+        # whatever random logits happen to sum to over bins spanning
+        # symlog +-20 - which can reach +-e^20. Without this, the very
+        # first imagination rollouts feed the actor advantages of garbage
+        # magnitude; the return-normalization EMA (rate 0.01) is far too
+        # slow to absorb that, and ~64 gradient steps of it were observed
+        # to slam the actor into a deterministic policy (entropy pinned at
+        # the unimix floor) before the world model had learned anything -
+        # after which exploration never recovers.
         net = nn.Sequential(
             [
                 nn.Dense(self.hidden_size),
                 nn.elu,
                 nn.Dense(self.hidden_size),
                 nn.elu,
-                nn.Dense(self.bins),
+                nn.Dense(self.bins, kernel_init=nn.initializers.zeros),
             ]
         )
         return net(feat)  # logits, (..., bins)
@@ -217,14 +229,31 @@ class DreamerHparams(HParams):
     """Number of parallel environments to run."""
     num_steps: int = struct.field(pytree_node=False, default=128)
     """Number of environment steps to collect per update."""
-    num_model_updates: int = struct.field(pytree_node=False, default=32)
-    """Number of world-model gradient steps per update."""
-    num_actor_updates: int = struct.field(pytree_node=False, default=32)
-    """Number of actor gradient steps per update."""
-    num_critic_updates: int = struct.field(pytree_node=False, default=32)
-    """Number of critic gradient steps per update."""
+    num_model_updates: int = struct.field(pytree_node=False, default=128)
+    """Number of world-model gradient steps per update. The default is
+    deliberately high relative to the frames collected per update (a
+    replay ratio in the spirit of the official implementation's
+    `train_ratio`): DreamerV3 is designed to be sample-efficient by
+    gradient-stepping far more often than it collects. Concretely, with
+    a sparse reward the rewarded transitions can be ~0.2% of the replay
+    data, and a mean-reduced twohot cross-entropy pushes the reward head
+    toward the base-rate prediction (~0) until it has seen enough
+    positive examples to separate them - at 32 steps/update the reward
+    head was still predicting ~0.004 at real goal transitions after a
+    full 100k-frame run (policy stuck at random-walk success), while at
+    128 it reaches ~0.98 and the same run ends at 100% success."""
+    num_actor_updates: int = struct.field(pytree_node=False, default=128)
+    """Number of actor gradient steps per update (see num_model_updates
+    for why the default is high)."""
+    num_critic_updates: int = struct.field(pytree_node=False, default=128)
+    """Number of critic gradient steps per update (see num_model_updates
+    for why the default is high)."""
     batch_size: int = struct.field(pytree_node=False, default=64)
     """Number of sequences sampled per world-model gradient step."""
+    replay_capacity: int = struct.field(pytree_node=False, default=500_000)
+    """Maximum number of environment frames kept in the replay buffer
+    (rounded down to whole collection rollouts, and never allocated
+    larger than the training budget itself can fill)."""
     seq_len: int = struct.field(pytree_node=False, default=32)
     """Length of the sequences sampled for world-model training."""
     imag_horizon: int = struct.field(pytree_node=False, default=15)
@@ -421,13 +450,16 @@ class WorldModel(nn.Module):
         self.post = PostNet(hp.hidden_size, hp.stoch, hp.classes)
         self.decoder = Decoder(hp.hidden_size, self.obs_dim)
         self.reward = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
+        # Zero-init output like the reward/critic heads (see TwoHotHead):
+        # an untrained term head then predicts sigmoid(0) = 0.5 rather
+        # than confident random continue/terminate calls.
         self.term = nn.Sequential(
             [
                 nn.Dense(hp.hidden_size),
                 nn.elu,
                 nn.Dense(hp.hidden_size),
                 nn.elu,
-                nn.Dense(1),
+                nn.Dense(1, kernel_init=nn.initializers.zeros),
             ]
         )
 
@@ -440,7 +472,7 @@ class WorldModel(nn.Module):
     def feat(self, h: Array, z_flat: Array) -> Array:
         return jnp.concatenate([h, z_flat], axis=-1)
 
-    def observe(self, obs_seq: Array, act_seq: Array, term_seq: Array) -> Tuple[
+    def observe(self, obs_seq: Array, act_seq: Array, first_seq: Array) -> Tuple[
         Tuple[Array, Array], Tuple[Array, Array], Array, Array, Array, Array
     ]:
         """Runs the RSSM over an observed sequence, computing the posterior
@@ -450,30 +482,45 @@ class WorldModel(nn.Module):
             obs_seq (Array): `f32[B, L+1, obs_dim]`, flattened observations.
             act_seq (Array): `i32[B, L]`, actions taken between consecutive
                 observations.
-            term_seq (Array): `f32[B, L]`, `1.0` where `act_seq[:, t]` ended
-                an episode (matching `experience.done`/the `_model_loss`
-                term-head target) - `term_seq[:, t] == 1` means
-                `obs_seq[:, t + 1]` is a fresh post-autoreset observation,
-                *not* a real consequence of `act_seq[:, t]`. Sampled
-                training sequences are sliced from a fixed-size buffer with
-                no regard for episode boundaries (`_sample_batch`), so a
-                sequence commonly straddles an autoreset; without this,
-                every such step would condition the reset observation's
-                posterior on the *previous* episode's (h, z) and pair it
-                with an action that didn't actually cause it - a genuine
-                transition the RSSM cannot learn (the reset is exogenous),
-                and, left unhandled, the resulting garbage (h, z) then
-                propagates forward through every subsequent step of the new
-                episode still inside this sequence, not just the one
-                boundary step. Matches the official implementation's
-                `is_first` masking in `RSSM.observe` (`embodied/jax/
-                rssm.py`): at scan step `t` (which pairs `act_seq[:, t]`
+            first_seq (Array): `f32[B, L]`, `1.0` where `obs_seq[:, t + 1]`
+                is a fresh post-autoreset observation (the first of a new
+                episode) rather than a real consequence of `act_seq[:, t]`.
+                NOTE the required shift relative to the buffer's `done`
+                flags: navix *defers* autoreset to the next `env.step()`
+                call (`Environment.step`'s `should_reset` looks at the
+                INPUT timestep), so `done[t] == 1` means `obs[t + 1]` is
+                the genuine TERMINAL observation - the goal cell actually
+                reached, caused by `act_seq[:, t]`, carrying the episode's
+                reward - and it's `obs[t + 2]` that is the exogenous reset.
+                The correct mask for scan step `t` is therefore
+                `done[t - 1]`, which `_sample_batch` slices as a
+                one-step-shifted window over `done`. An earlier version
+                passed `done` UNshifted, masking one step early: it zeroed
+                the belief state and action exactly at the goal-reaching
+                transition, so the reward/term heads were trained to
+                associate the sparse reward and termination with a
+                *blank-context* posterior of the goal observation - a
+                latent that imagination (which always rolls forward with
+                full context) never produces, so imagined rollouts never
+                saw reward at all, value targets stayed at zero, and the
+                actor's advantage signal was identically ~0 despite the
+                reward head fitting its (mislabeled) training data well.
+                Meanwhile the actual garbage transition - the action
+                consumed by the reset, "causing" the teleport to
+                `obs[t + 2]` - was trained unmasked. Sampled training
+                sequences are sliced from the replay with no regard for
+                episode boundaries, so sequences commonly straddle an
+                autoreset; at scan step `t` (which pairs `act_seq[:, t]`
                 with `embed(obs_seq[:, t + 1])`), both the incoming (h, z)
                 carried from step `t - 1` and `act_seq[:, t]` itself are
-                zeroed whenever `term_seq[:, t] == 1`, so `obs_seq[:, t +
-                1]`'s posterior is computed from a blank slate instead of a
-                stale, causally-unrelated belief plus an action that
-                didn't really produce it.
+                zeroed whenever `first_seq[:, t] == 1`, so the reset
+                observation's posterior is computed from a blank slate
+                instead of a stale, causally-unrelated belief plus an
+                action that didn't really produce it - matching both the
+                official implementation's `is_first` masking and what
+                `_collect` does with its own carried latents (full-context
+                belief at the terminal observation, blank slate at the
+                reset one).
 
         Returns:
             `((h_seq, z_seq), (dyn_kls, rep_kls), feats, obs_pred, rew_logits,
@@ -569,7 +616,7 @@ class WorldModel(nn.Module):
         # the stacked outputs back to (B, L, ...) coming out.
         inputs = jax.tree.map(
             lambda x: jnp.swapaxes(x, 0, 1),
-            (a_oh, embed_all[:, 1:], term_seq.astype(jnp.float32)),
+            (a_oh, embed_all[:, 1:], first_seq.astype(jnp.float32)),
         )
         init_rng = self.make_rng("sample")
         (h_last, z_last, _), (hs, zs, dyn_kls, rep_kls, feats) = jax.lax.scan(
@@ -609,6 +656,27 @@ class WorldModel(nn.Module):
         z_next = straight_through_sample(post_dist, rng)
         z_next_flat = z_next.reshape(*z_next.shape[:-2], -1)
         return h_next, z_next_flat
+
+    def prior_step(
+        self, h: Array, z_flat: Array, a_oh: Array, rng: Array
+    ) -> Tuple[Array, Array, Array]:
+        """One imagined (prior/dynamics) transition with a caller-supplied
+        action - the same mechanics as a single `imagine` rollout step,
+        but decoupled from the actor. Returns `(feat_next, reward_mean,
+        term_prob)`. Used for diagnosis: comparing the reward/term heads'
+        predictions on prior-sampled latents at known real transitions
+        (e.g. forcing the recorded goal-reaching action from the recorded
+        pre-goal posterior state) against their predictions on posterior
+        latents isolates whether a learned signal actually survives into
+        imagination, where the actor is trained."""
+        h_next = self.rssm(h, z_flat, a_oh)
+        prior_dist = unimix_categorical(self.prior(h_next), self.hparams.unimix)
+        z_next = straight_through_sample(prior_dist, rng)
+        z_next_flat = z_next.reshape(*z_next.shape[:-2], -1)
+        feat = jnp.concatenate([h_next, z_next_flat], axis=-1)
+        rew = self.reward.mean(self.reward(feat))
+        term_prob = jax.nn.sigmoid(jnp.squeeze(self.term(feat), -1))
+        return feat, rew, term_prob
 
     def init_probe(self, obs: Array, a_prev_oh: Array) -> None:
         """Touches every submodule exactly once, purely so `WorldModel.
@@ -701,13 +769,17 @@ class Actor(nn.Module):
 
     @nn.compact
     def __call__(self, feat: Array) -> Array:
+        # Near-zero output init (the official implementation's small
+        # actor `outscale`): the initial policy is near-uniform, so early
+        # data collection genuinely explores instead of committing to
+        # whatever the random init happens to prefer.
         net = nn.Sequential(
             [
                 nn.Dense(self.hidden),
                 nn.elu,
                 nn.Dense(self.hidden),
                 nn.elu,
-                nn.Dense(self.act_dim),
+                nn.Dense(self.act_dim, kernel_init=nn.initializers.orthogonal(0.01)),
             ]
         )
         return net(feat)
@@ -734,6 +806,7 @@ class Critic(nn.Module):
 
 class Buffer(struct.PyTreeNode):
     done: Array
+    termination: Array
     action: Array
     reward: Array
     log_prob: Array
@@ -741,6 +814,37 @@ class Buffer(struct.PyTreeNode):
     info: Dict[str, Array]
     t: Array
     state: State
+
+
+class Replay(struct.PyTreeNode):
+    """A fixed-capacity FIFO replay buffer of whole collection rollouts
+    ("blocks" of `num_steps` x `num_envs` transitions), carried inside
+    `DreamerTrainState` so it lives through the `jax.lax.scan` training
+    loop. DreamerV3 is a *replay-based* algorithm: the world model must
+    keep training on past experience, not only the rollout just
+    collected - with a sparse reward, a rare success transition seen only
+    in the update it happened in is forgotten by the reward head one
+    update later, so imagination goes back to predicting zero reward
+    everywhere and the actor's learning signal vanishes as soon as it
+    appears. (An earlier version had no replay at all - `_sample_batch`
+    read directly from the latest rollout - which is exactly the failure
+    mode that produced isolated windows of success that never
+    consolidated.)
+
+    Blocks are written whole (one per `Dreamer.update()` call) at a
+    rolling index; sampled sequences never straddle two blocks, so the
+    rolling overwrite boundary can't splice unrelated timelines together.
+    Only what world-model training needs is stored (obs flattened, action,
+    reward, done, termination) - not the logging-only fields of `Buffer`.
+    """
+
+    obs: Array  # (C, T, N, obs_dim), original observation dtype
+    action: Array  # (C, T, N) i32
+    reward: Array  # (C, T, N) f32
+    done: Array  # (C, T, N) bool - episode ended (termination OR truncation)
+    termination: Array  # (C, T, N) bool - true environment termination only
+    idx: Array  # scalar i32, next block slot to (over)write
+    size: Array  # scalar i32, number of filled block slots
 
 
 # -------------------------
@@ -773,6 +877,7 @@ class DreamerTrainState(struct.PyTreeNode):
     actor: TrainState
     critic: TrainState
     slow_critic_params: dict
+    replay: Replay
 
     env_state: Timestep
     rng: Array
@@ -880,6 +985,7 @@ class Dreamer(Agent):
 
             transition = Buffer(
                 done=new_env_state.is_done(),
+                termination=new_env_state.is_termination(),
                 action=a,
                 reward=new_env_state.reward,
                 log_prob=log_prob,
@@ -906,46 +1012,86 @@ class Dreamer(Agent):
         )
         return ts, traj
 
-    def _sample_batch(
-        self, rng: Array, experience: Buffer
-    ) -> Tuple[Array, Array, Array, Array]:
-        """Samples `hparams.batch_size` sequences of length `hparams.seq_len
-        + 1` observations / `seq_len` actions from the most recent
-        rollout, for world-model training."""
-        hp = self.hparams
-        T, N = experience.obs.shape[0], experience.obs.shape[1]
-        L = hp.seq_len
-        max_start = jnp.maximum(T - (L + 1), 0)
+    @staticmethod
+    def _write_replay(replay: Replay, experience: Buffer) -> Replay:
+        """Appends one whole collection rollout to the replay buffer as a
+        block at the rolling write index (overwriting the oldest block
+        once the buffer is full)."""
+        obs = experience.obs.reshape(*experience.obs.shape[:2], -1)
 
-        rng, key1, key2 = jax.random.split(rng, 3)
-        env_idx = jax.random.randint(key1, (hp.batch_size,), minval=0, maxval=N)
-        start_idx = jax.random.randint(
-            key2, (hp.batch_size,), minval=0, maxval=jnp.maximum(1, max_start + 1)
+        def put(buf, new):
+            return jax.lax.dynamic_update_index_in_dim(
+                buf, new.astype(buf.dtype), replay.idx, 0
+            )
+
+        capacity = replay.obs.shape[0]
+        return replay.replace(
+            obs=put(replay.obs, obs),
+            action=put(replay.action, experience.action),
+            reward=put(replay.reward, experience.reward),
+            done=put(replay.done, experience.done),
+            termination=put(replay.termination, experience.termination),
+            idx=(replay.idx + 1) % capacity,
+            size=jnp.minimum(replay.size + 1, capacity),
         )
 
-        def take_seq(ei, si):
-            obs_seq = jax.lax.dynamic_slice_in_dim(experience.obs[:, ei], si, L + 1)
-            act_seq = jax.lax.dynamic_slice_in_dim(experience.action[:, ei], si, L)
-            rew_seq = jax.lax.dynamic_slice_in_dim(experience.reward[:, ei], si, L)
-            term_seq = jax.lax.dynamic_slice_in_dim(
-                experience.done[:, ei].astype(jnp.float32), si, L
-            )
-            return obs_seq, act_seq, rew_seq, term_seq
+    def _sample_batch(
+        self, rng: Array, replay: Replay
+    ) -> Tuple[Array, Array, Array, Array, Array]:
+        """Samples `hparams.batch_size` sequences of `hparams.seq_len + 1`
+        observations / `seq_len` actions uniformly from the *filled* part
+        of the replay buffer (all blocks written so far, not just the
+        latest rollout), for world-model training. Returns
+        `(obs_seq, act_seq, rew_seq, first_seq, terminal_seq)`:
+        `first_seq[t] = done[start + t - 1]` - the one-step-SHIFTED window
+        over `done` that `observe()`'s boundary masking needs, because
+        navix defers autoreset by one step: `done[t] == 1` marks
+        `obs[t + 1]` as the genuine terminal observation, and it's
+        `obs[t + 2]` that is the fresh reset (see `observe`'s docstring).
+        Window starts are drawn from `[1, T - seq_len - 1]` (never 0) so
+        the shifted window's first element always exists in-block.
+        `terminal_seq` marks true environment termination only (the term
+        head's target - a timeout truncation is NOT a terminal state, the
+        episode was cut short exogenously, see `_model_loss`)."""
+        hp = self.hparams
+        C, T, N = replay.action.shape
+        L = hp.seq_len
+        max_start = jnp.maximum(T - (L + 1), 1)
 
-        obs_seq, act_seq, rew_seq, term_seq = jax.vmap(take_seq)(env_idx, start_idx)
-        return self._flatten_obs(obs_seq.reshape(-1, *obs_seq.shape[2:])).reshape(
-            hp.batch_size, L + 1, -1
-        ), act_seq, rew_seq, term_seq
+        rng, key1, key2, key3 = jax.random.split(rng, 4)
+        block_idx = jax.random.randint(
+            key1, (hp.batch_size,), minval=0, maxval=jnp.maximum(replay.size, 1)
+        )
+        env_idx = jax.random.randint(key2, (hp.batch_size,), minval=0, maxval=N)
+        start_idx = jax.random.randint(
+            key3, (hp.batch_size,), minval=1, maxval=max_start + 1
+        )
+
+        def take_seq(bi, ei, si):
+            obs_seq = jax.lax.dynamic_slice_in_dim(
+                replay.obs[bi, :, ei].astype(jnp.float32), si, L + 1
+            )
+            act_seq = jax.lax.dynamic_slice_in_dim(replay.action[bi, :, ei], si, L)
+            rew_seq = jax.lax.dynamic_slice_in_dim(replay.reward[bi, :, ei], si, L)
+            first_seq = jax.lax.dynamic_slice_in_dim(
+                replay.done[bi, :, ei].astype(jnp.float32), si - 1, L
+            )
+            terminal_seq = jax.lax.dynamic_slice_in_dim(
+                replay.termination[bi, :, ei].astype(jnp.float32), si, L
+            )
+            return obs_seq, act_seq, rew_seq, first_seq, terminal_seq
+
+        return jax.vmap(take_seq)(block_idx, env_idx, start_idx)
 
     # ---------- Losses ----------
 
-    def _model_loss(self, params, obs_seq, act_seq, rew_seq, term_seq, rng):
+    def _model_loss(self, params, obs_seq, act_seq, rew_seq, first_seq, terminal_seq, rng):
         (hs, zs), (dyn_kls, rep_kls), feats, obs_pred, rew_logits, term_logits = (
             self.world.apply(
                 {"params": params},
                 obs_seq,
                 act_seq,
-                term_seq,
+                first_seq,
                 method=WorldModel.observe,
                 rngs={"sample": rng},
             )
@@ -965,9 +1111,20 @@ class Dreamer(Agent):
         # pattern _actor_loss/_critic_loss use.
         reward_head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         rew_loss = jnp.mean(reward_head.loss(rew_logits, rew_seq.reshape(-1)))
+        # The term head's target is TRUE environment termination only,
+        # never timeout truncation - imagination uses this head as
+        # `continues = 1 - sigmoid(term_logit)`, i.e. "does the MDP end
+        # here", and a truncated episode didn't end because of the state,
+        # it was cut short exogenously by a step limit the agent can't
+        # even observe (time isn't in the observation). An earlier
+        # version trained it on `done` (termination OR truncation):
+        # since most unsuccessful episodes end by timeout, that taught
+        # the model that episodes die spontaneously at an unpredictable
+        # background rate, deflating `continues` - and with it every
+        # imagined value target and rollout weight - everywhere.
         term_loss = jnp.mean(
             optax.sigmoid_binary_cross_entropy(
-                jnp.squeeze(term_logits, -1), term_seq.reshape(-1)
+                jnp.squeeze(term_logits, -1), terminal_seq.reshape(-1)
             )
         )
 
@@ -1008,34 +1165,57 @@ class Dreamer(Agent):
             method=WorldModel.imagine,
         )
         continues = 1.0 - jax.nn.sigmoid(term_logits)
-        # weight[t] down-weights step t by how much discount/continuation
-        # probability has decayed by the time it's reached - later imagined
-        # steps count for less both because they're discounted more, and
-        # because the rollout may well have "really" terminated earlier
-        # than this imagined continuation pretends (continues < 1 there).
-        # Matches the official implementation's `cumprod(disc*con)/disc`.
-        weight = jnp.cumprod(hp.discount * continues, axis=1) / hp.discount
-        return feats, rews, continues, actions, logps, weight
+        # Index conventions, spelled out because an off-by-one here is
+        # exactly the bug this refactor fixed: `imagine`'s scan emits only
+        # *resulting* states - feats[t] is the state REACHED by actions[t],
+        # which was taken FROM feats_in[t] (the seed `start_feats` at t=0,
+        # feats[t-1] after). The lambda-return recursion below therefore
+        # produces targets[t] = return of feats_in[t], so everything the
+        # actor/critic losses evaluate per-step - the policy distribution
+        # actions[t] is scored under, the value baseline subtracted from
+        # targets[t], the critic's regression input - must be feats_in[t],
+        # not feats[t]. An earlier version used feats[t] for all three:
+        # the policy gradient scored each action under the distribution of
+        # the state it *led to*, the advantage subtracted the *next*
+        # state's value, and (worst, see `weight` below) the step weight
+        # included the outcome state's own continuation probability.
+        feats_in = jnp.concatenate([start_feats[:, None, :], feats[:, :-1]], axis=1)
+        # weight[t] = prob the imagined trajectory is still alive when
+        # actions[t] is taken, times the discount accumulated getting
+        # there: prod_{i<t}(discount * continues[i]) - continues of the
+        # states *before* the action, never continues[t] itself, which is
+        # the continuation of the action's own outcome. Including it (as
+        # `cumprod(discount*continues)/discount` over these same arrays
+        # did before) multiplied each action's whole loss term by
+        # 1 - P(terminal | its outcome): in a sparse goal task the action
+        # that reaches the goal makes the term head fire, so the one
+        # policy gradient carrying the reward signal was scaled toward
+        # zero exactly when it mattered - actions at the (real) start
+        # states get full weight 1 instead.
+        weight = jnp.concatenate(
+            [
+                jnp.ones_like(continues[:, :1]),
+                jnp.cumprod(hp.discount * continues, axis=1)[:, :-1],
+            ],
+            axis=1,
+        )
+        return feats_in, feats, rews, continues, actions, weight
 
     def _actor_loss(
         self, actor_params, model_params, critic_params, start_feats, return_norm_scale, rng
     ):
         hp = self.hparams
-        feats, rews, continues, actions, _, weight = self._actor_critic_rollout(
+        feats_in, feats, rews, continues, actions, weight = self._actor_critic_rollout(
             model_params, actor_params, start_feats, rng
         )
-        # feats[t]/rews[t] are already aligned to the same imagined
-        # transition (rews[t] is the reward *for reaching* feats[t]), so
-        # vals[t] = V(feats[t]) is exactly the right bootstrap for
-        # rews[t] - next_values=vals, rewards=rews need no shift. An
-        # earlier version paired rews[:-1] with vals[1:], bootstrapping
-        # every reward with the value *two* imagined steps ahead instead
-        # of one - a systematic bias that made the advantage strongly,
-        # persistently negative from the very first update regardless of
-        # entropy coefficient or gradient-clip norm (verified: varying
-        # either by 3+ orders of magnitude left the advantage trajectory
-        # essentially unchanged, since the bug is in what's being
-        # computed, not in how big a step is taken from it).
+        # vals[t] = V(feats[t]) is the bootstrap for rews[t] (the reward
+        # for *reaching* feats[t]), so the lambda-return recursion yields
+        # targets[t] = return of feats_in[t], the state actions[t] was
+        # taken FROM (see _actor_critic_rollout's index-convention
+        # comment). The baseline subtracted from it must therefore be
+        # V(feats_in[t]), and the policy distribution actions[t] is scored
+        # under must be the one at feats_in[t] - not feats[t], the state
+        # the action *led to*, which an earlier version used for both.
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
             {"params": critic_params}, feats
@@ -1044,7 +1224,11 @@ class Dreamer(Agent):
         targets = jax.lax.stop_gradient(
             self._lambda_returns(vals, rews, continues, hp.discount, hp.lam)
         )
-        adv = jax.lax.stop_gradient((targets - vals) / return_norm_scale)
+        baseline_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
+            {"params": critic_params}, feats_in
+        )
+        baseline = head.mean(baseline_logits)
+        adv = jax.lax.stop_gradient((targets - baseline) / return_norm_scale)
 
         # REINFORCE: log_prob(sg(action)) * sg(advantage), not backprop
         # through the sampled discrete action - distrax.Categorical.
@@ -1057,7 +1241,7 @@ class Dreamer(Agent):
         # here).
         actor_logits = jax.vmap(
             lambda f: self.actor.apply({"params": actor_params}, f)
-        )(feats)
+        )(feats_in)
         dist = unimix_categorical(actor_logits, hp.actor_unimix)
         logp = dist.log_prob(jax.lax.stop_gradient(actions))
         entropy = dist.entropy()
@@ -1069,6 +1253,14 @@ class Dreamer(Agent):
             "agent/actor/loss": loss,
             "agent/actor/entropy": entropy.mean(),
             "agent/actor/adv": adv.mean(),
+            # Imagination health: if the world model is any good, imagined
+            # reward should be on the same scale as the real collected
+            # reward rate, and targets should track true policy value -
+            # divergence between these and reality is the signature of the
+            # actor optimizing against model error instead of the task.
+            "agent/imag/rew": rews.mean(),
+            "agent/imag/continues": continues.mean(),
+            "agent/imag/target": targets.mean(),
         }
         return loss, logs
 
@@ -1076,9 +1268,18 @@ class Dreamer(Agent):
         self, critic_params, model_params, actor_params, slow_critic_params, start_feats, rng
     ):
         hp = self.hparams
-        feats, rews, continues, actions, _, weight = self._actor_critic_rollout(
+        feats_in, feats, rews, continues, actions, weight = self._actor_critic_rollout(
             model_params, actor_params, start_feats, rng
         )
+        # targets[t] is the return of feats_in[t] (see _actor_critic_
+        # rollout's index-convention comment), so the critic regresses
+        # V(feats_in[t]) toward it - an earlier version regressed
+        # V(feats[t]), training every state's value toward the *previous*
+        # state's return, which (among other biases) taught the value of
+        # a goal state to include the reward already collected by
+        # *reaching* it. As a bonus, feats_in[0] is a real posterior
+        # state (from replayed experience), so the critic also trains
+        # directly on real states, as the official implementation does.
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
             {"params": critic_params}, feats
@@ -1089,7 +1290,7 @@ class Dreamer(Agent):
         )
 
         pred_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
-            {"params": critic_params}, feats
+            {"params": critic_params}, feats_in
         )
         regress_loss = jnp.mean(
             jax.lax.stop_gradient(weight) * jax.vmap(head.loss)(pred_logits, targets)
@@ -1097,7 +1298,7 @@ class Dreamer(Agent):
 
         slow_logits = jax.lax.stop_gradient(
             jax.vmap(self.critic.apply, in_axes=(None, 0))(
-                {"params": slow_critic_params}, feats
+                {"params": slow_critic_params}, feats_in
             )
         )
         slow_target = jax.lax.stop_gradient(head.mean(slow_logits))
@@ -1110,7 +1311,7 @@ class Dreamer(Agent):
             "agent/critic/loss": loss,
             "agent/critic/regress_loss": regress_loss,
             "agent/critic/slow_reg_loss": slow_reg_loss,
-            "agent/critic/value": vals.mean(),
+            "agent/critic/value": jax.vmap(head.mean)(pred_logits).mean(),
         }
         return loss, logs
 
@@ -1120,16 +1321,20 @@ class Dreamer(Agent):
         hp = self.hparams
 
         ts, experience = self._collect(ts)
+        replay = self._write_replay(ts.replay, experience)
+        ts = ts.replace(replay=replay)
 
         def model_step(carry, _):
             model, rng = carry
             rng, key_batch, key_loss = jax.random.split(rng, 3)
-            obs_seq, act_seq, rew_seq, term_seq = self._sample_batch(
-                key_batch, experience
+            obs_seq, act_seq, rew_seq, first_seq, terminal_seq = self._sample_batch(
+                key_batch, replay
             )
 
             def loss_fn(p):
-                return self._model_loss(p, obs_seq, act_seq, rew_seq, term_seq, key_loss)
+                return self._model_loss(
+                    p, obs_seq, act_seq, rew_seq, first_seq, terminal_seq, key_loss
+                )
 
             (loss, (feats, mlogs)), grads = jax.value_and_grad(loss_fn, has_aux=True)(
                 model.params
@@ -1148,12 +1353,12 @@ class Dreamer(Agent):
         # One fresh batch of features to seed the actor/critic imagination
         # rollouts from, reusing the just-updated model.
         rng, key_batch, key_observe = jax.random.split(rng, 3)
-        obs_seq, act_seq, _, term_seq = self._sample_batch(key_batch, experience)
+        obs_seq, act_seq, _, first_seq, _ = self._sample_batch(key_batch, replay)
         _, _, feats, _, _, _ = self.world.apply(
             {"params": model.params},
             obs_seq,
             act_seq,
-            term_seq,
+            first_seq,
             method=WorldModel.observe,
             rngs={"sample": key_observe},
         )
@@ -1165,7 +1370,7 @@ class Dreamer(Agent):
         # a quick lambda-return estimate under the current critic, so the
         # actor's advantage is on a comparable scale regardless of the
         # environment's raw reward magnitude.
-        probe_feats, probe_rews, probe_continues, _, _, _ = self._actor_critic_rollout(
+        _, probe_feats, probe_rews, probe_continues, _, _ = self._actor_critic_rollout(
             model.params, ts.actor.params, start_feats, rng
         )
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
@@ -1209,12 +1414,12 @@ class Dreamer(Agent):
         alogs = jax.tree.map(lambda x: jnp.mean(x), alogs)
 
         def critic_step(carry, _):
-            critic, rng = carry
+            critic, slow_critic_params, rng = carry
             rng, key = jax.random.split(rng)
 
             def loss_fn(p):
                 return self._critic_loss(
-                    p, model.params, actor.params, ts.slow_critic_params, start_feats, key
+                    p, model.params, actor.params, slow_critic_params, start_feats, key
                 )
 
             (loss, clogs), grads = jax.value_and_grad(loss_fn, has_aux=True)(
@@ -1224,19 +1429,33 @@ class Dreamer(Agent):
                 lambda g: jnp.nan_to_num(g, nan=0.0, posinf=0.0, neginf=0.0), grads
             )
             critic = critic.apply_gradients(grads=grads)
-            return (critic, rng), {"loss/critic": loss, **clogs}
+            # The slow critic's EMA advances once per GRADIENT STEP (as in
+            # the official implementation), not once per update() cycle.
+            # With slow_critic_reg = 1.0 the online critic is regularized
+            # toward the slow one as strongly as toward its actual
+            # lambda-return targets, so a slow critic that only moved
+            # rate=0.02 per *cycle* (i.e. per num_critic_updates gradient
+            # steps - 32x more laggard than official) froze the pair near
+            # their (zero) init: values were observed to crawl at ~1/10 of
+            # their true scale over a whole training run, keeping
+            # advantages - and with them the actor's learning signal -
+            # near zero long after the world model had learned where the
+            # reward is.
+            slow_critic_params = jax.tree.map(
+                lambda slow, online: (1 - hp.slow_critic_rate) * slow
+                + hp.slow_critic_rate * online,
+                slow_critic_params,
+                critic.params,
+            )
+            return (critic, slow_critic_params, rng), {"loss/critic": loss, **clogs}
 
-        (critic, rng), clogs = jax.lax.scan(
-            critic_step, (ts.critic, rng), None, length=hp.num_critic_updates
+        (critic, slow_critic_params, rng), clogs = jax.lax.scan(
+            critic_step,
+            (ts.critic, ts.slow_critic_params, rng),
+            None,
+            length=hp.num_critic_updates,
         )
         clogs = jax.tree.map(lambda x: jnp.mean(x), clogs)
-
-        slow_critic_params = jax.tree.map(
-            lambda slow, online: (1 - hp.slow_critic_rate) * slow
-            + hp.slow_critic_rate * online,
-            ts.slow_critic_params,
-            critic.params,
-        )
 
         ts = ts.replace(
             model=model,
@@ -1328,11 +1547,36 @@ class Dreamer(Agent):
             w_variables, hp.num_envs, method=WorldModel.init_state
         )
 
+        # One replay block per update() call (num_steps x num_envs
+        # frames); never allocate more blocks than the training budget
+        # can actually fill.
+        block_frames = hp.num_steps * hp.num_envs
+        num_blocks = int(
+            max(1, min(hp.replay_capacity // block_frames, hp.budget // block_frames))
+        )
+        obs_dtype = env_state.observation.dtype
+        replay = Replay(
+            obs=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs, obs_dim), dtype=obs_dtype
+            ),
+            action=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.int32),
+            reward=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.float32
+            ),
+            done=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_),
+            termination=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_
+            ),
+            idx=jnp.asarray(0, dtype=jnp.int32),
+            size=jnp.asarray(0, dtype=jnp.int32),
+        )
+
         return DreamerTrainState(
             model=model_state,
             actor=actor_state,
             critic=critic_state,
             slow_critic_params=c_variables["params"],
+            replay=replay,
             env_state=env_state,
             rng=rng,
             frames=jnp.asarray(0, dtype=jnp.int32),
