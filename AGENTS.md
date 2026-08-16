@@ -138,8 +138,9 @@ diff, no step-by-step narration of what you're checking, no preamble:
    Flagging here means surfacing it in the review text, nothing more:
    name the insight and where it applies, and stop there. Don't open an
    issue for it yourself, don't scope-creep this PR to fix it - filing a
-   follow-up issue (or deciding it's not worth one) is a call for the
-   human working the PR to make, not something the reviewer does
+   follow-up issue (or deciding it's not worth one) is a call for
+   whoever is working the PR to make (human or agent, e.g. a Claude
+   Code session driving the PR), not something the reviewer does
    unprompted. Don't force an entry if there isn't a genuine one — write
    "None." rather than manufacturing a suggestion.
 
