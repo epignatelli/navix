@@ -438,7 +438,11 @@ def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> A
     return jax.numpy.asarray(255 - opacity * (255 - image), dtype=jax.numpy.uint8)
 
 
-def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
+def draw_grid_lines(
+    tile: Array,
+    luminosity: Array = jnp.asarray(100),
+    corner_luminosity: Array | None = None,
+) -> Array:
     """Draws grid lines on the given tile.
 
     `luminosity` defaults to MiniGrid's own raw grey constant
@@ -451,6 +455,14 @@ def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
     bolder/brighter than MiniGrid's actual output; pass a lower value
     (e.g. `~32`, empirically matched against a real MiniGrid render -
     see `rendering/cache.py::render_background`) to compensate.
+
+    `corner_luminosity`, if given, fills just the `line_thickness` x
+    `line_thickness` corner block with a separate value. In MiniGrid,
+    the top and left line strips are drawn independently and both get
+    anti-aliased, so the corner - covered by both - ends up brighter
+    than either strip alone; a single flat `luminosity` for the whole
+    line can't reproduce that without also being tuned to a
+    higher value at just the corner.
 
     Args:
         tile (Array): The input tile to which grid lines are drawn.
@@ -468,6 +480,8 @@ def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
     line_thickness = math.ceil(TILE_SIZE * 0.031)
     tile = tile.at[:line_thickness, :].set(luminosity)
     tile = tile.at[:, :line_thickness].set(luminosity)
+    if corner_luminosity is not None:
+        tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
     return tile
 
 

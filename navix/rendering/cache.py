@@ -73,10 +73,17 @@ def render_background(
     # border (a different colour, from before this fix) gets
     # overwritten by this rather than drawn alongside it. luminosity=32
     # (not draw_grid_lines' default of 100, MiniGrid's raw grey
-    # constant) empirically matches a real MiniGrid render - see that
-    # function's docstring for why the raw constant renders too bold.
+    # constant) and corner_luminosity=54 empirically match a real
+    # MiniGrid render - see draw_grid_lines' docstring for why the raw
+    # constant renders too bold, and why the corner needs its own,
+    # brighter value.
     floor_tile = tile_grid(
-        grid, draw_grid_lines(sprites_registry["floor"], luminosity=jnp.asarray(32))
+        grid,
+        draw_grid_lines(
+            sprites_registry["floor"],
+            luminosity=jnp.asarray(32),
+            corner_luminosity=jnp.asarray(54),
+        ),
     )
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
