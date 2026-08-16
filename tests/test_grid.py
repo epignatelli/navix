@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import navix as nx
+from navix.grid import view_cone
 
 
 def test_grid_from_ascii():
@@ -91,9 +92,47 @@ def test_position_equal():
     assert jnp.array_equal(nx.grid.positions_equal(b + 1, a), jnp.array([False, False]))
 
 
+def test_view_cone_does_not_overflow_at_large_radius():
+    # view_cone's fin_diff accumulates path *counts* (each step lets
+    # every unit of "mass" split into up to 9 copies of itself, a 3x3
+    # neighbourhood sum), not just reachability - the total grows
+    # ~9x per step and only `view > 0` is ever read downstream. In an
+    # open area this overflows int32 (~2.1e9) at cone radius 12; past
+    # that, a wrapped-negative cell is indistinguishable from a
+    # genuinely unreachable one, so overflow silently *removes*
+    # visibility instead of erroring. Found and verified independently
+    # by @Near32 on PR #148, who proposed clamping to a boolean flood
+    # (min with 1) after every step, since the magnitude is discarded
+    # by the `> 0` threshold anyway.
+    #
+    # For an open room with the origin far enough from every wall that
+    # the whole diffusion stays in-bounds, a `radius`-step king-move
+    # flood should reach exactly a (2*radius+1) x (2*radius+1) square -
+    # verified against that closed form, rather than a fixed magic
+    # number, so the assertion holds at any radius.
+    for radius in [10, 11, 12, 13, 14, 24]:  # straddles the old radius=12 overflow
+        n = 4 * radius + 9  # room comfortably larger than the flood's reach
+        transparency_map = jnp.ones((n, n), dtype=jnp.int32)
+        transparency_map = (
+            transparency_map.at[0, :].set(0)
+            .at[-1, :].set(0)
+            .at[:, 0].set(0)
+            .at[:, -1].set(0)
+        )
+        origin = jnp.asarray([n // 2, n // 2])
+        view = view_cone(transparency_map, origin, radius)
+        expected = (2 * radius + 1) ** 2
+        assert int(view.sum()) == expected, (
+            f"radius={radius}: expected a full {2 * radius + 1}x{2 * radius + 1} "
+            f"visible square ({expected} cells), got {int(view.sum())} - some "
+            "cells were likely dropped by int32 overflow in the accumulator"
+        )
+
+
 if __name__ == "__main__":
     # test_grid_from_ascii()
     # test_idx_from_coordinates()
     # test_random_positions()
     test_position_equal()
     # jax.jit(test_position_equal)()
+    test_view_cone_does_not_overflow_at_large_radius()

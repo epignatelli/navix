@@ -30,7 +30,6 @@ from .states import State
 from .grid import (
     apply_minigrid_opacity,
     align,
-    draw_grid_lines,
     idx_from_coordinates,
     crop,
     view_cone,
@@ -115,9 +114,13 @@ def categorical_first_person(state: State) -> Array:
     col = jnp.where(on_grid, col, W)
     transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
-    # apply view mask
+    # apply view mask. crop() places the agent at the *bottom* row of
+    # the 2*RADIUS+1 view, so the far row is 2*RADIUS cells forward of
+    # the agent, not RADIUS - view_cone's diffusion needs to reach that
+    # far, or the forward half of the view is permanently marked
+    # unseen regardless of whether real walls are there.
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, RADIUS)
+    view = view_cone(transparency_map, player.position, RADIUS * 2)
 
     # get categorical representation
     tags = state.get_tags()
@@ -263,8 +266,13 @@ def rgb_first_person(state: State) -> Array:
     sprites = state.get_sprites_first_person()  # (n_sprites, TILE_SIZE, TILE_SIZE, 3)
     # sprites = jax.vmap(lambda x: align(x, jnp.asarray(0), alignment_direction))(sprites)
 
-    # draw grid lines on tiles
-    # sprites = jax.vmap(lambda x: draw_grid_lines(x))(sprites)
+    # Grid lines are drawn once on the floor tile in
+    # rendering/cache.py's render_background(), not here - `sprites` is
+    # per-entity (player, keys, balls, doors, ...), and MiniGrid's own
+    # grid lines are drawn under objects, not over them (Wall.render()
+    # fully covers its tile, so grid lines never show through walls
+    # either). Drawing lines directly on these entity sprites would
+    # incorrectly overlay a line across their artwork instead.
 
     # update current patchwork
     indices = idx_from_coordinates(state.grid, state.get_positions())
@@ -282,13 +290,28 @@ def rgb_first_person(state: State) -> Array:
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
 
-    # apply fov
-    dark_cell_colour = 0  # dark color for unseen tiles
+    # apply fov. Unseen/out-of-map tiles use the *opacity-adjusted*
+    # wall grey, not the raw (100, 100, 100) constant: every other
+    # cell in `patchwork` already went through apply_minigrid_opacity
+    # above, but dark_cell_colour is inserted as a flat literal after
+    # that, bypassing it - using the raw constant here made real,
+    # visible walls (opacity-adjusted, ~146) visually inconsistent
+    # with the unseen/padding fill (100) in the same image, a seam
+    # that isn't in MiniGrid's own rendering. A scalar still works for
+    # both the jnp.where fill below and crop()'s padding_value, since
+    # grey has equal R/G/B and both broadcast it across the full
+    # (..., 3) tile.
+    dark_cell_colour = apply_minigrid_opacity(jnp.asarray(100, dtype=jnp.uint8))
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
-    view = view_cone(transparency_map, player.position, RADIUS)  # (H, W)
+    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
+    # view, so the far row is 2*RADIUS cells forward of the agent, not
+    # RADIUS - view_cone's diffusion needs to reach that far, or the
+    # forward half of the view is permanently marked unseen regardless
+    # of whether real walls are there.
+    view = view_cone(transparency_map, player.position, RADIUS * 2)  # (H, W)
     view = jnp.asarray(view, dtype=jnp.bool)
     patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 

@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 from functools import partial
+import math
 
 
 from typing import Callable, Dict, List, Tuple
@@ -437,8 +438,32 @@ def apply_minigrid_opacity(image: Array, opacity: Array = jnp.asarray(0.7)) -> A
     return jax.numpy.asarray(255 - opacity * (255 - image), dtype=jax.numpy.uint8)
 
 
-def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
+def draw_grid_lines(
+    tile: Array,
+    luminosity: Array = jnp.asarray(100),
+    corner_luminosity: Array | None = None,
+) -> Array:
     """Draws grid lines on the given tile.
+
+    `luminosity` defaults to MiniGrid's own raw grey constant
+    (`COLORS["grey"]`), used as-is for e.g. walls. But MiniGrid's grid
+    lines specifically are drawn as a sub-pixel-width, anti-aliased
+    strip - at typical tile sizes only *partially* covered by that raw
+    colour, blending it with the background - whereas this function
+    does a hard, fully-opaque fill of `line_thickness` whole pixels
+    with no antialiasing. Using the raw `100` here renders visibly
+    bolder/brighter than MiniGrid's actual output; pass a lower value
+    (e.g. `~32`, empirically matched against a real MiniGrid render -
+    see `rendering/cache.py::render_background`) to compensate.
+
+    `corner_luminosity` fills just the `line_thickness` x
+    `line_thickness` corner block with a separate value, defaulting to
+    `luminosity` (i.e. no distinct corner treatment) when omitted. In
+    MiniGrid, the top and left line strips are drawn independently and
+    both get anti-aliased, so the corner - covered by both - ends up
+    brighter than either strip alone; a single flat `luminosity` for
+    the whole line can't reproduce that without also being tuned to a
+    higher value at just the corner.
 
     Args:
         tile (Array): The input tile to which grid lines are drawn.
@@ -447,10 +472,17 @@ def draw_grid_lines(tile: Array, luminosity: Array = jnp.asarray(100)) -> Array:
         Array: The tile with drawn grid lines.
     """
     # Draw lines (top and left edges) at 3.1% of the tile size as per
-    # minigrid.core.Grid.render_tile
-    line_thickness = jnp.ceil(TILE_SIZE * 0.031)
+    # minigrid.core.Grid.render_tile. TILE_SIZE is a static Python int
+    # (not a runtime/traced value), so line_thickness must be a plain
+    # Python int too - jnp.ceil() returns a float-dtype array, which
+    # can't be used as a slice bound (`tile.at[:line_thickness, :]`
+    # raises `TypeError: Only integer scalar arrays can be converted
+    # to a scalar index`).
+    line_thickness = math.ceil(TILE_SIZE * 0.031)
+    corner_luminosity = luminosity if corner_luminosity is None else corner_luminosity
     tile = tile.at[:line_thickness, :].set(luminosity)
     tile = tile.at[:, :line_thickness].set(luminosity)
+    tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
     return tile
 
 
@@ -470,6 +502,20 @@ def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
     def fin_diff(array, _):
         array = jnp.roll(array, -1, axis=0) + array + jnp.roll(array, +1, axis=0)
         array = jnp.roll(array, -1, axis=1) + array + jnp.roll(array, +1, axis=1)
+        # this accumulates path *counts*, not just reachability - each
+        # step lets every unit of mass split into up to 9 copies of
+        # itself (a 3x3 neighbourhood sum), so the total grows ~9x per
+        # step and only the downstream `view > 0` threshold is ever
+        # read. In an open area, that overflows int32 (~2.1e9) by
+        # cone radius 12 - beyond that, a wrapped-negative cell is
+        # indistinguishable from a genuinely unreachable one, so
+        # overflow silently *removes* visibility rather than erroring.
+        # Clamping to a boolean flood (min with 1) after every step is
+        # behaviour-preserving below the overflow threshold (verified:
+        # identical `> 0` masks at every radius that doesn't overflow)
+        # and immune to it above, since a boolean value can never
+        # overflow regardless of radius.
+        array = jnp.minimum(array, 1)
         return array * transparency_map, ()
 
     # initialise the field to all zeros, except at the source (agent's position)

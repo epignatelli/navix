@@ -27,6 +27,7 @@ from jax import Array
 import jax.numpy as jnp
 from flax import struct
 
+from ..grid import draw_grid_lines
 from .registry import TILE_SIZE, SPRITES_REGISTRY
 
 
@@ -65,7 +66,25 @@ def render_background(
     mask = jnp.asarray(grid_resized, dtype=bool)  # 0 = floor, 1 = wall
     # index by [entity_type, direction, open/closed, y, x, channel]
     wall_tile = tile_grid(grid, sprites_registry["wall"])
-    floor_tile = tile_grid(grid, sprites_registry["floor"])
+    # draw grid lines on the floor tile only, matching MiniGrid: its
+    # Wall.render() fills the whole tile opaquely, completely covering
+    # whatever grid line was drawn underneath, so walls never actually
+    # show one - only empty/floor cells do. floor.png's own baked-in
+    # border (a different colour, from before this fix) gets
+    # overwritten by this rather than drawn alongside it. luminosity=32
+    # (not draw_grid_lines' default of 100, MiniGrid's raw grey
+    # constant) and corner_luminosity=54 empirically match a real
+    # MiniGrid render - see draw_grid_lines' docstring for why the raw
+    # constant renders too bold, and why the corner needs its own,
+    # brighter value.
+    floor_tile = tile_grid(
+        grid,
+        draw_grid_lines(
+            sprites_registry["floor"],
+            luminosity=jnp.asarray(32),
+            corner_luminosity=jnp.asarray(54),
+        ),
+    )
     background = jnp.where(mask[..., None], wall_tile, floor_tile)
     return background
 
