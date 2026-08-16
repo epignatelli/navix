@@ -271,6 +271,39 @@ def test_147():
     )
 
 
+def test_141():
+    # https://github.com/epignatelli/navix/issues/141
+    # KeyCorridor's goal-room door was hardcoded to open=jnp.asarray(2)
+    # at reset. Door.walkable casts `open` to bool, and bool(2) is True
+    # - so the locked door on the critical path to the goal was walkable
+    # from the very start, regardless of requires=key_id. Before PR #126
+    # this was masked by the grid hardcoding every door position as a
+    # wall; once #126 punched door cells to floor, this became live:
+    # the agent could walk straight to the goal without ever picking up
+    # the key, defeating the environment's own puzzle. Flagged by an
+    # automated review on PR #126 and left unfixed until now - open=2
+    # also corrupted Door.symbolic_state (closed = 1 - 2 = -1, out of
+    # range) and Door.sprite's index (open + 2*locked = 4, out of range
+    # on a size-3 axis, silently clamped by JAX).
+    for env_id in [
+        "Navix-KeyCorridorS3R1-v0",
+        "Navix-KeyCorridorS3R2-v0",
+        "Navix-KeyCorridorS3R3-v0",
+    ]:
+        env = nx.make(env_id)
+        keys = jax.random.split(jax.random.PRNGKey(0), 32)
+        for k in keys:
+            timestep = env.reset(k)
+            doors = timestep.state.get_doors()
+            locked = doors.requires != EMPTY_POCKET_ID
+            assert jnp.all(doors.open[locked] == 0), (
+                f"{env_id}: expected every locked door (requires a key) to "
+                f"start closed (open=0), got open={doors.open} for "
+                f"requires={doors.requires} - a locked door starting open "
+                "lets the agent bypass the key entirely"
+            )
+
+
 if __name__ == "__main__":
     test_82()
     test_91()
@@ -278,3 +311,4 @@ if __name__ == "__main__":
     test_135()
     test_146()
     test_147()
+    test_141()

@@ -77,7 +77,7 @@ class KeyCorridor(Environment):
             door_pos = grid.position_on_border(row, 2, 0, key=k5)
             requires, colour, open = jax.lax.cond(
                 jnp.array_equal(row, goal_room_row),
-                lambda: (key_id, key_colour, jnp.asarray(2)),
+                lambda: (key_id, key_colour, jnp.asarray(0)),
                 lambda: (jnp.asarray(-1), random_colour(k5), jnp.asarray(0)),
             )
             doors.append(

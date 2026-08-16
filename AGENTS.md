@@ -31,6 +31,31 @@ individual commit in your PR gets parsed**, not just the PR title. Keep
 commits atomic and each one correctly typed, rather than one large commit
 with a mixed changeset.
 
+## Be transparent about AI authorship
+
+Never post a comment, open an issue, or author a commit in a way that reads
+as if it came from the human account it's running under. A reader needs to
+be able to tell an action was AI-authored without already knowing that -
+don't make them guess.
+
+Preference order:
+
+1. **Use the bot's own account**, if one is authenticated for this action,
+   rather than the human's account.
+2. **If only the human's account is usable**, make the authorship visible in
+   the content itself instead:
+   - **Comments** (issues, PR reviews, PR descriptions): open with a short
+     disclaimer as the very first line - e.g. "_Posted by an AI agent on
+     behalf of @username._" - not buried further down.
+   - **Commits**: add a `Co-Authored-By: <agent name> <noreply-address>`
+     trailer, the same way this repository's own Claude Code sessions
+     already do by default. Keep doing that; don't drop it to look more
+     human.
+
+This applies regardless of which account is doing the posting, and to any
+agent following this file (Claude, Copilot, Codex, Cursor, and similar) -
+not just this repository's own default assistant.
+
 ## Do not hand-bump the version
 
 Never edit `navix/_version.py` yourself. The version is written automatically
