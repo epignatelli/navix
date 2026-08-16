@@ -116,10 +116,32 @@ diff, no step-by-step narration of what you're checking, no preamble:
    introduces that wasn't a pre-existing problem. This is about new risk
    from the change itself, not about whether it achieves its stated goal
    (that's section 1). Write "None." if there aren't any.
-4. **Broader opportunities** — Only if something in this diff points at a
-   real, worthwhile improvement elsewhere in the repo (a pattern worth
-   replicating, a related piece of dead code, a gap the same root cause
-   would also affect). Don't force one if there isn't a genuine one — write
+4. **Broader opportunities** — Does this diff surface something worth doing
+   elsewhere in the repo, beyond its own scope? Look actively for this, not
+   just passively — a fix or refactor here often reveals a pattern that
+   generalizes. Examples of the kind of insight to look for (not an
+   exhaustive checklist, and not limited to these):
+   - **Performance**: did this diff replace a slow pattern (e.g. an
+     unrolled Python loop, a dense computation, a redundant recompute)
+     with a faster one? Check whether the same slow pattern exists
+     elsewhere and would benefit the same way.
+   - **API simplifications**: does this diff introduce a cleaner
+     interface, helper, or convention that an older, clunkier piece of
+     code elsewhere could also adopt?
+   - **Bugs spreading broader than expected**: does the root cause of the
+     bug this PR fixes also affect other, similarly-structured code that
+     this diff didn't touch?
+   - Anything else genuinely worth flagging - a related piece of dead
+     code, a gap the same root cause would also affect, a test pattern
+     worth replicating.
+
+   Flagging here means surfacing it in the review text, nothing more:
+   name the insight and where it applies, and stop there. Don't open an
+   issue for it yourself, don't scope-creep this PR to fix it - filing a
+   follow-up issue (or deciding it's not worth one) is a call for
+   whoever is working the PR to make (human or agent, e.g. a Claude
+   Code session driving the PR), not something the reviewer does
+   unprompted. Don't force an entry if there isn't a genuine one — write
    "None." rather than manufacturing a suggestion.
 
 Each section should be a few sentences or a short list, not an essay. If a
