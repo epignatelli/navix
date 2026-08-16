@@ -3377,7 +3377,7 @@ containing two arrays, each of shape <code>i32[2]</code>.</p>
 
 
 <h3 id="navix.grid.draw_grid_lines" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">draw_grid_lines</span><span class="p">(</span><span class="n">tile</span><span class="p">,</span> <span class="n">luminosity</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mi">100</span><span class="p">))</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">draw_grid_lines</span><span class="p">(</span><span class="n">tile</span><span class="p">,</span> <span class="n">luminosity</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span> <span class="n">corner_luminosity</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -3385,6 +3385,24 @@ containing two arrays, each of shape <code>i32[2]</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Draws grid lines on the given tile.</p>
+<p><code>luminosity</code> defaults to MiniGrid's own raw grey constant
+(<code>COLORS["grey"]</code>), used as-is for e.g. walls. But MiniGrid's grid
+lines specifically are drawn as a sub-pixel-width, anti-aliased
+strip - at typical tile sizes only <em>partially</em> covered by that raw
+colour, blending it with the background - whereas this function
+does a hard, fully-opaque fill of <code>line_thickness</code> whole pixels
+with no antialiasing. Using the raw <code>100</code> here renders visibly
+bolder/brighter than MiniGrid's actual output; pass a lower value
+(e.g. <code>~32</code>, empirically matched against a real MiniGrid render -
+see <code>rendering/cache.py::render_background</code>) to compensate.</p>
+<p><code>corner_luminosity</code> fills just the <code>line_thickness</code> x
+<code>line_thickness</code> corner block with a separate value, defaulting to
+<code>luminosity</code> (i.e. no distinct corner treatment) when omitted. In
+MiniGrid, the top and left line strips are drawn independently and
+both get anti-aliased, so the corner - covered by both - ends up
+brighter than either strip alone; a single flat <code>luminosity</code> for
+the whole line can't reproduce that without also being tuned to a
+higher value at just the corner.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
