@@ -18,5 +18,5 @@
 # under the License.
 
 
-__version__ = "0.9.3"
+__version__ = "0.9.4"
 __version_info__ = tuple(int(i) for i in __version__.split(".") if i.isdigit())
