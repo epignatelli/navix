@@ -265,11 +265,12 @@ def test_dreamer_actor_gradient_is_nonzero():
     dreamer = _make_dreamer()
     ts = dreamer._init_train_state(jax.random.PRNGKey(0))
     ts, experience = dreamer._collect(ts)
-    obs_seq, act_seq, _, _ = dreamer._sample_batch(jax.random.PRNGKey(1), experience)
+    obs_seq, act_seq, _, term_seq = dreamer._sample_batch(jax.random.PRNGKey(1), experience)
     _, _, feats, _, _, _ = dreamer.world.apply(
         {"params": ts.model.params},
         obs_seq,
         act_seq,
+        term_seq,
         method=WorldModel.observe,
         rngs={"sample": jax.random.PRNGKey(2)},
     )
@@ -296,6 +297,33 @@ def test_dreamer_actor_gradient_is_nonzero():
     )
 
 
+def test_dreamer_actor_entropy_never_reaches_exactly_zero():
+    # Regression test for a training-stability bug found while
+    # benchmarking whether Dreamer actually learns: with no floor on the
+    # actor's action distribution, its entropy could reach exactly 0.0.
+    # Once it does, _collect() (which samples actions from this same
+    # distribution) stops exploring too - real data collection narrows
+    # to whatever the collapsed policy repeats, the world model overfits
+    # to that narrow trajectory, and there's no path back. Verified
+    # empirically: entropy hit exactly 0.0 and success rate permanently
+    # flatlined at 0% on Navix-Empty-5x5-v0 within the first ~1500
+    # frames, and stayed there even given 5x more training (500k frames)
+    # - ruling out "just needs more compute". actor_unimix (mirroring
+    # the world model's own unimix_categorical, already used for its
+    # latents) puts a structural floor under every action's probability,
+    # making that exact failure mode impossible rather than merely less
+    # likely - confirmed here directly on the actor's own distribution,
+    # not just the world model's.
+    dreamer = _make_dreamer(num_actor_updates=8)
+    ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
+    entropy = np.asarray(logs["agent/actor/entropy"])
+    assert np.all(entropy > 0), (
+        f"expected actor entropy to never reach exactly 0 with "
+        f"actor_unimix={dreamer.hparams.actor_unimix} > 0, got a minimum "
+        f"of {entropy.min()} across training"
+    )
+
+
 if __name__ == "__main__":
     test_dreamer_is_an_agent()
     test_dreamer_trains_one_update_without_nans()
@@ -309,3 +337,4 @@ if __name__ == "__main__":
     test_dreamer_kl_balance_has_two_distinct_terms()
     test_dreamer_slow_critic_tracks_online_critic_via_ema()
     test_dreamer_actor_gradient_is_nonzero()
+    test_dreamer_actor_entropy_never_reaches_exactly_zero()

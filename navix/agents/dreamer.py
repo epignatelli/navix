@@ -263,6 +263,26 @@ class DreamerHparams(HParams):
     # Actor: REINFORCE + entropy bonus + return normalization.
     actor_entropy: float = 3e-4
     """Entropy bonus coefficient in the actor's REINFORCE loss."""
+    actor_unimix: float = 0.05
+    """Fraction of uniform probability mixed into the actor's action
+    distribution wherever it's sampled from or scored (data collection,
+    imagination, and the REINFORCE loss) - the same `unimix_categorical`
+    technique already used for the world model's own categorical latents
+    (see `unimix_categorical`'s docstring), applied here too. Without
+    this, the actor's entropy can reach exactly zero: once it does,
+    `_collect` (which samples actions from this same distribution) stops
+    exploring too, so real data collection narrows to whatever the
+    collapsed policy repeats, the world model overfits to that narrow
+    trajectory, and there is no path back - a self-reinforcing collapse
+    verified empirically (entropy hits exactly 0.0 and success rate
+    permanently flatlines at 0%, independent of how many actor gradient
+    steps are taken per update - slowing that down only delays the same
+    terminal collapse, it doesn't prevent it). A structural floor on the
+    minimum action probability makes that specific failure mode
+    impossible rather than merely less likely. Higher than the world
+    model's 0.01 default since the action space here is much smaller
+    (a handful of actions vs. many latent classes), so the same
+    probability mass floor matters proportionally more per action."""
     return_norm_rate: float = 0.01
     """EMA rate for the return-normalization percentile tracker."""
     return_norm_limit: float = 1.0
@@ -420,7 +440,7 @@ class WorldModel(nn.Module):
     def feat(self, h: Array, z_flat: Array) -> Array:
         return jnp.concatenate([h, z_flat], axis=-1)
 
-    def observe(self, obs_seq: Array, act_seq: Array) -> Tuple[
+    def observe(self, obs_seq: Array, act_seq: Array, term_seq: Array) -> Tuple[
         Tuple[Array, Array], Tuple[Array, Array], Array, Array, Array, Array
     ]:
         """Runs the RSSM over an observed sequence, computing the posterior
@@ -430,6 +450,30 @@ class WorldModel(nn.Module):
             obs_seq (Array): `f32[B, L+1, obs_dim]`, flattened observations.
             act_seq (Array): `i32[B, L]`, actions taken between consecutive
                 observations.
+            term_seq (Array): `f32[B, L]`, `1.0` where `act_seq[:, t]` ended
+                an episode (matching `experience.done`/the `_model_loss`
+                term-head target) - `term_seq[:, t] == 1` means
+                `obs_seq[:, t + 1]` is a fresh post-autoreset observation,
+                *not* a real consequence of `act_seq[:, t]`. Sampled
+                training sequences are sliced from a fixed-size buffer with
+                no regard for episode boundaries (`_sample_batch`), so a
+                sequence commonly straddles an autoreset; without this,
+                every such step would condition the reset observation's
+                posterior on the *previous* episode's (h, z) and pair it
+                with an action that didn't actually cause it - a genuine
+                transition the RSSM cannot learn (the reset is exogenous),
+                and, left unhandled, the resulting garbage (h, z) then
+                propagates forward through every subsequent step of the new
+                episode still inside this sequence, not just the one
+                boundary step. Matches the official implementation's
+                `is_first` masking in `RSSM.observe` (`embodied/jax/
+                rssm.py`): at scan step `t` (which pairs `act_seq[:, t]`
+                with `embed(obs_seq[:, t + 1])`), both the incoming (h, z)
+                carried from step `t - 1` and `act_seq[:, t]` itself are
+                zeroed whenever `term_seq[:, t] == 1`, so `obs_seq[:, t +
+                1]`'s posterior is computed from a blank slate instead of a
+                stale, causally-unrelated belief plus an action that
+                didn't really produce it.
 
         Returns:
             `((h_seq, z_seq), (dyn_kls, rep_kls), feats, obs_pred, rew_logits,
@@ -450,10 +494,29 @@ class WorldModel(nn.Module):
         embed_all = jax.vmap(self.encoder)(obs_seq.reshape(B * (L + 1), -1)).reshape(
             B, L + 1, -1
         )
+        # a_oh[:, t] = act_seq[t], the action taken FROM obs_seq[t] TO
+        # obs_seq[t+1] - paired directly with embed_all[:, 1:] (embeddings
+        # of obs_seq[1:]) below with NO shift. An earlier version prepended
+        # a zero action and dropped the last one (`a_prev = concat([zeros,
+        # a_oh[:-1]])`), pairing embed(obs_seq[t+1]) with act_seq[t-1]
+        # instead of act_seq[t] - i.e. every posterior/prior at scan step
+        # t was computed as if the action taken *before* act_seq[t] had
+        # produced obs_seq[t+1], one step stale. This directly contradicts
+        # both `posterior_step` (used for real-env collection: `h_next =
+        # rssm(h, z, a_just_taken)` then posterior on `embed(new_obs)` -
+        # the action and the observation it produced, paired together) and
+        # `imagine`'s `rollout_step` (`h_next = rssm(h, z, a)` using the
+        # action just sampled from the *current* state to reach the next
+        # one) - both of which already use the correct, unshifted pairing.
+        # Training `observe()` with actions mismatched by one timestep
+        # from the observations/rewards/terminations they actually caused
+        # silently degrades everything derived from it (obs/reward/term
+        # losses, and - critically - the prior network `imagine()` samples
+        # from), while `obs_loss`/`rew_loss` can still fit close to zero
+        # by the end of training since consecutive actions/observations in
+        # a grid-world are highly autocorrelated, masking the bug in the
+        # aggregate loss curves alone.
         a_oh = jax.nn.one_hot(act_seq, self.act_dim)
-        a_prev = jnp.concatenate(
-            [jnp.zeros((B, 1, self.act_dim)), a_oh[:, :-1]], axis=1
-        )
 
         # Plain jax.lax.scan, not nn.scan: `step` closes over `self`
         # implicitly (via self.rssm/self.prior/self.post) rather than
@@ -470,9 +533,20 @@ class WorldModel(nn.Module):
         # plain jax.lax.scan doesn't auto-split Flax's rng streams.
         def step(carry, inputs):
             h_prev, z_prev_flat, rng = carry
-            a_prev_t, embed_t = inputs
+            a_t, embed_t, is_first_t = inputs
             rng, key = jax.random.split(rng)
-            h_t = self.rssm(h_prev, z_prev_flat, a_prev_t)
+            # is_first_t == 1 means embed_t is a fresh post-autoreset
+            # observation - zero the incoming (h, z) *and* the incoming
+            # action before this step's RSSM update (matching the official
+            # implementation's `is_first` masking, see the docstring above)
+            # so the reset observation's posterior comes from a blank
+            # slate rather than a stale, unrelated belief paired with an
+            # action that didn't cause it.
+            keep = (1.0 - is_first_t)[:, None]
+            h_prev = h_prev * keep
+            z_prev_flat = z_prev_flat * keep
+            a_t = a_t * keep
+            h_t = self.rssm(h_prev, z_prev_flat, a_t)
             prior_logits = self.prior(h_t)
             post_logits = self.post(h_t, embed_t)
             prior_dist = unimix_categorical(prior_logits, hp.unimix)
@@ -494,7 +568,8 @@ class WorldModel(nn.Module):
         # batch-major (B, L, ...) - swap to (L, B, ...) going in, and swap
         # the stacked outputs back to (B, L, ...) coming out.
         inputs = jax.tree.map(
-            lambda x: jnp.swapaxes(x, 0, 1), (a_prev[:, :L], embed_all[:, 1:])
+            lambda x: jnp.swapaxes(x, 0, 1),
+            (a_oh, embed_all[:, 1:], term_seq.astype(jnp.float32)),
         )
         init_rng = self.make_rng("sample")
         (h_last, z_last, _), (hs, zs, dyn_kls, rep_kls, feats) = jax.lax.scan(
@@ -586,8 +661,9 @@ class WorldModel(nn.Module):
             feat = jnp.concatenate([h, z_flat], axis=-1)
             logits = actor_logits_fn(feat)
             rng, key_a, key_z = jax.random.split(rng, 3)
-            a = distrax.Categorical(logits=logits).sample(seed=key_a)
-            logp = distrax.Categorical(logits=logits).log_prob(a)
+            actor_dist = unimix_categorical(logits, self.hparams.actor_unimix)
+            a = actor_dist.sample(seed=key_a)
+            logp = actor_dist.log_prob(a)
             a_oh = jax.nn.one_hot(a, logits.shape[-1])
             h_next = self.rssm(h, z_flat, a_oh)
             prior_dist = unimix_categorical(self.prior(h_next), self.hparams.unimix)
@@ -773,8 +849,9 @@ class Dreamer(Agent):
             feat = jnp.concatenate([h, z], axis=-1)
             logits = self.actor.apply({"params": ts.actor.params}, feat)
             rng, key_a = jax.random.split(rng)
-            a = distrax.Categorical(logits=logits).sample(seed=key_a)
-            log_prob = distrax.Categorical(logits=logits).log_prob(a)
+            actor_dist = unimix_categorical(logits, hp.actor_unimix)
+            a = actor_dist.sample(seed=key_a)
+            log_prob = actor_dist.log_prob(a)
 
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, a)
 
@@ -868,6 +945,7 @@ class Dreamer(Agent):
                 {"params": params},
                 obs_seq,
                 act_seq,
+                term_seq,
                 method=WorldModel.observe,
                 rngs={"sample": rng},
             )
@@ -930,29 +1008,43 @@ class Dreamer(Agent):
             method=WorldModel.imagine,
         )
         continues = 1.0 - jax.nn.sigmoid(term_logits)
-        return feats, rews, continues, actions, logps
+        # weight[t] down-weights step t by how much discount/continuation
+        # probability has decayed by the time it's reached - later imagined
+        # steps count for less both because they're discounted more, and
+        # because the rollout may well have "really" terminated earlier
+        # than this imagined continuation pretends (continues < 1 there).
+        # Matches the official implementation's `cumprod(disc*con)/disc`.
+        weight = jnp.cumprod(hp.discount * continues, axis=1) / hp.discount
+        return feats, rews, continues, actions, logps, weight
 
     def _actor_loss(
         self, actor_params, model_params, critic_params, start_feats, return_norm_scale, rng
     ):
         hp = self.hparams
-        feats, rews, continues, actions, _ = self._actor_critic_rollout(
+        feats, rews, continues, actions, _, weight = self._actor_critic_rollout(
             model_params, actor_params, start_feats, rng
         )
-        # vals covers the full imagined horizon including the start state
-        # (feats[:, 0] is the real posterior feature the rollout began
-        # from), so lambda-returns/advantages align 1:1 with each
-        # imagined transition, unlike bootstrapping from feats[:, 1:]
-        # only (which would drop the last transition's target entirely).
+        # feats[t]/rews[t] are already aligned to the same imagined
+        # transition (rews[t] is the reward *for reaching* feats[t]), so
+        # vals[t] = V(feats[t]) is exactly the right bootstrap for
+        # rews[t] - next_values=vals, rewards=rews need no shift. An
+        # earlier version paired rews[:-1] with vals[1:], bootstrapping
+        # every reward with the value *two* imagined steps ahead instead
+        # of one - a systematic bias that made the advantage strongly,
+        # persistently negative from the very first update regardless of
+        # entropy coefficient or gradient-clip norm (verified: varying
+        # either by 3+ orders of magnitude left the advantage trajectory
+        # essentially unchanged, since the bug is in what's being
+        # computed, not in how big a step is taken from it).
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
             {"params": critic_params}, feats
         )
         vals = head.mean(vals_logits)
         targets = jax.lax.stop_gradient(
-            self._lambda_returns(vals[:, 1:], rews[:, :-1], continues[:, :-1], hp.discount, hp.lam)
+            self._lambda_returns(vals, rews, continues, hp.discount, hp.lam)
         )
-        adv = jax.lax.stop_gradient((targets - vals[:, :-1]) / return_norm_scale)
+        adv = jax.lax.stop_gradient((targets - vals) / return_norm_scale)
 
         # REINFORCE: log_prob(sg(action)) * sg(advantage), not backprop
         # through the sampled discrete action - distrax.Categorical.
@@ -965,11 +1057,13 @@ class Dreamer(Agent):
         # here).
         actor_logits = jax.vmap(
             lambda f: self.actor.apply({"params": actor_params}, f)
-        )(feats[:, :-1])
-        dist = distrax.Categorical(logits=actor_logits)
-        logp = dist.log_prob(jax.lax.stop_gradient(actions[:, :-1]))
+        )(feats)
+        dist = unimix_categorical(actor_logits, hp.actor_unimix)
+        logp = dist.log_prob(jax.lax.stop_gradient(actions))
         entropy = dist.entropy()
-        policy_loss = -(logp * adv + hp.actor_entropy * entropy)
+        policy_loss = jax.lax.stop_gradient(weight) * -(
+            logp * adv + hp.actor_entropy * entropy
+        )
         loss = policy_loss.mean()
         logs = {
             "agent/actor/loss": loss,
@@ -982,7 +1076,7 @@ class Dreamer(Agent):
         self, critic_params, model_params, actor_params, slow_critic_params, start_feats, rng
     ):
         hp = self.hparams
-        feats, rews, continues, actions, _ = self._actor_critic_rollout(
+        feats, rews, continues, actions, _, weight = self._actor_critic_rollout(
             model_params, actor_params, start_feats, rng
         )
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
@@ -991,21 +1085,25 @@ class Dreamer(Agent):
         )
         vals = jax.vmap(head.mean)(vals_logits)
         targets = jax.lax.stop_gradient(
-            self._lambda_returns(vals[:, 1:], rews[:, :-1], continues[:, :-1], hp.discount, hp.lam)
+            self._lambda_returns(vals, rews, continues, hp.discount, hp.lam)
         )
 
         pred_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
-            {"params": critic_params}, feats[:, :-1]
+            {"params": critic_params}, feats
         )
-        regress_loss = jnp.mean(jax.vmap(head.loss)(pred_logits, targets))
+        regress_loss = jnp.mean(
+            jax.lax.stop_gradient(weight) * jax.vmap(head.loss)(pred_logits, targets)
+        )
 
         slow_logits = jax.lax.stop_gradient(
             jax.vmap(self.critic.apply, in_axes=(None, 0))(
-                {"params": slow_critic_params}, feats[:, :-1]
+                {"params": slow_critic_params}, feats
             )
         )
         slow_target = jax.lax.stop_gradient(head.mean(slow_logits))
-        slow_reg_loss = jnp.mean(jax.vmap(head.loss)(pred_logits, slow_target))
+        slow_reg_loss = jnp.mean(
+            jax.lax.stop_gradient(weight) * jax.vmap(head.loss)(pred_logits, slow_target)
+        )
 
         loss = regress_loss + hp.slow_critic_reg * slow_reg_loss
         logs = {
@@ -1050,11 +1148,12 @@ class Dreamer(Agent):
         # One fresh batch of features to seed the actor/critic imagination
         # rollouts from, reusing the just-updated model.
         rng, key_batch, key_observe = jax.random.split(rng, 3)
-        obs_seq, act_seq, _, _ = self._sample_batch(key_batch, experience)
+        obs_seq, act_seq, _, term_seq = self._sample_batch(key_batch, experience)
         _, _, feats, _, _, _ = self.world.apply(
             {"params": model.params},
             obs_seq,
             act_seq,
+            term_seq,
             method=WorldModel.observe,
             rngs={"sample": key_observe},
         )
@@ -1066,7 +1165,7 @@ class Dreamer(Agent):
         # a quick lambda-return estimate under the current critic, so the
         # actor's advantage is on a comparable scale regardless of the
         # environment's raw reward magnitude.
-        probe_feats, probe_rews, probe_continues, _, _ = self._actor_critic_rollout(
+        probe_feats, probe_rews, probe_continues, _, _, _ = self._actor_critic_rollout(
             model.params, ts.actor.params, start_feats, rng
         )
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
@@ -1075,7 +1174,7 @@ class Dreamer(Agent):
         )
         probe_vals = jax.vmap(head.mean)(probe_vals_logits)
         probe_returns = self._lambda_returns(
-            probe_vals[:, 1:], probe_rews[:, :-1], probe_continues[:, :-1], hp.discount, hp.lam
+            probe_vals, probe_rews, probe_continues, hp.discount, hp.lam
         )
         lo = jnp.percentile(probe_returns, 5)
         hi = jnp.percentile(probe_returns, 95)
