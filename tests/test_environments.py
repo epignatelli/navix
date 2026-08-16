@@ -170,8 +170,67 @@ def test_disable_autoreset():
     ), "expected autoreset to reset t back down by default"
 
 
+def test_crossings_always_solvable():
+    """SimpleCrossing variants must always produce a solvable maze (a path
+    exists from agent start (1,1) to goal (size-2, size-2)).
+
+    The previous random-walk-based gap carving could leave the goal in a
+    disconnected component, especially at higher N (issue #136). The
+    monotone-path algorithm guarantees solvability by construction -
+    ported from arahosu/navix_minigrid:fix/crossings-monotone-path
+    (Joonsu Gha, @arahosu).
+    """
+    from collections import deque
+    import numpy as np
+
+    def is_solvable(grid, start, goal):
+        H, W = grid.shape
+        blocked = grid == -1
+        seen = np.zeros_like(blocked, dtype=bool)
+        q = deque([start])
+        seen[start] = True
+        while q:
+            y, x = q.popleft()
+            if (y, x) == goal:
+                return True
+            for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                ny, nx_ = y + dy, x + dx
+                if (
+                    0 <= ny < H
+                    and 0 <= nx_ < W
+                    and not seen[ny, nx_]
+                    and not blocked[ny, nx_]
+                ):
+                    seen[ny, nx_] = True
+                    q.append((ny, nx_))
+        return False
+
+    n_seeds = 256
+    for env_id, size in [
+        ("Navix-SimpleCrossingS9N1-v0", 9),
+        ("Navix-SimpleCrossingS9N2-v0", 9),
+        ("Navix-SimpleCrossingS9N3-v0", 9),
+        ("Navix-SimpleCrossingS11N5-v0", 11),
+    ]:
+        env = nx.make(env_id)
+        keys = jax.random.split(jax.random.PRNGKey(0), n_seeds)
+        grids = jax.vmap(lambda k: env.reset(k).state.grid)(keys)
+        grids = np.asarray(grids)
+        unsolvable = [
+            s
+            for s, g in enumerate(grids)
+            if not is_solvable(g, (1, 1), (size - 2, size - 2))
+        ]
+        assert not unsolvable, (
+            f"{env_id}: {len(unsolvable)}/{n_seeds} seeds produced an "
+            f"unsolvable maze (goal not reachable from start). "
+            f"First failing seed indices: {unsolvable[:5]}"
+        )
+
+
 if __name__ == "__main__":
     # test_room()
     # jax.jit(test_room)()
     test_keydoor()
     # test_keydoor2()
+    test_crossings_always_solvable()
