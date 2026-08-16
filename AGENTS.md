@@ -135,11 +135,13 @@ diff, no step-by-step narration of what you're checking, no preamble:
      code, a gap the same root cause would also affect, a test pattern
      worth replicating.
 
-   Flagging here means surfacing it, not fixing it: prefer pointing at a
-   follow-up issue over scope-creeping this PR, unless the fix is
-   trivial and directly adjacent to what's already changed. Don't force
-   an entry if there isn't a genuine one — write "None." rather than
-   manufacturing a suggestion.
+   Flagging here means surfacing it in the review text, nothing more:
+   name the insight and where it applies, and stop there. Don't open an
+   issue for it yourself, don't scope-creep this PR to fix it - filing a
+   follow-up issue (or deciding it's not worth one) is a call for the
+   human working the PR to make, not something the reviewer does
+   unprompted. Don't force an entry if there isn't a genuine one — write
+   "None." rather than manufacturing a suggestion.
 
 Each section should be a few sentences or a short list, not an essay. If a
 section is empty, say so in one line rather than omitting the header.
