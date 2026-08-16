@@ -101,8 +101,11 @@ diff, no step-by-step narration of what you're checking, no preamble:
 1. **Correctness** — Does the change actually fix what it claims to fix?
    Cover the PR's stated issue, and separately, any additional out-of-scope
    fixes it bundles in (e.g. "fixes issue #X" plus an unrelated drive-by
-   fix) — each judged against its own claim, not the PR's headline. Say
-   plainly if something doesn't actually fix what it claims to.
+   fix) — each judged against its own claim, not the PR's headline. Give
+   each claim its own bullet point, prefixed with ✅ if it holds up or ❌ if
+   it doesn't, so an incorrect claim is visible at a glance without reading
+   the prose. Say plainly if something doesn't actually fix what it claims
+   to.
 2. **Requested changes** — Concrete things that should change before merge:
    real bugs, missing test coverage, a wrong approach. Skip nitpicks and
    style preferences that aren't load-bearing. Write "None." if there
