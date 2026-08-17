@@ -20,3 +20,10 @@
 
 from .ppo import PPO, PPOHparams as PPOHparams
 from .models import MLPEncoder, ConvEncoder, ActorCritic
+from .dreamer import (
+    Dreamer,
+    DreamerHparams as DreamerHparams,
+    WorldModel,
+    Actor as DreamerActor,
+    Critic as DreamerCritic,
+)
