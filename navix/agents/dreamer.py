@@ -27,10 +27,12 @@ embodied/jax/agent.py) rather than assumed from the paper text alone:
 
   1. Symlog inputs/reconstruction (`rlax.signed_logp1`/`signed_expm1`,
      used by the `Encoder` and `TwoHotHead` in `.models`).
-  2. Categorical latents (`stoch` independent categoricals of `classes`
-     each) with straight-through gradients and 1% "unimix" - mixing a
-     little uniform mass into every categorical, so no class ever gets
-     a literal zero probability - for both the prior and posterior.
+  2. Categorical latents (`num_latents` independent categoricals of
+     `num_classes` each, "stoch"/"classes" in the official
+     implementation) with straight-through gradients and 1% "unimix" -
+     mixing a little uniform mass into every categorical, so no class
+     ever gets a literal zero probability - for both the prior and
+     posterior.
   3. KL balancing with free bits: two separate KL terms with different
      stop-gradient placement and independent free-nats floors, not one
      combined KL clamped by a single scalar.
@@ -59,7 +61,7 @@ parameter-efficiency optimization for much larger deter sizes); a plain
 symlog+MSE decoder for observation reconstruction (not the official
 implementation's image-specific CNN decoder); ELU activations and no
 RMSNorm (not load-bearing for correctness, just a smaller/simpler net);
-`stoch`/`classes` default to 8x8 rather than the paper's 32x32, sized
+`num_latents`/`num_classes` default to 8x8 rather than the paper's 32x32, sized
 for navix's small grids rather than Atari-scale observations. None of
 these are the algorithmic identity of DreamerV3 - the five techniques
 above are.
@@ -154,10 +156,12 @@ class DreamerHparams(HParams):
     # World model: categorical latent + KL balancing (paper defaults:
     # stoch=32, classes=32/64, unimix=0.01, free_nats=1.0, dyn_scale=1.0,
     # rep_scale=0.1 - dims reduced here for navix's small grids).
-    stoch: int = struct.field(pytree_node=False, default=8)
-    """Number of independent categorical latent variables."""
-    classes: int = struct.field(pytree_node=False, default=8)
-    """Number of classes per categorical latent variable."""
+    num_latents: int = struct.field(pytree_node=False, default=8)
+    """Number of independent categorical latent variables ("stoch" in
+    the official implementation)."""
+    num_classes: int = struct.field(pytree_node=False, default=8)
+    """Number of classes per categorical latent variable ("classes" in
+    the official implementation)."""
     unimix: float = 0.01
     """Fraction of uniform probability mixed into every categorical."""
     free_nats: float = 1.0
@@ -228,16 +232,18 @@ class DreamerHparams(HParams):
     # Model sizes
     embed_size: int = 128
     """Size of the encoder's output embedding."""
-    deter_size: int = 200
-    """Size of the RSSM's deterministic (GRU) hidden state."""
+    recurrent_size: int = 200
+    """Size of the RSSM's deterministic (GRU) hidden state ("deter" in
+    the official implementation)."""
     hidden_size: int = 200
     """Hidden layer size used throughout the model/actor/critic MLPs."""
 
     @property
-    def stoch_flat(self) -> int:
-        """Flattened size of the categorical latent (`stoch * classes`),
-        i.e. how much of `feat = concat([h, z_flat])` the latent occupies."""
-        return self.stoch * self.classes
+    def latents_flat(self) -> int:
+        """Flattened size of the categorical latent (`num_latents *
+        num_classes`), i.e. how much of `feat = concat([h, z_flat])` the
+        latent occupies."""
+        return self.num_latents * self.num_classes
 
 
 # -------------------------
@@ -253,9 +259,9 @@ class WorldModel(nn.Module):
     def setup(self):
         hp = self.hparams
         self.encoder = Encoder(hp.hidden_size, hp.embed_size)
-        self.rssm = RSSM(hp.deter_size)
-        self.prior = PriorNet(hp.hidden_size, hp.stoch, hp.classes)
-        self.post = PostNet(hp.hidden_size, hp.stoch, hp.classes)
+        self.rssm = RSSM(hp.recurrent_size)
+        self.prior = PriorNet(hp.hidden_size, hp.num_latents, hp.num_classes)
+        self.post = PostNet(hp.hidden_size, hp.num_latents, hp.num_classes)
         self.decoder = Decoder(hp.hidden_size, self.obs_dim)
         self.reward = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         # Zero-init output like the reward/critic heads (see TwoHotHead):
@@ -272,8 +278,8 @@ class WorldModel(nn.Module):
         )
 
     def init_state(self, batch_size: int) -> Tuple[Array, Array, Array]:
-        h = jnp.zeros((batch_size, self.hparams.deter_size))
-        z_flat = jnp.zeros((batch_size, self.hparams.stoch_flat))
+        h = jnp.zeros((batch_size, self.hparams.recurrent_size))
+        z_flat = jnp.zeros((batch_size, self.hparams.latents_flat))
         a0 = jnp.zeros((batch_size, self.act_dim))
         return h, z_flat, a0
 
@@ -430,8 +436,8 @@ class WorldModel(nn.Module):
         (h_last, z_last, _), (hs, zs, dyn_kls, rep_kls, feats) = jax.lax.scan(
             step,
             (
-                jnp.zeros((B, hp.deter_size)),
-                jnp.zeros((B, hp.stoch_flat)),
+                jnp.zeros((B, hp.recurrent_size)),
+                jnp.zeros((B, hp.latents_flat)),
                 init_rng,
             ),
             inputs,
@@ -498,14 +504,14 @@ class WorldModel(nn.Module):
         while already inside an outer jax.jit (surfaces as a confusing
         `UnexpectedTracerError` pointing at an unrelated submodule)."""
         hp = self.hparams
-        h = jnp.zeros((obs.shape[0], hp.deter_size))
-        z_flat = jnp.zeros((obs.shape[0], hp.stoch_flat))
+        h = jnp.zeros((obs.shape[0], hp.recurrent_size))
+        z_flat = jnp.zeros((obs.shape[0], hp.latents_flat))
         h_t = self.rssm(h, z_flat, a_prev_oh)
         self.prior(h_t)
         embed = self.encoder(obs)
         post_logits = self.post(h_t, embed)
-        z_t = jax.nn.one_hot(jnp.zeros(obs.shape[0], dtype=jnp.int32), hp.classes)
-        z_t = jnp.broadcast_to(z_t[:, None, :], (obs.shape[0], hp.stoch, hp.classes))
+        z_t = jax.nn.one_hot(jnp.zeros(obs.shape[0], dtype=jnp.int32), hp.num_classes)
+        z_t = jnp.broadcast_to(z_t[:, None, :], (obs.shape[0], hp.num_latents, hp.num_classes))
         feat_t = self.feat(h_t, z_t.reshape(obs.shape[0], -1))
         self.decoder(feat_t)
         self.reward(feat_t)
@@ -695,8 +701,8 @@ class DreamerTrainState(struct.PyTreeNode):
     return_norm_hi: Array  # EMA of the 95th percentile of returns
 
     # Latents per-env, carried across collection steps.
-    h: Array  # (N, deter_size)
-    z: Array  # (N, stoch_flat)
+    h: Array  # (N, recurrent_size)
+    z: Array  # (N, latents_flat)
     a_prev_oh: Array  # (N, act_dim)
 
 
@@ -946,7 +952,7 @@ class Dreamer(Agent):
         logps)`, so this factors it out rather than re-running `imagine()`
         (a full `imag_horizon`-step scan) twice per Dreamer.update()."""
         hp = self.hparams
-        h0, z0 = start_feats[:, : hp.deter_size], start_feats[:, hp.deter_size :]
+        h0, z0 = start_feats[:, : hp.recurrent_size], start_feats[:, hp.recurrent_size :]
 
         def actor_logits_fn(feat):
             return self.actor.apply({"params": actor_params}, feat)
@@ -1314,8 +1320,8 @@ class Dreamer(Agent):
             jnp.zeros((1, self.world.act_dim)),
             method=WorldModel.init_probe,
         )
-        a_variables = self.actor.init(ak, jnp.zeros((1, hp.deter_size + hp.stoch_flat)))
-        c_variables = self.critic.init(ck, jnp.zeros((1, hp.deter_size + hp.stoch_flat)))
+        a_variables = self.actor.init(ak, jnp.zeros((1, hp.recurrent_size + hp.latents_flat)))
+        c_variables = self.critic.init(ck, jnp.zeros((1, hp.recurrent_size + hp.latents_flat)))
 
         model_tx = optax.chain(
             optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.model_lr)

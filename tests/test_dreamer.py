@@ -57,9 +57,9 @@ def _make_dreamer(**hparam_overrides) -> Dreamer:
         seq_len=hparam_overrides.pop("seq_len", 4),
         imag_horizon=hparam_overrides.pop("imag_horizon", 3),
         embed_size=hparam_overrides.pop("embed_size", 8),
-        deter_size=hparam_overrides.pop("deter_size", 8),
-        stoch=hparam_overrides.pop("stoch", 3),
-        classes=hparam_overrides.pop("classes", 4),
+        recurrent_size=hparam_overrides.pop("recurrent_size", 8),
+        num_latents=hparam_overrides.pop("num_latents", 3),
+        num_classes=hparam_overrides.pop("num_classes", 4),
         bins=hparam_overrides.pop("bins", 11),
         hidden_size=hparam_overrides.pop("hidden_size", 8),
         **hparam_overrides,
@@ -342,7 +342,7 @@ def test_dreamer_imagination_weight_and_states_are_action_aligned():
     hp = dreamer.hparams
     ts = dreamer._init_train_state(jax.random.PRNGKey(0))
     start_feats = jax.random.normal(
-        jax.random.PRNGKey(1), (5, hp.deter_size + hp.stoch_flat)
+        jax.random.PRNGKey(1), (5, hp.recurrent_size + hp.latents_flat)
     )
     feats_in, feats, rews, continues, actions, weight = dreamer._actor_critic_rollout(
         ts.model.params, ts.actor.params, start_feats, jax.random.PRNGKey(2)
@@ -379,7 +379,7 @@ def test_dreamer_untrained_heads_predict_zero_and_near_uniform_policy():
     hp = dreamer.hparams
     ts = dreamer._init_train_state(jax.random.PRNGKey(0))
     feat = jax.random.normal(
-        jax.random.PRNGKey(1), (7, hp.deter_size + hp.stoch_flat)
+        jax.random.PRNGKey(1), (7, hp.recurrent_size + hp.latents_flat)
     )
     head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
     vals = head.mean(dreamer.critic.apply({"params": ts.critic.params}, feat))
