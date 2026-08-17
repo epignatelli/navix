@@ -21,11 +21,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
+            pyproject.toml
       - name: Setup navix
         run: |
           uv pip install --system . -v
           uv pip install --system -r requirements_test.txt
       - name: Check code quality
+        if: matrix.python-version == '3.13'
         run: |
           uv pip install --system pylint
           MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
@@ -42,9 +48,12 @@ jobs:
           pytest
       - name: Run examples
         run: |
-          for example in examples/*.py; do
-            python $example
-          done
+          # Smoke-test only: confirm the scripts run end-to-end. A full
+          # training budget is unnecessary here and expensive on the
+          # GPU-less CI runners (default budget is 1M frames, and
+          # hparam_search multiplies that by population_size).
+          python examples/ppo.py --ppo-config.budget 5000
+          python examples/hparam_search.py --population-size 2 --ppo-config.budget 5000
 
   Compliance:
     runs-on: ubuntu-latest
