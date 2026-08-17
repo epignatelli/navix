@@ -42,7 +42,6 @@ def _flatten_obs(env: Environment) -> Environment:
 def _tiny_ppo_factory(env: Environment) -> PPO:
     # A deliberately tiny configuration - just enough for every code path
     # to execute, matching the pattern used in test_pqn.py/test_dreamer.py.
-    env = _flatten_obs(env)
     hp = PPOHparams(
         budget=32,  # num_steps * num_envs -> exactly 1 update
         num_envs=4,
@@ -50,6 +49,14 @@ def _tiny_ppo_factory(env: Environment) -> PPO:
         num_minibatches=2,
         num_epochs=1,
     )
+    # max_steps=num_steps guarantees every parallel env times out (and so
+    # produces a done=True) within one rollout, the same way
+    # test_dreamer.py/test_pqn.py's own tiny-config helpers do - without
+    # this, done_mask can be all-False over such a short rollout (the
+    # env's own default max_steps is far longer), and masked_mean's 0/0
+    # division turns the score into NaN.
+    env = env.replace(max_steps=hp.num_steps)
+    env = _flatten_obs(env)
     return PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
 
 
