@@ -243,7 +243,7 @@ def test_dreamer_actor_gradient_is_nonzero():
     # policy. Assert the actor's gradient is actually non-zero.
     dreamer = _make_dreamer()
     ts = dreamer._init_train_state(jax.random.PRNGKey(0))
-    ts, experience = dreamer._collect(ts)
+    ts, experience = dreamer.collect_experience(ts)
     replay = dreamer._write_replay(ts.replay, experience)
     obs_seq, act_seq, _, first_seq, _ = dreamer._sample_batch(
         jax.random.PRNGKey(1), replay
@@ -283,7 +283,7 @@ def test_dreamer_actor_entropy_never_reaches_exactly_zero():
     # Regression test for a training-stability bug found while
     # benchmarking whether Dreamer actually learns: with no floor on the
     # actor's action distribution, its entropy could reach exactly 0.0.
-    # Once it does, _collect() (which samples actions from this same
+    # Once it does, collect_experience() (which samples actions from this same
     # distribution) stops exploring too - real data collection narrows
     # to whatever the collapsed policy repeats, the world model overfits
     # to that narrow trajectory, and there's no path back. Verified

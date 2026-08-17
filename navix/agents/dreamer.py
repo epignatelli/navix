@@ -191,7 +191,7 @@ class DreamerHparams(HParams):
     technique already used for the world model's own categorical latents
     (see `unimix_categorical`'s docstring), applied here too. Without
     this, the actor's entropy can reach exactly zero: once it does,
-    `_collect` (which samples actions from this same distribution) stops
+    `collect_experience` (which samples actions from this same distribution) stops
     exploring too, so real data collection narrows to whatever the
     collapsed policy repeats, the world model overfits to that narrow
     trajectory, and there is no path back - a self-reinforcing collapse
@@ -332,7 +332,7 @@ class WorldModel(nn.Module):
                 instead of a stale, causally-unrelated belief plus an
                 action that didn't really produce it - matching both the
                 official implementation's `is_first` masking and what
-                `_collect` does with its own carried latents (full-context
+                `collect_experience` does with its own carried latents (full-context
                 belief at the terminal observation, blank slate at the
                 reset one).
 
@@ -463,7 +463,7 @@ class WorldModel(nn.Module):
         WorldModel instance, so - unlike a bare Dense/Sequential module -
         they can only be called from inside a WorldModel.apply() trace,
         which is what this method (called via `self.world.apply(...,
-        method=WorldModel.posterior_step)`) provides for `_collect`."""
+        method=WorldModel.posterior_step)`) provides for `collect_experience`."""
         h_next = self.rssm(h, z_flat, a_prev_oh)
         embed = self.encoder(obs)
         post_dist = unimix_categorical(self.post(h_next, embed), self.hparams.unimix)
@@ -744,7 +744,9 @@ class Dreamer(Agent):
 
     # ---------- Collection ----------
 
-    def _collect(self, ts: DreamerTrainState) -> Tuple[DreamerTrainState, Buffer]:
+    def collect_experience(
+        self, ts: DreamerTrainState
+    ) -> Tuple[DreamerTrainState, Buffer]:
         """Runs `hparams.num_steps` steps in `hparams.num_envs` parallel
         envs, carrying the per-env posterior latent (h, z, a_prev_oh)
         across steps so the policy always acts on an up-to-date belief."""
@@ -1122,7 +1124,7 @@ class Dreamer(Agent):
     def update(self, ts: DreamerTrainState, _) -> Tuple[DreamerTrainState, Dict]:
         hp = self.hparams
 
-        ts, experience = self._collect(ts)
+        ts, experience = self.collect_experience(ts)
         replay = self._write_replay(ts.replay, experience)
         ts = ts.replace(replay=replay)
 
