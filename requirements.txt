@@ -14,6 +14,7 @@ flax
 rlax
 # experiments
 tyro
+pyyaml
 # logging
 wandb
 # plotting
