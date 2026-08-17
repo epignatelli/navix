@@ -14,13 +14,17 @@ from navix.environments.environment import Environment
 @dataclass
 class Args:
     project_name = "navix-debug"
-    population_size: int = 10
+    population_size: int = 2
+    """Small by default - this script is a quick usage demo of the search
+    API, not a real hyperparameter sweep."""
     seed: int = 0
     # env
     env_id: str = "Navix-DoorKey-Random-6x6-v0"
     discount: float = 0.99
     # ppo
-    ppo_config: PPOHparams = field(default_factory=PPOHparams)
+    ppo_config: PPOHparams = field(default_factory=lambda: PPOHparams(budget=5_000))
+    """Budget is much smaller than PPOHparams' own default (1M frames),
+    and multiplies by population_size here - keep it small."""
 
 
 class CategoricalUniform(distrax.Categorical):

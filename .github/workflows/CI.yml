@@ -36,12 +36,9 @@ jobs:
           pytest
       - name: Run examples
         run: |
-          # Smoke-test only: confirm the scripts run end-to-end. A full
-          # training budget is unnecessary here and expensive on the
-          # GPU-less CI runners (default budget is 1M frames, and
-          # hparam_search multiplies that by population_size).
-          python examples/ppo.py --ppo-config.budget 5000
-          python examples/hparam_search.py --population-size 2 --ppo-config.budget 5000
+          for example in examples/*.py; do
+            python $example
+          done
 
   Compliance:
     runs-on: ubuntu-latest
