@@ -30,18 +30,6 @@ jobs:
         run: |
           uv pip install --system . -v
           uv pip install --system -r requirements_test.txt
-      - name: Check code quality
-        if: matrix.python-version == '3.13'
-        run: |
-          uv pip install --system pylint
-          MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
-          echo "$MESSAGE"
-          {
-            echo "## Pylint report (full codebase)"
-            echo '```'
-            echo "$MESSAGE"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
       - name: Run unit tests with pytest
         run: |
           wandb offline
