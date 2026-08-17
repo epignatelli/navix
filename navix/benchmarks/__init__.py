@@ -47,9 +47,17 @@ call-time argument.
 
 Every algorithm a `Benchmark` runs is wrapped in an `AlgorithmEntry`,
 carrying the provenance metadata #130's "Structure (decided)" section
-requires of a leaderboard row (name, author, commit SHA, a URL to a
-`requirements.txt` pinning the entry's own driver code) plus a link to
-the paper. What comes back is a `BenchmarkResult`, shaped identically
+requires of a leaderboard row - name, a GitHub-handle-validated author,
+and full commit URLs (not bare SHAs, so they're directly traceable/
+clickable and self-describing about which repo they belong to - not
+optional for an external algorithm's own commit, which has no implied
+repo the way navix's own does) for both the navix commit and the
+algorithm implementation's own commit the result was produced against -
+plus a link to the paper. `AlgorithmEntry` doesn't carry a
+`requirements.txt` reference itself: per `benchmarks/README.md`'s
+per-entry folder layout, that file lives alongside whatever script
+constructs the entry, discoverable by convention rather than a field.
+What comes back is a `BenchmarkResult`, shaped identically
 regardless of algorithm - exactly `navix.plotting.MANDATORY_METRICS`
 (`returns`, `success_rate`, `episode_length`, `fps`, `wall_time`),
 aggregated across every environment the benchmark covers - already

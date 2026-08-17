@@ -1,22 +1,22 @@
-"""Scores navix's own Dreamer against the Navix1M benchmark preset."""
-from dataclasses import dataclass
-import subprocess
+"""Scores navix's own Dreamer against the Navix100K benchmark preset.
+
+Reproduction: `python run.py` from any directory, no arguments - this
+entry's static metadata lives in the sibling `config.yml`, its pinned
+dependencies in the sibling `requirements.txt`."""
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
-import tyro
+import yaml
 
 from navix.agents import Dreamer, DreamerHparams, WorldModel, DreamerActor, DreamerCritic
-from navix.benchmarks import AlgorithmEntry, Navix1M
+from navix.benchmarks import AlgorithmEntry, Navix100K
 from navix.environments.environment import Environment
 
-
-def _git_sha() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except Exception:
-        return "unknown"
+HERE = Path(__file__).resolve().parent
 
 
 def make_dreamer(env: Environment, hparams: DreamerHparams) -> Dreamer:
@@ -40,31 +40,20 @@ def make_dreamer(env: Environment, hparams: DreamerHparams) -> Dreamer:
     )
 
 
-@dataclass
-class Args:
-    author: str = "navix"
-    """Author of this implementation, for the AlgorithmEntry's provenance."""
-    log_to_wandb: bool = True
-    dreamer: DreamerHparams = DreamerHparams()
-
-
 if __name__ == "__main__":
-    args = tyro.cli(Args)
-    commit_sha = _git_sha()
+    config = yaml.safe_load((HERE / "config.yml").read_text())
 
     entry = AlgorithmEntry(
-        name="Dreamer",
-        author=args.author,
-        paper_url="https://arxiv.org/abs/2301.04104",
-        commit_sha=commit_sha,
-        requirements_url=(
-            f"https://raw.githubusercontent.com/epignatelli/navix/{commit_sha}/requirements.txt"
-        ),
-        agent_factory=lambda env: make_dreamer(env, args.dreamer),
+        name=config["name"],
+        author=config["author"],
+        paper_url=config["paper_url"],
+        navix_commit_url=config["navix_commit_url"],
+        algorithm_commit_url=config["algorithm_commit_url"],
+        agent_factory=lambda env: make_dreamer(env, DreamerHparams()),
     )
 
-    result = Navix1M(entry).run(log_to_wandb=args.log_to_wandb)
-    print(f"{Navix1M.name} results:")
+    result = Navix100K(entry).run(log_to_wandb=True)
+    print(f"{Navix100K.name} / {entry.name} results:")
     print(f"  success_rate:   {result.success_rate}")
     print(f"  returns:        {result.returns}")
     print(f"  episode_length: {result.episode_length}")
