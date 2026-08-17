@@ -1559,6 +1559,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.models.QNetwork" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;QNetwork
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.models.RSSM" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1654,6 +1665,34 @@
     
   
     Ppo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="pqn.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pqn
   
 
     
@@ -2365,12 +2404,13 @@
     <div class="doc doc-contents first">
 
         <p>Shared neural-network building blocks used across navix's agents.</p>
-<p>Two groups live here: PPO's encoder/actor-critic components
-(<code>MLPEncoder</code>, <code>ConvEncoder</code>, <code>ActorCritic</code>), and Dreamer's world-model
+<p>Three groups live here: PPO's encoder/actor-critic components
+(<code>MLPEncoder</code>, <code>ConvEncoder</code>, <code>ActorCritic</code>), Dreamer's world-model
 components (categorical-latent utilities, the symexp-twohot head, and
 the RSSM's encoder/decoder/prior/posterior networks) - the reusable
-pieces <code>navix.agents.dreamer.WorldModel</code> wires together into an RSSM.
-See <code>navix.agents.dreamer</code>'s module docstring for the algorithm these
+pieces <code>navix.agents.dreamer.WorldModel</code> wires together into an RSSM -
+and PQN's normalized Q-network (<code>QNetwork</code>). See <code>navix.agents.dreamer</code>
+and <code>navix.agents.pqn</code>'s module docstrings for the algorithms these
 latter components implement.</p>
 
 
@@ -2699,6 +2739,60 @@ here, so every caller treats prior and posterior identically.</p>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.agents.models.QNetwork" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>QNetwork</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.linen.Module">Module</span></code></p>
+
+
+
+        <p>The Q-network PQN regresses towards Q(lambda) targets - plain
+Dense/LayerNorm/ReLU stacked twice, then a linear head over
+<code>action_dim</code> raw Q-values (no output activation). LayerNorm after
+every hidden layer is not incidental here the way it might be in an
+encoder elsewhere: it's the specific regularizer the PQN paper shows
+keeps online Q-learning convergent with no replay buffer and no
+target network (see <code>navix.agents.pqn</code>'s module docstring).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 
