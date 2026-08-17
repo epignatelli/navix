@@ -34,6 +34,8 @@ from navix.agents.dreamer import (
     Actor,
     Critic,
     Replay,
+)
+from navix.agents.models import (
     unimix_categorical,
     straight_through_sample,
     TwoHotHead,
