@@ -74,6 +74,33 @@ a separately-updated copy. No replay buffer: every minibatch this
 update draws on is a shuffled slice of the rollout `collect_experience`
 just produced, used once, then discarded - unlike DQN, nothing here
 persists across `update` calls.
+
+On `PQNHparams`' defaults for gridworld tasks: `num_epochs`/
+`num_minibatches`/`exploration_fraction`/`end_e` are set higher/lower
+than CleanRL's CartPole-tuned reference script, not because that script
+is wrong, but because a `budget`-frame run buys many fewer *rollouts*
+here (`num_updates = budget // (num_steps * num_envs)`) than CartPole's
+own `total_timesteps` example uses, and PQN gets no benefit from the
+extra fixed-target minibatch passes a replay-buffer method would - the
+only way to extract more learning signal per rollout is more epochs
+over it. Verified empirically (not just reasoned about): the external
+`rejax` package's own PQN, with its per-environment-tuned config for
+`Navix-Empty-6x6-v0` (`num_epochs=8`, `num_minibatches=128`,
+`exploration_fraction=0.3`, `end_e=0.1`, `gamma=0.9`), reaches ~100%
+success where this file's original CleanRL-derived defaults reached
+~72% at 1M frames on the (comparably simple) `Navix-Empty-5x5-v0` -
+and dropping rejax's exact config into *this* implementation
+reproduces its ~100% result, confirming the target computation itself
+was never the problem. `rejax`'s own target computation, on inspection
+(`rejax/algos/pqn.py`), turned out to diverge from the official
+reference it's adapted from (Gallici's own
+`mttga/purejaxql/purejaxql/pqn_gymnax.py`): the official version caches
+`Q` at the state a transition *starts* from and shifts it forward by
+one step when bootstrapping (`this module's Buffer.value` does the
+same); `rejax`'s adaptation caches `Q` at the state the transition
+*lands in* instead, which is the wrong operand one step early in the
+backward recursion. This module's `evaluate_experience` follows the
+official convention, not rejax's.
 """
 import time
 from typing import Dict, Tuple
@@ -104,12 +131,15 @@ class PQNHparams(HParams):
     """Number of parallel environments to run."""
     num_steps: int = struct.field(pytree_node=False, default=128)
     """Number of steps to run in each environment per update."""
-    num_minibatches: int = struct.field(pytree_node=False, default=8)
-    """Number of minibatches to split the rollout into."""
-    num_epochs: int = struct.field(pytree_node=False, default=4)
+    num_minibatches: int = struct.field(pytree_node=False, default=32)
+    """Number of minibatches to split the rollout into. Higher than
+    CleanRL's CartPole-tuned default (8) - see this module's docstring
+    on gridworld-appropriate defaults for why."""
+    num_epochs: int = struct.field(pytree_node=False, default=8)
     """Number of shuffled-minibatch passes per update over the rollout's
     (fixed, not re-evaluated) Q(lambda) targets - "update_epochs" in the
-    reference implementation."""
+    reference implementation. Higher than CleanRL's CartPole-tuned
+    default (4) - see this module's docstring."""
     q_lambda: float = 0.65
     """Mixing parameter for the Q(lambda) return target - see
     `rlax.lambda_returns`."""
@@ -121,11 +151,14 @@ class PQNHparams(HParams):
     """Maximum norm for gradient clipping."""
     start_e: float = 1.0
     """Initial epsilon for epsilon-greedy exploration."""
-    end_e: float = 0.05
-    """Final epsilon for epsilon-greedy exploration."""
-    exploration_fraction: float = 0.5
+    end_e: float = 0.1
+    """Final epsilon for epsilon-greedy exploration. Higher than
+    CleanRL's CartPole-tuned default (0.05) - see this module's
+    docstring."""
+    exploration_fraction: float = 0.3
     """Fraction of `budget` over which epsilon anneals from `start_e` to
-    `end_e`; held at `end_e` for the remainder."""
+    `end_e`; held at `end_e` for the remainder. Shorter than CleanRL's
+    CartPole-tuned default (0.5) - see this module's docstring."""
     hidden_size: int = 64
     """Hidden layer size of the Q-network."""
 
@@ -173,6 +206,9 @@ class PQN(Agent):
             # SELECT ACTION: epsilon-greedy over the online network's own
             # Q-values - no target network, so this is the same
             # `train_state.params` the previous update just trained.
+            # `distrax.EpsilonGreedy`, not `rlax.epsilon_greedy` - rlax's
+            # own docstring flags that one as pending deprecation in
+            # favor of this.
             rng, _rng = jax.random.split(rng)
             q_values = jnp.asarray(
                 train_state.apply_fn(train_state.params, env_state.observation)
@@ -241,10 +277,12 @@ class PQN(Agent):
         q_values = jax.vmap(self.network.apply, in_axes=(None, 0))(
             params, transition_batch.obs
         )
-        q_taken = jnp.take_along_axis(
-            q_values, transition_batch.action[..., None].astype(jnp.int32), axis=-1
-        ).squeeze(-1)
-        loss = jnp.mean(jnp.square(q_taken - targets))
+        q_taken = rlax.batched_index(q_values, transition_batch.action.astype(jnp.int32))
+        # rlax.l2_loss carries the conventional 1/2 factor (its own
+        # docstring notes this follows Bishop's PRML, not the
+        # unscaled squared error some other texts call "L2 loss") - a
+        # constant rescaling of the gradient `lr` already absorbs.
+        loss = jnp.mean(rlax.l2_loss(q_taken, targets))
         logs = {
             "loss/q_loss": loss,
             "agent/q_value": q_taken.mean(),
