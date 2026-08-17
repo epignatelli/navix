@@ -1432,6 +1432,34 @@
   
   
     <li class="md-nav__item">
+      <a href="agents/dreamer.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dreamer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="agents/models.html" class="md-nav__link">
         
   
@@ -2179,7 +2207,7 @@ both accept an arbitrary metrics dict for exactly this reason.</p>
 
 
 <h3 id="navix.plotting.MANDATORY_METRICS" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;perf/returns&#39;</span><span class="p">:</span> <span class="s1">&#39;Episodic Return&#39;</span><span class="p">,</span> <span class="s1">&#39;perf/success_rate&#39;</span><span class="p">:</span> <span class="s1">&#39;Success Rate&#39;</span><span class="p">,</span> <span class="s1">&#39;perf/episode_length&#39;</span><span class="p">:</span> <span class="s1">&#39;Episode Length&#39;</span><span class="p">,</span> <span class="s1">&#39;iter/fps&#39;</span><span class="p">:</span> <span class="s1">&#39;Training Throughput (steps/s)&#39;</span><span class="p">,</span> <span class="s1">&#39;iter/wall_time&#39;</span><span class="p">:</span> <span class="s1">&#39;Wall-clock Training Time (s)&#39;</span><span class="p">}</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'perf/returns'</span><span class="p">:</span> <span class="s1">'Episodic Return'</span><span class="p">,</span> <span class="s1">'perf/success_rate'</span><span class="p">:</span> <span class="s1">'Success Rate'</span><span class="p">,</span> <span class="s1">'perf/episode_length'</span><span class="p">:</span> <span class="s1">'Episode Length'</span><span class="p">,</span> <span class="s1">'iter/fps'</span><span class="p">:</span> <span class="s1">'Training Throughput (steps/s)'</span><span class="p">,</span> <span class="s1">'iter/wall_time'</span><span class="p">:</span> <span class="s1">'Wall-clock Training Time (s)'</span><span class="p">}</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -2317,7 +2345,7 @@ batch dimensions (e.g. seeds, hparam sets) is supported.</p>
 
 
 <h3 id="navix.plotting.plot_dashboard" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">&#39;iter/frames&#39;</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Frames&#39;</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2447,7 +2475,7 @@ from <code>logs</code> are silently skipped.</p>
 
 
 <h3 id="navix.plotting.plot_metric" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">&#39;iter/frames&#39;</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Frames&#39;</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2602,7 +2630,7 @@ into. If <code>None</code>, a new standalone figure and axes are created.</p>
 
 
 <h3 id="navix.plotting.plot_metrics" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">&#39;iter/frames&#39;</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Frames&#39;</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
