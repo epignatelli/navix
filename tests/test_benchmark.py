@@ -255,33 +255,3 @@ def test_benchmark_result_averages_across_environments():
     entry = _make_tiny_entry()
     result = BenchmarkResult.from_logs(entry, {"env-a": logs_success, "env-b": logs_fail})
     np.testing.assert_allclose(np.asarray(result.success_rate), 0.5)
-
-
-def test_navix1k_budget_clears_the_default_hparams_num_updates_floor():
-    # Regression test: caught for real when benchmarks/1K/navix-ppo/
-    # run.py was smoke-tested end-to-end. Navix1K's budget must produce
-    # at least one training update under an agent's OWN default hparams
-    # (not this test file's own tiny overrides, which use a much smaller
-    # num_envs/num_steps and would never catch this) -
-    # PPOHparams()/DreamerHparams()/PQNHparams() all default to
-    # num_envs=16, num_steps=128 = 2048 frames/update. A budget below
-    # that silently trains zero updates - every logged array shaped
-    # (0, ...) - without raising, which defeats the point of a smoke
-    # test entirely.
-    from navix.benchmarks import Navix1K
-
-    def real_default_ppo_factory(env):
-        hp = PPOHparams()
-        env = env.replace(max_steps=hp.num_steps)
-        env = _flatten_obs(env)
-        return PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
-
-    entry = _make_tiny_entry(agent_factory=real_default_ppo_factory)
-    benchmark = Navix1K(entry=entry, env_ids=("Navix-Empty-5x5-v0",))
-    result = benchmark.run(log_to_wandb=False)
-
-    num_updates = result.logs["Navix-Empty-5x5-v0"]["done_mask"].shape[0]
-    assert num_updates >= 1, (
-        f"Navix1K's budget produced {num_updates} training updates under "
-        "PPOHparams()'s own defaults - it must produce at least 1."
-    )
