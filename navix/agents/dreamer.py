@@ -705,6 +705,116 @@ class DreamerTrainState(struct.PyTreeNode):
     z: Array  # (N, latents_flat)
     a_prev_oh: Array  # (N, act_dim)
 
+    @classmethod
+    def create(
+        cls,
+        rng: Array,
+        hparams: DreamerHparams,
+        env: Environment,
+        world: WorldModel,
+        actor: Actor,
+        critic: Critic,
+    ) -> "DreamerTrainState":
+        """Builds an initial `DreamerTrainState`: inits the world model/
+        actor/critic's params and optimizers, resets `hparams.num_envs`
+        environments, and allocates an empty replay buffer sized to
+        whichever is smaller of `hparams.replay_capacity` and what
+        `hparams.budget` can actually fill. Mirrors the `flax.training.
+        train_state.TrainState.create` convention PPO's own `TrainingState`
+        relies on (construction logic lives on the state itself, not on
+        the agent that produces it)."""
+        hp = hparams
+        obs_dim = world.obs_dim
+        assert obs_dim == int(np.prod(env.observation_space.shape)), (
+            "world's obs_dim must match the (flattened) observation space "
+            f"of env - got obs_dim={obs_dim}, but env.observation_space."
+            f"shape={env.observation_space.shape} flattens to "
+            f"{int(np.prod(env.observation_space.shape))}. Construct "
+            "WorldModel(obs_dim=int(np.prod(env.observation_space.shape)), "
+            "act_dim=len(env.action_set), hparams=...) explicitly, the "
+            "same way PPO expects ActorCritic(action_dim=len(env."
+            "action_set)) pre-constructed rather than building it internally."
+        )
+
+        rng, wk1, wk2, ak, ck = jax.random.split(rng, 5)
+        w_variables = world.init(
+            {"params": wk1, "sample": wk2},
+            jnp.zeros((1, obs_dim)),
+            jnp.zeros((1, world.act_dim)),
+            method=WorldModel.init_probe,
+        )
+        a_variables = actor.init(
+            ak, jnp.zeros((1, hp.recurrent_size + hp.latents_flat))
+        )
+        c_variables = critic.init(
+            ck, jnp.zeros((1, hp.recurrent_size + hp.latents_flat))
+        )
+
+        model_tx = optax.chain(
+            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.model_lr)
+        )
+        actor_tx = optax.chain(
+            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.actor_lr)
+        )
+        critic_tx = optax.chain(
+            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.critic_lr)
+        )
+        model_state = TrainState.create(
+            apply_fn=world.apply, params=w_variables["params"], tx=model_tx
+        )
+        actor_state = TrainState.create(
+            apply_fn=actor.apply, params=a_variables["params"], tx=actor_tx
+        )
+        critic_state = TrainState.create(
+            apply_fn=critic.apply, params=c_variables["params"], tx=critic_tx
+        )
+
+        rng, rs = jax.random.split(rng)
+        reset_rng = jax.random.split(rs, hp.num_envs)
+        env_state = jax.vmap(env.reset)(reset_rng)
+        h0, z0, a0 = world.apply(w_variables, hp.num_envs, method=WorldModel.init_state)
+
+        # One replay block per update() call (num_steps x num_envs
+        # frames); never allocate more blocks than the training budget
+        # can actually fill.
+        block_frames = hp.num_steps * hp.num_envs
+        num_blocks = int(
+            max(1, min(hp.replay_capacity // block_frames, hp.budget // block_frames))
+        )
+        obs_dtype = env_state.observation.dtype
+        replay = Replay(
+            obs=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs, obs_dim), dtype=obs_dtype
+            ),
+            action=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.int32),
+            reward=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.float32
+            ),
+            done=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_),
+            termination=jnp.zeros(
+                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_
+            ),
+            idx=jnp.asarray(0, dtype=jnp.int32),
+            size=jnp.asarray(0, dtype=jnp.int32),
+        )
+
+        return cls(
+            model=model_state,
+            actor=actor_state,
+            critic=critic_state,
+            slow_critic_params=c_variables["params"],
+            replay=replay,
+            env_state=env_state,
+            rng=rng,
+            frames=jnp.asarray(0, dtype=jnp.int32),
+            updates=jnp.asarray(0, dtype=jnp.int32),
+            return_norm_lo=jnp.asarray(0.0, dtype=jnp.float32),
+            return_norm_hi=jnp.asarray(0.0, dtype=jnp.float32),
+            h=h0,
+            z=z0,
+            a_prev_oh=a0,
+        )
+
 
 # -------------------------
 # Agent
@@ -1301,108 +1411,21 @@ class Dreamer(Agent):
 
     # ---------- Train entry point ----------
 
-    def _init_train_state(self, rng: Array) -> DreamerTrainState:
-        hp = self.hparams
-        obs_dim = self.world.obs_dim
-        assert obs_dim == int(np.prod(self.env.observation_space.shape)), (
-            "self.world's obs_dim must match the (flattened) observation "
-            f"space of self.env - got obs_dim={obs_dim}, but "
-            f"env.observation_space.shape={self.env.observation_space.shape} "
-            f"flattens to {int(np.prod(self.env.observation_space.shape))}. "
-            "Construct WorldModel(obs_dim=int(np.prod(env.observation_space."
-            "shape)), act_dim=len(env.action_set), hparams=...) explicitly, "
-            "the same way PPO expects ActorCritic(action_dim=len(env."
-            "action_set)) pre-constructed rather than building it internally."
-        )
-
-        rng, wk1, wk2, ak, ck = jax.random.split(rng, 5)
-        w_variables = self.world.init(
-            {"params": wk1, "sample": wk2},
-            jnp.zeros((1, obs_dim)),
-            jnp.zeros((1, self.world.act_dim)),
-            method=WorldModel.init_probe,
-        )
-        a_variables = self.actor.init(ak, jnp.zeros((1, hp.recurrent_size + hp.latents_flat)))
-        c_variables = self.critic.init(ck, jnp.zeros((1, hp.recurrent_size + hp.latents_flat)))
-
-        model_tx = optax.chain(
-            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.model_lr)
-        )
-        actor_tx = optax.chain(
-            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.actor_lr)
-        )
-        critic_tx = optax.chain(
-            optax.clip_by_global_norm(hp.max_grad_norm), optax.adam(hp.critic_lr)
-        )
-        model_state = TrainState.create(
-            apply_fn=self.world.apply, params=w_variables["params"], tx=model_tx
-        )
-        actor_state = TrainState.create(
-            apply_fn=self.actor.apply, params=a_variables["params"], tx=actor_tx
-        )
-        critic_state = TrainState.create(
-            apply_fn=self.critic.apply, params=c_variables["params"], tx=critic_tx
-        )
-
-        rng, rs = jax.random.split(rng)
-        reset_rng = jax.random.split(rs, hp.num_envs)
-        env_state = jax.vmap(self.env.reset)(reset_rng)
-        h0, z0, a0 = self.world.apply(
-            w_variables, hp.num_envs, method=WorldModel.init_state
-        )
-
-        # One replay block per update() call (num_steps x num_envs
-        # frames); never allocate more blocks than the training budget
-        # can actually fill.
-        block_frames = hp.num_steps * hp.num_envs
-        num_blocks = int(
-            max(1, min(hp.replay_capacity // block_frames, hp.budget // block_frames))
-        )
-        obs_dtype = env_state.observation.dtype
-        replay = Replay(
-            obs=jnp.zeros(
-                (num_blocks, hp.num_steps, hp.num_envs, obs_dim), dtype=obs_dtype
-            ),
-            action=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.int32),
-            reward=jnp.zeros(
-                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.float32
-            ),
-            done=jnp.zeros((num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_),
-            termination=jnp.zeros(
-                (num_blocks, hp.num_steps, hp.num_envs), dtype=jnp.bool_
-            ),
-            idx=jnp.asarray(0, dtype=jnp.int32),
-            size=jnp.asarray(0, dtype=jnp.int32),
-        )
-
-        return DreamerTrainState(
-            model=model_state,
-            actor=actor_state,
-            critic=critic_state,
-            slow_critic_params=c_variables["params"],
-            replay=replay,
-            env_state=env_state,
-            rng=rng,
-            frames=jnp.asarray(0, dtype=jnp.int32),
-            updates=jnp.asarray(0, dtype=jnp.int32),
-            return_norm_lo=jnp.asarray(0.0, dtype=jnp.float32),
-            return_norm_hi=jnp.asarray(0.0, dtype=jnp.float32),
-            h=h0,
-            z=z0,
-            a_prev_oh=a0,
-        )
-
     def train_first_update(self, rng: Array) -> Tuple[DreamerTrainState, Dict]:
         """Runs initialisation plus exactly one `update()` call. Mainly
         useful for tests/debugging, where running a full `train()` (sized
         by `hparams.budget`) is either unnecessary or awkward to size
         exactly."""
-        ts = self._init_train_state(rng)
+        ts = DreamerTrainState.create(
+            rng, self.hparams, self.env, self.world, self.actor, self.critic
+        )
         return self.update(ts, None)
 
     def train(self, rng: Array) -> Tuple[DreamerTrainState, Dict]:
         hp = self.hparams
-        ts = self._init_train_state(rng)
+        ts = DreamerTrainState.create(
+            rng, self.hparams, self.env, self.world, self.actor, self.critic
+        )
         num_updates = hp.budget // (hp.num_steps * hp.num_envs)
 
         start_time = time.time()

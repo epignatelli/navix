@@ -30,6 +30,7 @@ from navix.agents.agent import Agent
 from navix.agents.dreamer import (
     Dreamer,
     DreamerHparams,
+    DreamerTrainState,
     WorldModel,
     Actor,
     Critic,
@@ -242,7 +243,14 @@ def test_dreamer_actor_gradient_is_nonzero():
     # (log_prob(action) * advantage) has a real gradient for a discrete
     # policy. Assert the actor's gradient is actually non-zero.
     dreamer = _make_dreamer()
-    ts = dreamer._init_train_state(jax.random.PRNGKey(0))
+    ts = DreamerTrainState.create(
+        jax.random.PRNGKey(0),
+        dreamer.hparams,
+        dreamer.env,
+        dreamer.world,
+        dreamer.actor,
+        dreamer.critic,
+    )
     ts, experience = dreamer.collect_experience(ts)
     replay = dreamer._write_replay(ts.replay, experience)
     obs_seq, act_seq, _, first_seq, _ = dreamer._sample_batch(
@@ -340,7 +348,14 @@ def test_dreamer_imagination_weight_and_states_are_action_aligned():
     # episode.
     dreamer = _make_dreamer()
     hp = dreamer.hparams
-    ts = dreamer._init_train_state(jax.random.PRNGKey(0))
+    ts = DreamerTrainState.create(
+        jax.random.PRNGKey(0),
+        dreamer.hparams,
+        dreamer.env,
+        dreamer.world,
+        dreamer.actor,
+        dreamer.critic,
+    )
     start_feats = jax.random.normal(
         jax.random.PRNGKey(1), (5, hp.recurrent_size + hp.latents_flat)
     )
@@ -377,7 +392,14 @@ def test_dreamer_untrained_heads_predict_zero_and_near_uniform_policy():
     # near-zero-initialized so the initial policy is near-uniform.
     dreamer = _make_dreamer()
     hp = dreamer.hparams
-    ts = dreamer._init_train_state(jax.random.PRNGKey(0))
+    ts = DreamerTrainState.create(
+        jax.random.PRNGKey(0),
+        dreamer.hparams,
+        dreamer.env,
+        dreamer.world,
+        dreamer.actor,
+        dreamer.critic,
+    )
     feat = jax.random.normal(
         jax.random.PRNGKey(1), (7, hp.recurrent_size + hp.latents_flat)
     )
