@@ -61,8 +61,8 @@ def _make_tiny_entry(**overrides) -> AlgorithmEntry:
         name="PPO",
         author="test-author",
         paper_url="https://arxiv.org/abs/1707.06347",
-        commit_sha="deadbeef",
-        requirements_url="https://raw.githubusercontent.com/epignatelli/navix/deadbeef/requirements.txt",
+        navix_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
+        algorithm_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
         agent_factory=_tiny_ppo_factory,
     )
     defaults.update(overrides)
@@ -93,6 +93,39 @@ def test_algorithm_entry_requires_its_metadata_fields():
     # not just documentation.
     with pytest.raises(TypeError):
         AlgorithmEntry(agent_factory=_tiny_ppo_factory)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize(
+    "bad_author", ["-leading-hyphen", "trailing-hyphen-", "double--hyphen", "", "a" * 40]
+)
+def test_algorithm_entry_rejects_invalid_github_handles(bad_author):
+    with pytest.raises(ValueError, match="GitHub handle"):
+        _make_tiny_entry(author=bad_author)
+
+
+def test_algorithm_entry_accepts_valid_github_handles():
+    # single hyphens, alphanumeric, up to 39 chars are all legal.
+    for handle in ("navix", "epignatelli", "a-b-c", "a" * 39):
+        _make_tiny_entry(author=handle)  # must not raise
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["navix_commit_url", "algorithm_commit_url"],
+)
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        "deadbeef",  # bare SHA, no repo - exactly what full URLs are meant to prevent
+        "not-a-url",
+        "ftp://github.com/epignatelli/navix/commit/deadbeef",  # wrong scheme
+        "https://github.com/epignatelli/navix",  # no commit SHA at all
+        "https://github.com/epignatelli/navix/commit/zzz",  # not hex
+    ],
+)
+def test_algorithm_entry_rejects_invalid_commit_urls(field_name, bad_url):
+    with pytest.raises(ValueError, match="commit URL"):
+        _make_tiny_entry(**{field_name: bad_url})
 
 
 def test_benchmark_preset_fixes_name_and_budget_as_class_attributes():
@@ -222,3 +255,33 @@ def test_benchmark_result_averages_across_environments():
     entry = _make_tiny_entry()
     result = BenchmarkResult.from_logs(entry, {"env-a": logs_success, "env-b": logs_fail})
     np.testing.assert_allclose(np.asarray(result.success_rate), 0.5)
+
+
+def test_navix1k_budget_clears_the_default_hparams_num_updates_floor():
+    # Regression test: caught for real when benchmarks/1K/navix-ppo/
+    # run.py was smoke-tested end-to-end. Navix1K's budget must produce
+    # at least one training update under an agent's OWN default hparams
+    # (not this test file's own tiny overrides, which use a much smaller
+    # num_envs/num_steps and would never catch this) -
+    # PPOHparams()/DreamerHparams()/PQNHparams() all default to
+    # num_envs=16, num_steps=128 = 2048 frames/update. A budget below
+    # that silently trains zero updates - every logged array shaped
+    # (0, ...) - without raising, which defeats the point of a smoke
+    # test entirely.
+    from navix.benchmarks import Navix1K
+
+    def real_default_ppo_factory(env):
+        hp = PPOHparams()
+        env = env.replace(max_steps=hp.num_steps)
+        env = _flatten_obs(env)
+        return PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
+
+    entry = _make_tiny_entry(agent_factory=real_default_ppo_factory)
+    benchmark = Navix1K(entry=entry, env_ids=("Navix-Empty-5x5-v0",))
+    result = benchmark.run(log_to_wandb=False)
+
+    num_updates = result.logs["Navix-Empty-5x5-v0"]["done_mask"].shape[0]
+    assert num_updates >= 1, (
+        f"Navix1K's budget produced {num_updates} training updates under "
+        "PPOHparams()'s own defaults - it must produce at least 1."
+    )
