@@ -1,11 +1,12 @@
 """Shared neural-network building blocks used across navix's agents.
 
-Two groups live here: PPO's encoder/actor-critic components
-(`MLPEncoder`, `ConvEncoder`, `ActorCritic`), and Dreamer's world-model
+Three groups live here: PPO's encoder/actor-critic components
+(`MLPEncoder`, `ConvEncoder`, `ActorCritic`), Dreamer's world-model
 components (categorical-latent utilities, the symexp-twohot head, and
 the RSSM's encoder/decoder/prior/posterior networks) - the reusable
-pieces `navix.agents.dreamer.WorldModel` wires together into an RSSM.
-See `navix.agents.dreamer`'s module docstring for the algorithm these
+pieces `navix.agents.dreamer.WorldModel` wires together into an RSSM -
+and PQN's normalized Q-network (`QNetwork`). See `navix.agents.dreamer`
+and `navix.agents.pqn`'s module docstrings for the algorithms these
 latter components implement."""
 
 from functools import partial
@@ -289,3 +290,61 @@ class PostNet(nn.Module):
         x = nn.elu(nn.Dense(self.hidden_size)(x))
         logits = nn.Dense(self.num_latents * self.num_classes)(x)
         return logits.reshape(*h.shape[:-1], self.num_latents, self.num_classes)
+
+
+# -------------------------
+# PQN: normalized Q-network
+# -------------------------
+
+
+class QNetwork(nn.Module):
+    """The Q-network PQN regresses towards Q(lambda) targets - plain
+    Dense/LayerNorm/ReLU stacked twice, then a linear head over
+    `action_dim` raw Q-values (no output activation). LayerNorm after
+    every hidden layer is not incidental here the way it might be in an
+    encoder elsewhere: it's the specific regularizer the PQN paper shows
+    keeps online Q-learning convergent with no replay buffer and no
+    target network (see `navix.agents.pqn`'s module docstring)."""
+
+    action_dim: int
+    hidden_size: int = 64
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        # navix observations can be any shape (a (H, W) grid, (H, W, 3)
+        # RGB/symbolic, ...) and this is always called on one example at
+        # a time (the caller vmaps over the env/batch axis - PQN never
+        # calls this with a leading batch dim of its own). Flattening
+        # here means PQN's own env doesn't need external wrapping (e.g.
+        # `examples/ppo.py`'s FlattenObsWrapper) the way PPO's does -
+        # same ergonomics as Dreamer's `_flatten_obs`.
+        x = jnp.ravel(x)
+        net = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_size,
+                    kernel_init=orthogonal(jnp.sqrt(2.0)),
+                    bias_init=constant(0.0),
+                ),
+                nn.LayerNorm(),
+                nn.relu,
+                nn.Dense(
+                    self.hidden_size,
+                    kernel_init=orthogonal(jnp.sqrt(2.0)),
+                    bias_init=constant(0.0),
+                ),
+                nn.LayerNorm(),
+                nn.relu,
+                # Unlike PPO's actor head (small-std output init) or
+                # Dreamer's zero-init heads, the reference PQN
+                # implementation uses the same orthogonal(sqrt(2)) init
+                # on the output layer as every hidden layer - no special
+                # small-scale treatment for the Q-value outputs.
+                nn.Dense(
+                    self.action_dim,
+                    kernel_init=orthogonal(jnp.sqrt(2.0)),
+                    bias_init=constant(0.0),
+                ),
+            ]
+        )
+        return net(x)  # raw Q-values, (action_dim,)
