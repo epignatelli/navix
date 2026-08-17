@@ -73,6 +73,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 import optax
+import rlax
 import flax.linen as nn
 from flax.training.train_state import TrainState
 from flax import struct
@@ -81,23 +82,6 @@ from .agent import Agent, HParams
 from ..environments import Environment
 from ..environments.environment import Timestep
 from ..states import State
-
-
-# -------------------------
-# Symlog / symexp
-# -------------------------
-
-
-def symlog(x: Array) -> Array:
-    """`sign(x) * log(1 + |x|)` - compresses large magnitudes so a network
-    doesn't need to represent, e.g., both a reward of 1 and one of 1000 on
-    the same linear scale. Self-inverse with `symexp`."""
-    return jnp.sign(x) * jnp.log1p(jnp.abs(x))
-
-
-def symexp(x: Array) -> Array:
-    """Inverse of `symlog`: `sign(x) * (exp(|x|) - 1)`."""
-    return jnp.sign(x) * jnp.expm1(jnp.abs(x))
 
 
 # -------------------------
@@ -147,25 +131,6 @@ def categorical_kl(post: distrax.Categorical, prior: distrax.Categorical) -> Arr
 # -------------------------
 
 
-def twohot_encode(x: Array, bin_centers: Array) -> Array:
-    """Encodes scalar `x` (already in symlog space) as a soft one-hot
-    vector over `bin_centers` (ascending, evenly spaced): all mass on the
-    two bins bracketing `x`, split by linear interpolation. This is the
-    "twohot" target the classification loss is computed against - lets a
-    discrete softmax head represent a continuous value to sub-bin
-    precision, rather than being limited to `bins`-many exact outputs."""
-    K = bin_centers.shape[0]
-    x = jnp.clip(x, bin_centers[0], bin_centers[-1])
-    below = jnp.sum(bin_centers[None, ...] <= x[..., None], axis=-1) - 1
-    below = jnp.clip(below, 0, K - 2)
-    above = below + 1
-    lo, hi = bin_centers[below], bin_centers[above]
-    weight_hi = jnp.where(hi > lo, (x - lo) / (hi - lo), 0.0)
-    onehot_lo = jax.nn.one_hot(below, K)
-    onehot_hi = jax.nn.one_hot(above, K)
-    return onehot_lo * (1.0 - weight_hi)[..., None] + onehot_hi * weight_hi[..., None]
-
-
 class TwoHotHead(nn.Module):
     """A scalar-valued prediction head (reward, value) implemented as
     classification over `bins` evenly-spaced bins in symlog space, with a
@@ -205,15 +170,17 @@ class TwoHotHead(nn.Module):
         return net(feat)  # logits, (..., bins)
 
     def loss(self, logits: Array, target: Array) -> Array:
-        bin_centers = jnp.linspace(self.low, self.high, self.bins)
-        twohot = twohot_encode(symlog(target), bin_centers)
+        twohot = rlax.transform_to_2hot(
+            rlax.signed_logp1(target), self.low, self.high, self.bins
+        )
         logp = jax.nn.log_softmax(logits, axis=-1)
         return -jnp.sum(twohot * logp, axis=-1)
 
     def mean(self, logits: Array) -> Array:
-        bin_centers = jnp.linspace(self.low, self.high, self.bins)
         probs = jax.nn.softmax(logits, axis=-1)
-        return symexp(jnp.sum(probs * bin_centers, axis=-1))
+        return rlax.signed_expm1(
+            rlax.transform_from_2hot(probs, self.low, self.high, self.bins)
+        )
 
 
 # -------------------------
@@ -372,7 +339,7 @@ class Encoder(nn.Module):
                 nn.Dense(self.embed_size),
             ]
         )
-        return net(symlog(obs))
+        return net(rlax.signed_logp1(obs))
 
 
 class Decoder(nn.Module):
@@ -919,26 +886,14 @@ class Dreamer(Agent):
     def _lambda_returns(
         next_values: Array, rewards: Array, continues: Array, discount: float, lam: float
     ) -> Array:
-        """shapes: (B, H), (B, H), (B, H) -> (B, H). `continues` is
-        `1 - terminal`. jax.lax.scan only ever scans axis 0, but these are
-        batch-major (B, H) with H (time) as axis 1 - swap to (H, B) in and
-        out around the scan itself."""
-
-        def scan_fn(carry, inputs):
-            v_lambda_next = carry
-            r_t, cont_t, v_tp1 = inputs
-            td = r_t + cont_t * (1.0 - lam) * discount * v_tp1
-            v_lambda = td + cont_t * v_lambda_next * lam * discount
-            return v_lambda, v_lambda
-
-        init = next_values[:, -1]
-        rewards_t, continues_t, next_values_t = jax.tree.map(
-            lambda x: jnp.swapaxes(x, 0, 1)[::-1], (rewards, continues, next_values)
+        """shapes: (B, H), (B, H), (B, H) -> (B, H). Thin wrapper around
+        `rlax.lambda_returns`, vmapped over the batch axis (that function
+        itself scans over axis 0, which here is time): same recursion
+        `Gₜ = rₜ + γₜ·((1−λ)vₜ + λGₜ₊₁)`, same boundary init `v[-1]`. Mirrors
+        how ppo.py wraps `rlax.truncated_generalized_advantage_estimation`."""
+        return jax.vmap(rlax.lambda_returns, in_axes=(0, 0, 0, None))(
+            rewards, discount * continues, next_values, lam
         )
-        _, vals_t = jax.lax.scan(
-            scan_fn, init, (rewards_t, continues_t, next_values_t), length=rewards.shape[1]
-        )
-        return jnp.swapaxes(vals_t[::-1], 0, 1)
 
     # ---------- Collection ----------
 
@@ -1101,7 +1056,7 @@ class Dreamer(Agent):
         dyn_loss = jnp.mean(jnp.maximum(dyn_kls, hp.free_nats))
         rep_loss = jnp.mean(jnp.maximum(rep_kls, hp.free_nats))
 
-        obs_target = symlog(obs_seq[:, 1:].reshape(B * L, -1))
+        obs_target = rlax.signed_logp1(obs_seq[:, 1:].reshape(B * L, -1))
         obs_loss = jnp.mean(jnp.square(obs_pred - obs_target))
 
         # TwoHotHead.loss/.mean are plain array math (no nn.Dense/params

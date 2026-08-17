@@ -23,6 +23,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import distrax
+import rlax
 
 import navix as nx
 from navix.agents.agent import Agent
@@ -33,11 +34,8 @@ from navix.agents.dreamer import (
     Actor,
     Critic,
     Replay,
-    symlog,
-    symexp,
     unimix_categorical,
     straight_through_sample,
-    twohot_encode,
     TwoHotHead,
 )
 
@@ -150,19 +148,6 @@ def test_dreamer_logs_flow_through_agent_log_to_wandb():
     assert "perf/success_rate" in logged
 
 
-def test_symlog_symexp_are_inverses():
-    # symexp(symlog(x)) is the direction actually used in the code (real
-    # values -> compressed symlog space and back). symlog(symexp(x)) is
-    # only meaningful for x already in symlog-space's realistic range
-    # (roughly [-20, 20], matching TwoHotHead's default bin range) -
-    # symexp(1000) alone overflows float32 (e^1000), so that direction
-    # isn't tested at real-value magnitudes.
-    x = jnp.asarray([-1000.0, -1.0, 0.0, 1.0, 1000.0])
-    np.testing.assert_allclose(symexp(symlog(x)), x, atol=1e-4)
-    x_small = jnp.asarray([-15.0, -1.0, 0.0, 1.0, 15.0])
-    np.testing.assert_allclose(symlog(symexp(x_small)), x_small, atol=1e-3)
-
-
 def test_unimix_floors_every_class_probability():
     # https://arxiv.org/abs/2301.04104 - "1% unimix": no class should
     # ever reach exactly zero probability, however confident the raw
@@ -202,23 +187,14 @@ def test_straight_through_sample_is_onehot_but_differentiable():
     )
 
 
-def test_twohot_encode_sums_to_one_and_decodes_near_target():
-    bin_centers = jnp.linspace(-5.0, 5.0, 11)
-    for x in [-5.0, -3.3, 0.0, 2.7, 5.0]:
-        twohot = twohot_encode(jnp.asarray(x), bin_centers)
-        np.testing.assert_allclose(jnp.sum(twohot), 1.0, atol=1e-5)
-        assert jnp.sum(twohot > 0) <= 2
-        decoded = jnp.sum(twohot * bin_centers)
-        np.testing.assert_allclose(decoded, x, atol=1e-4)
-
-
 def test_twohot_head_loss_is_minimised_at_the_target():
     # a head whose logits already encode the target exactly should have
     # ~zero loss; a mismatched target should cost strictly more.
     head = TwoHotHead(hidden_size=4, bins=21, low=-5.0, high=5.0)
-    bin_centers = jnp.linspace(-5.0, 5.0, 21)
     target = jnp.asarray([1.3])
-    twohot = twohot_encode(symlog(target), bin_centers)  # already (1, bins)
+    twohot = rlax.transform_to_2hot(
+        rlax.signed_logp1(target), head.low, head.high, head.bins
+    )  # already (1, bins)
     matching_logits = jnp.log(twohot + 1e-8)
     loss_matching = head.loss(matching_logits, target)
     loss_mismatched = head.loss(matching_logits, jnp.asarray([-3.0]))
@@ -462,10 +438,8 @@ if __name__ == "__main__":
     test_dreamer_trains_one_update_without_nans()
     test_dreamer_networks_have_independent_optimizers_and_step_counters()
     test_dreamer_logs_flow_through_agent_log_to_wandb()
-    test_symlog_symexp_are_inverses()
     test_unimix_floors_every_class_probability()
     test_straight_through_sample_is_onehot_but_differentiable()
-    test_twohot_encode_sums_to_one_and_decodes_near_target()
     test_twohot_head_loss_is_minimised_at_the_target()
     test_dreamer_kl_balance_has_two_distinct_terms()
     test_dreamer_slow_critic_tracks_online_critic_via_ema()
