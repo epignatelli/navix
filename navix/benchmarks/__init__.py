@@ -29,8 +29,8 @@ This is the "Benchmark" issue #130 (the navix leaderboard proposal)
 already scoped conceptually - "a scenario-specific function that takes a
 trained agent and returns the metric(s) used to rank it" - implemented
 here for the simplest of #130's four protocols, from-scratch training,
-as three presets (`Navix1M`, `Navix100K`, `Navix1K`) that differ only in
-`budget`. The other protocols (zero-shot, curriculum, open-ended) are
+as two presets (`Navix1M`, `Navix100K`) that differ only in `budget`.
+The other protocols (zero-shot, curriculum, open-ended) are
 still open per #130 and not attempted here - though `Benchmark._train_on`
 is factored out specifically so a future protocol that needs to run
 environments as a *sequence* (curriculum: keep training the same agent
@@ -85,5 +85,4 @@ from .benchmark import (
     BenchmarkResult as BenchmarkResult,
     Navix1M as Navix1M,
     Navix100K as Navix100K,
-    Navix1K as Navix1K,
 )

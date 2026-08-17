@@ -177,9 +177,9 @@ class BenchmarkResult:
 @dataclass
 class Benchmark:
     """Base class for a benchmark preset. Not instantiated directly -
-    subclasses (`Navix1M`, `Navix100K`, `Navix1K`, below) fix
-    `name`/`budget` as class attributes, so a preset is used as
-    `Navix1M(entry).run()`: bind the algorithm to score, then run."""
+    subclasses (`Navix1M`, `Navix100K`, below) fix `name`/`budget` as
+    class attributes, so a preset is used as `Navix1M(entry).run()`:
+    bind the algorithm to score, then run."""
 
     entry: AlgorithmEntry
     env_ids: Tuple[str, ...] = field(default_factory=lambda: tuple(registry().keys()))
@@ -250,24 +250,3 @@ class Navix100K(Benchmark):
 
     name = "NAVIX-100k"
     budget = 100_000
-
-
-class Navix1K(Benchmark):
-    """Same as `Navix1M`/`Navix100K`, at a small budget - too small for
-    any algorithm to actually converge, so this isn't a performance
-    preset. Useful as a fast, cheap smoke test that an `AlgorithmEntry`'s
-    `agent_factory` runs end-to-end (compiles, trains, scores) against
-    every registered environment without waiting for a real budget.
-
-    4096, not 1000 (despite the "1K" name, kept for the size ordering
-    with `Navix100K`/`Navix1M`): `num_updates = budget // (num_steps *
-    num_envs)` must be >= 1 for training to run at all, and every navix
-    agent shipped so far (`PPOHparams`/`DreamerHparams`/`PQNHparams`)
-    defaults to `num_envs=16, num_steps=128` = 2048 frames/update. A
-    budget below that silently "succeeds" with zero training updates -
-    every logged array shaped `(0, ...)` - which defeats the point of a
-    smoke test entirely. 4096 clears that floor with margin for a
-    future agent needing more."""
-
-    name = "NAVIX-1k"
-    budget = 4_096

@@ -1,5 +1,0 @@
-name: Dreamer
-author: navix
-paper_url: https://arxiv.org/abs/2301.04104
-navix_commit_url: https://github.com/epignatelli/navix/commit/f12fbbaf72bbc42d966faaf23f7830734d4f21ac
-algorithm_commit_url: https://github.com/epignatelli/navix/commit/f12fbbaf72bbc42d966faaf23f7830734d4f21ac  # same repo/commit as navix_commit_url - this is a navix-shipped agent
