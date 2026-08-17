@@ -20,7 +20,10 @@ class Args:
     env_id: str = "Navix-Empty-Random-5x5-v0"
     discount: float = 0.99
     # ppo
-    ppo_config: PPOHparams = field(default_factory=PPOHparams)
+    ppo_config: PPOHparams = field(default_factory=lambda: PPOHparams(budget=5_000))
+    """Budget is much smaller than PPOHparams' own default (1M frames) -
+    this script is a quick usage demo, not a convergence benchmark; see
+    baselines/ppo.py for the latter."""
 
 
 if __name__ == "__main__":

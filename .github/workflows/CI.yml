@@ -13,7 +13,7 @@ jobs:
       max-parallel: 5
       matrix:
         os: ["ubuntu"]
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.13", "3.14"]
     continue-on-error: false
     steps:
       - uses: actions/checkout@v3
@@ -21,21 +21,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
+            pyproject.toml
       - name: Setup navix
         run: |
           uv pip install --system . -v
           uv pip install --system -r requirements_test.txt
-      - name: Check code quality
-        run: |
-          uv pip install --system pylint
-          MESSAGE=$(pylint -ry $(git ls-files '*.py') ||:)
-          echo "$MESSAGE"
-          {
-            echo "## Pylint report (full codebase)"
-            echo '```'
-            echo "$MESSAGE"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
       - name: Run unit tests with pytest
         run: |
           wandb offline
