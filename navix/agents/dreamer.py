@@ -1283,9 +1283,14 @@ class Dreamer(Agent):
         # Return-normalization scale: EMA-tracked 5th/95th percentile of
         # a quick lambda-return estimate under the current critic, so the
         # actor's advantage is on a comparable scale regardless of the
-        # environment's raw reward magnitude.
+        # environment's raw reward magnitude. Split off a dedicated key
+        # for this probe rollout - `rng` itself is reused just below as
+        # the actor_step scan's carry, and reusing the same key for both
+        # would make the probe's imagined trajectory and the first actor
+        # gradient step draw from identical randomness.
+        rng, key_probe = jax.random.split(rng)
         _, probe_feats, probe_rews, probe_continues, _, _ = self._actor_critic_rollout(
-            model.params, ts.actor.params, start_feats, rng
+            model.params, ts.actor.params, start_feats, key_probe
         )
         head = TwoHotHead(hp.hidden_size, hp.bins, hp.bins_low, hp.bins_high)
         probe_vals_logits = jax.vmap(self.critic.apply, in_axes=(None, 0))(
