@@ -210,7 +210,11 @@ class Encoder(nn.Module):
                 nn.Dense(self.embed_size),
             ]
         )
-        return net(rlax.signed_logp1(obs))
+        # rlax.signed_logp1 (unlike the hand-rolled symlog it replaced)
+        # asserts its input is already float via chex.assert_type - navix
+        # observations can be uint8 (e.g. `categorical`/`symbolic`), so
+        # cast explicitly rather than relying on implicit promotion.
+        return net(rlax.signed_logp1(obs.astype(jnp.float32)))
 
 
 class Decoder(nn.Module):
