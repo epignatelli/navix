@@ -73,7 +73,7 @@ if __name__ == "__main__":
     base_hparams = args.ppo_config
     experiment = nx.Experiment(
         name=args.project_name,
-        agent=PPO(base_hparams, ActorCritic(len(env.action_set)), env),
+        agent=PPO(hparams=base_hparams, network=ActorCritic(len(env.action_set)), env=env),
         env=env,
         env_id=args.env_id,
         seeds=(args.seed,),

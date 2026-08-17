@@ -13,7 +13,7 @@ import yaml
 
 from navix.agents import PQN, PQNHparams
 from navix.agents.models import QNetwork
-from navix.benchmarks import AlgorithmEntry, Navix100K
+from navix.benchmark import AlgorithmEntry, Navix100K
 from navix.environments.environment import Environment
 
 HERE = Path(__file__).resolve().parent
@@ -39,10 +39,14 @@ if __name__ == "__main__":
         agent_factory=lambda env: make_pqn(env, PQNHparams()),
     )
 
-    result = Navix100K(entry).run(log_to_wandb=True)
-    print(f"{Navix100K.name} / {entry.name} results:")
-    print(f"  success_rate:   {result.success_rate}")
-    print(f"  returns:        {result.returns}")
-    print(f"  episode_length: {result.episode_length}")
-    print(f"  fps:            {result.fps}")
-    print(f"  wall_time:      {result.wall_time}")
+    result = Navix100K(entry).run(log_to_wandb=args.log_to_wandb)
+    print(f"{Navix100K.name} / {entry.name} overall:")
+    print(f"  returns:              {result.overall.returns}")
+    print(f"  episode_length:       {result.overall.episode_length}")
+    print(f"  flops:                {result.overall.flops}")
+    print(f"  memory_bytes:         {result.overall.memory_bytes}")
+    print(f"  compile_time_seconds: {result.overall.compile_time_seconds}")
+    print(f"  fps:                  {result.overall.fps}")
+    print(f"  wall_time:            {result.overall.wall_time}")
+    for env_id, m in result.per_environment.items():
+        print(f"  {env_id}: returns={m.returns} episode_length={m.episode_length}")

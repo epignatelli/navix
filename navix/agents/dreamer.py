@@ -823,7 +823,6 @@ class DreamerTrainState(struct.PyTreeNode):
 
 class Dreamer(Agent):
     hparams: DreamerHparams
-    env: Environment
     world: WorldModel = struct.field(pytree_node=False)
     actor: Actor = struct.field(pytree_node=False)
     critic: Critic = struct.field(pytree_node=False)

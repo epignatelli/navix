@@ -1,6 +1,6 @@
 # Navix benchmarks
 
-Each preset (`100K/`, `1M/` - see `navix.benchmarks.Navix100K`,
+Each preset (`100K/`, `1M/` - see `navix.benchmark.Navix100K`,
 `Navix1M`) scores an algorithm from-scratch, across every registered
 navix environment, at a fixed training budget (100,000 / 1,000,000
 frames per environment respectively).
@@ -17,7 +17,7 @@ benchmarks/<preset>/<entry>/
   README.md            # optional - free-form notes specific to this entry
 ```
 
-- **`run.py`** builds the algorithm's `Agent` for each environment and calls the preset's `.run()` (e.g. `Navix1M(entry).run()`, see `navix.benchmarks.Benchmark`). It must be runnable as `python run.py` with no CLI arguments - anything it needs comes from the sibling `config.yml`.
+- **`run.py`** builds the algorithm's `Agent` for each environment and calls the preset's `.run()` (e.g. `Navix1M(entry).run()`, see `navix.benchmark.Benchmark`). It must be runnable as `python run.py` with no CLI arguments - anything it needs comes from the sibling `config.yml`.
 - **`config.yml`** holds this entry's static, frozen provenance: `name`, `author` (this implementation's author - a validated GitHub handle - not necessarily the paper's), `paper_url`, `navix_commit_url` (a link to the navix commit this result was produced against), and `algorithm_commit_url` (a link to the commit of the algorithm implementation's own repo - equal to `navix_commit_url` for a navix-shipped agent like PPO/Dreamer/PQN, since the implementation lives in this repo). Both commit fields are full URLs, not bare SHAs - a bare SHA doesn't say which repo it's a commit of, which matters once an entry's algorithm lives outside navix's own repo. `AlgorithmEntry` validates all of these when the entry is constructed.
 - **`requirements.txt`** pins this entry's own driver code's dependencies - not navix's own dependencies in general, and not an external algorithm's own repo's (which manages those itself).
 
@@ -25,7 +25,14 @@ This mirrors the per-entry folder layout from [issue #130](https://github.com/ep
 
 ## What a `BenchmarkResult` reports
 
-Every entry's result is shaped identically, regardless of algorithm - the same fixed metric set every navix agent's logs already support (`navix.plotting.MANDATORY_METRICS`), aggregated across every environment the preset covers: `returns`, `success_rate`, `episode_length`, `fps`, `wall_time`. `success_rate` is the metric to compare across algorithms (bounded `[0, 1]`, comparable regardless of an environment's raw reward scale); `wall_time`/`fps` are the cost columns. Per-environment, per-update detail stays available on `result.logs` for deeper inspection.
+A `BenchmarkResult` reports the same `Metrics` shape twice: `overall` (meaned across every environment the benchmark covers) and `per_environment` (one `Metrics` per `env_id`) - so "how did it do overall" and "how did it do on environment X" are both first-class, not one aggregate number with per-environment detail only reachable by re-deriving metrics from raw logs yourself.
+
+`Metrics` has seven fields:
+- **`returns`**, **`episode_length`** - from training, the last-fifth-of-training mean (the "last20%" convergence convention).
+- **`flops`**, **`memory_bytes`**, **`compile_time_seconds`** - from `Agent.cost_analysis`, which measures `jax.jit(agent.train)`'s own compiled cost. These are hardware-independent (`flops`/`memory_bytes`) or close to it (`compile_time_seconds` depends on XLA version) - see `Agent.cost_analysis`'s docstring for exactly what's measured and why it's implemented once, generically, in `Agent` itself rather than per-algorithm (it only relies on `train`, the one method every `Agent` is guaranteed to have).
+- **`fps`**, **`wall_time`** - genuinely hardware-dependent, unlike everything above. Registered anyway because they're useful when comparing runs executed on the same hardware (e.g. navix's own entries, always run on the same infrastructure) - just not meaningful compared across different hardware.
+
+Per-environment, per-update raw logs stay available on `result.logs` for deeper inspection beyond what `Metrics` reduces to.
 
 ## Submitting a new entry
 

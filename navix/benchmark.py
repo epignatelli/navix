@@ -17,6 +17,49 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""A `Benchmark` is a preset experimental setup - a fixed set of
+environments, a fixed training budget - that scores an algorithm
+against it, rather than the single-environment, single-config runs
+`Experiment` (`navix/experiment.py`) already supports. `Benchmark.run`
+is an orchestration layer *over* `Experiment` (one `Experiment` per
+environment, budget-overridden), not a replacement for it.
+
+This is the "Benchmark" issue #130 (the navix leaderboard proposal)
+already scoped conceptually - "a scenario-specific function that takes a
+trained agent and returns the metric(s) used to rank it" - implemented
+here for the simplest of #130's four protocols, from-scratch training,
+as two presets (`Navix1M`, `Navix100K`) that differ only in `budget`.
+
+`Benchmark` itself is a base class, not something instantiated directly:
+`name`/`budget` are fixed per preset (each preset sets them as class
+attributes), while `entry`/`env_ids`/`seeds` are set per run - so a
+preset is used as `Navix1M(entry).run()`, binding the algorithm to score
+before running it.
+
+Every algorithm a `Benchmark` runs is wrapped in an `AlgorithmEntry`,
+carrying the provenance metadata #130's "Structure (decided)" section
+requires of a leaderboard row - name, a GitHub-handle-validated author,
+and full commit URLs (not bare SHAs, so they're directly traceable and
+self-describing about which repo they belong to) for both the navix
+commit and the algorithm implementation's own commit the result was
+produced against - plus a link to the paper.
+
+Per #130's "we never vendor an external algorithm's code" decision,
+`AlgorithmEntry.agent_factory` is how a `Benchmark` stays algorithm-
+agnostic without navix owning the algorithm's implementation.
+
+What comes back is a `BenchmarkResult`: the same `Metrics` shape twice
+over - once as `overall` (meaned across every environment the benchmark
+covers) and once per environment in `per_environment` - rather than an
+aggregate-only result with per-environment detail buried in raw logs
+you'd have to re-derive metrics from yourself. `Metrics` itself is
+`returns`/`episode_length` (from training), `flops`/`memory_bytes`/
+`compile_time_seconds` (from `Agent.cost_analysis` - see its own
+docstring for exactly what these measure and why), and `fps`/
+`wall_time` (registered because they're useful for comparing runs
+executed on the same hardware, even though - unlike every other field
+here - they aren't hardware-independent, so cross-hardware comparisons
+of just these two are not meaningful)."""
 from __future__ import annotations
 
 import re
@@ -24,14 +67,15 @@ from dataclasses import dataclass, field
 from typing import Callable, ClassVar, Dict, Tuple
 from urllib.parse import urlparse
 
+import jax
 from jax import Array
 import jax.numpy as jnp
 
-from ..agents.agent import Agent
-from ..environments.environment import Environment
-from ..environments.registry import make, registry
-from ..experiment import Experiment
-from ..plotting import derive_scalar_metrics
+from .agents.agent import Agent, CostAnalysis
+from .environments.environment import Environment
+from .environments.registry import make, registry
+from .experiment import Experiment
+from .plotting import derive_scalar_metrics
 
 # GitHub username rules: alphanumeric or single hyphens, no leading/
 # trailing/doubled hyphen, max 39 characters.
@@ -115,61 +159,104 @@ class AlgorithmEntry:
                 )
 
 
-def _aggregate(logs_by_env: Dict[str, Dict], key: str) -> Array:
-    """Reduces one `navix.plotting.MANDATORY_METRICS` key to a single
-    scalar across an entire `Benchmark` run: per environment, the mean
-    over the last fifth of training (the "last20%" convergence
-    convention this project's own performance investigations already use
-    by hand); then meaned across environments. Works uniformly for both
-    the derived `perf/*` keys and the `iter/fps`/`iter/wall_time` keys
-    already in `logs` verbatim - the latter are constant across a run's
-    own updates, so "last-fifth mean" just returns that same constant."""
-    per_env = []
-    for logs in logs_by_env.values():
-        metrics = derive_scalar_metrics(logs)
-        value = metrics[key]  # (..., num_updates)
-        num_updates = value.shape[-1]
-        tail = max(1, num_updates // 5)
-        per_env.append(jnp.mean(value[..., -tail:]))
-    return jnp.mean(jnp.stack(per_env))
+def _last_fifth_mean(logs: Dict, key: str) -> Array:
+    """The mean of `logs[key]` over the last fifth of training (the
+    "last20%" convergence convention this project's own performance
+    investigations already use by hand) - `logs[key]` has shape
+    `(..., num_updates)`; `iter/fps`/`iter/wall_time` are constant across
+    a run's own updates, so this just returns that same constant for
+    those two."""
+    value = logs[key]
+    num_updates = value.shape[-1]
+    tail = max(1, num_updates // 5)
+    return jnp.mean(value[..., -tail:])
+
+
+@dataclass
+class Metrics:
+    """The fixed, algorithm-agnostic metric set `BenchmarkResult` uses
+    for both `overall` and each entry of `per_environment` - the same
+    shape either way, so "how did it do overall" and "how did it do on
+    environment X" are directly comparable, not two different kinds of
+    object."""
+
+    returns: Array
+    episode_length: Array
+    flops: Array
+    """From `Agent.cost_analysis` - see that method's docstring for
+    exactly what's measured and its caveats."""
+    memory_bytes: Array
+    compile_time_seconds: Array
+    fps: Array
+    """Hardware-dependent, unlike every field above - only meaningful
+    compared across results produced on the same hardware."""
+    wall_time: Array
+    """Hardware-dependent, unlike every field above - only meaningful
+    compared across results produced on the same hardware."""
+
+    @classmethod
+    def from_logs_and_cost(cls, logs: Dict, cost: CostAnalysis) -> Metrics:
+        return cls(
+            returns=_last_fifth_mean(derive_scalar_metrics(logs), "perf/returns"),
+            episode_length=_last_fifth_mean(
+                derive_scalar_metrics(logs), "perf/episode_length"
+            ),
+            flops=jnp.asarray(cost.flops),
+            memory_bytes=jnp.asarray(cost.memory_bytes),
+            compile_time_seconds=jnp.asarray(cost.compile_time_seconds),
+            fps=_last_fifth_mean(logs, "iter/fps"),
+            wall_time=_last_fifth_mean(logs, "iter/wall_time"),
+        )
+
+    @classmethod
+    def mean(cls, per_env: Dict[str, Metrics]) -> Metrics:
+        """Reduces one `Metrics` per environment down to a single
+        `Metrics` - every field meaned across environments, the
+        `overall` a `BenchmarkResult` reports."""
+        values = list(per_env.values())
+        return cls(
+            **{
+                field_name: jnp.mean(jnp.stack([getattr(m, field_name) for m in values]))
+                for field_name in Metrics.__dataclass_fields__
+            }
+        )
 
 
 @dataclass
 class BenchmarkResult:
-    """The outcome of running one `AlgorithmEntry` against a `Benchmark`.
-    Shaped the same for every algorithm (only the *values* differ) -
-    exactly `navix.plotting.MANDATORY_METRICS`, aggregated across every
-    environment the benchmark covers, which issue #130's leaderboard
-    spec already settled on as the standard, algorithm-agnostic
-    performance/cost columns. Not something `Benchmark` subclasses are
-    expected to customise: unlike `env_ids`/`budget`, this is the one
-    piece meant to stay fixed so results are comparable across
-    benchmarks, not just within one."""
+    """The outcome of running one `AlgorithmEntry` against a
+    `Benchmark`."""
 
     entry: AlgorithmEntry
     """Echoes back the entry that was run, so a result is self-describing
     without needing to be paired back up with its `AlgorithmEntry`."""
-    returns: Array
-    success_rate: Array
-    episode_length: Array
-    fps: Array
-    wall_time: Array
+    overall: Metrics
+    """`Metrics` meaned across every environment in the benchmark."""
+    per_environment: Dict[str, Metrics]
+    """`Metrics` for each `env_id`, individually - not just the raw
+    `logs` those metrics were derived from."""
     logs: Dict[str, Dict]
     """Per-environment raw `logs`, keyed by `env_id` - the same pytree
-    `Experiment.run` returns for that environment. The five fields above
-    are already reduced from this; keep `logs` around for diagnostics/
-    plotting via `navix.plotting`, or to compute some other reduction of
-    the same underlying per-env, per-update data."""
+    `Experiment.run` returns for that environment. `overall`/
+    `per_environment` are already reduced from this; keep `logs` around
+    for diagnostics/plotting via `navix.plotting`, or to compute some
+    other reduction of the same underlying per-update data."""
 
     @classmethod
-    def from_logs(cls, entry: AlgorithmEntry, logs_by_env: Dict[str, Dict]) -> BenchmarkResult:
+    def from_logs(
+        cls,
+        entry: AlgorithmEntry,
+        logs_by_env: Dict[str, Dict],
+        cost_by_env: Dict[str, CostAnalysis],
+    ) -> BenchmarkResult:
+        per_environment = {
+            env_id: Metrics.from_logs_and_cost(logs_by_env[env_id], cost_by_env[env_id])
+            for env_id in logs_by_env
+        }
         return cls(
             entry=entry,
-            returns=_aggregate(logs_by_env, "perf/returns"),
-            success_rate=_aggregate(logs_by_env, "perf/success_rate"),
-            episode_length=_aggregate(logs_by_env, "perf/episode_length"),
-            fps=_aggregate(logs_by_env, "iter/fps"),
-            wall_time=_aggregate(logs_by_env, "iter/wall_time"),
+            overall=Metrics.mean(per_environment),
+            per_environment=per_environment,
             logs=logs_by_env,
         )
 
@@ -194,6 +281,12 @@ class Benchmark:
     """Overrides `agent.hparams.budget` for every environment this
     benchmark runs - the one thing the presets below differ on."""
 
+    def _build_agent(self, env_id: str) -> Tuple[Environment, Agent]:
+        env = make(env_id)
+        agent = self.entry.agent_factory(env)
+        agent = agent.replace(hparams=agent.hparams.replace(budget=self.budget))
+        return env, agent
+
     def _train_on(self, env_id: str, log_to_wandb: bool) -> Dict:
         """Builds and trains one environment's agent from `self.entry`,
         returning its `logs`. Pulled out of `run` as its own method so a
@@ -208,10 +301,7 @@ class Benchmark:
         shaped for this: both are plain per-`env_id` dicts, agnostic to
         whether the environments were trained independently or in
         sequence."""
-        env = make(env_id)
-        agent = self.entry.agent_factory(env)
-        agent = agent.replace(hparams=agent.hparams.replace(budget=self.budget))
-
+        env, agent = self._build_agent(env_id)
         experiment = Experiment(
             name=self.name,
             agent=agent,
@@ -227,9 +317,15 @@ class Benchmark:
         `self.env_ids`, at `self.budget`, and reduces the result to
         `BenchmarkResult`'s fixed, algorithm-agnostic metric set."""
         logs_by_env: Dict[str, Dict] = {}
+        cost_by_env: Dict[str, CostAnalysis] = {}
         for env_id in self.env_ids:
             logs_by_env[env_id] = self._train_on(env_id, log_to_wandb)
-        return BenchmarkResult.from_logs(self.entry, logs_by_env)
+            # A fresh agent instance, not the trained one _train_on
+            # produced - cost_analysis measures the training program's
+            # shape/compute, not anything specific to trained weights.
+            _, agent = self._build_agent(env_id)
+            cost_by_env[env_id] = agent.cost_analysis(jax.random.PRNGKey(self.seeds[0]))
+        return BenchmarkResult.from_logs(self.entry, logs_by_env, cost_by_env)
 
 
 class Navix1M(Benchmark):

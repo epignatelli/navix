@@ -18,7 +18,6 @@ import rlax
 
 from navix.observations import rgb
 from navix.agents.agent import Agent, HParams
-from navix.environments import Environment
 from navix.environments.environment import Timestep
 from navix.states import State
 
@@ -81,7 +80,6 @@ class TrainingState(TrainState):
 class PPO(Agent):
     hparams: PPOHparams
     network: ActorCritic = struct.field(pytree_node=False)
-    env: Environment
 
     def collect_experience(
         self, train_state: TrainingState

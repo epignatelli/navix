@@ -10,6 +10,30 @@ import jax.numpy as jnp
 from flax import struct
 from flax.training.train_state import TrainState
 
+from ..environments.environment import Environment
+
+
+class CostAnalysis(struct.PyTreeNode):
+    flops: float
+    """Roughly one training update's worth of floating-point
+    operations, from `jax.jit(agent.train).lower(rng).compile()
+    .cost_analysis()['flops']` - see `Agent.cost_analysis`'s docstring
+    for what this compiled program actually contains and why its cost
+    lands near "one update", not the whole training run."""
+    memory_bytes: float
+    """Peak device memory (bytes) for that same compiled program:
+    `argument_size_in_bytes + temp_size_in_bytes + output_size_in_bytes`
+    from `.compile().memory_analysis()` - a proxy for peak usage (real
+    peak can differ slightly due to buffer reuse XLA performs), not an
+    exact measurement."""
+    compile_time_seconds: float
+    """Wall-clock time to `.lower(rng).compile()` the same program -
+    the one-time XLA compilation cost paid once per distinct input
+    shape/dtype (see `Experiment.run`'s own "Compilation time cost"
+    logging for the equivalent measurement on a real training run).
+    Unlike `flops`/`memory_bytes`, hardware- and XLA-version-sensitive
+    in the same way `iter/fps`/`iter/wall_time` are."""
+
 
 def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     """Mean of `values` over entries where `mask` is True, computed via a masked
@@ -58,9 +82,69 @@ class Agent(struct.PyTreeNode):
     """
 
     hparams: HParams
+    env: Environment
+    """Every concrete `Agent` (PPO/Dreamer/PQN, and any future one)
+    trains against exactly one `Environment` - promoted onto this base
+    class rather than redeclared per subclass, since it's a genuine part
+    of what any RL agent fundamentally needs, not an internal
+    implementation detail specific to how a particular agent trains
+    (unlike, say, PPO's `sgd_step`, which is PPO-specific machinery, not
+    something every agent has)."""
 
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
         raise NotImplementedError
+
+    def cost_analysis(self, rng: jax.Array) -> CostAnalysis:
+        """Estimates this agent's training compute (FLOPs), peak
+        memory, and compile time - implemented once, here, in terms of
+        `train`, the *only* method every `Agent` is guaranteed to have.
+        Deliberately does not assume any concrete agent's internal
+        structure (e.g. that it has a `sgd_step`/`update` method with a
+        particular signature) - a per-agent override would need that
+        kind of assumption, which breaks for any agent (including an
+        external submission) that doesn't happen to share navix's own
+        agents' shape, so there isn't one: this base-class
+        implementation is the only implementation.
+
+        What's actually measured: `jax.jit(self.train).lower(rng)
+        .compile()`, then that compiled program's own
+        `cost_analysis()`/`memory_analysis()`. This necessarily
+        includes whatever environment interaction `train` performs
+        internally - `train` is the only contract `Agent` makes, and
+        nothing in that contract says where (or whether) an
+        implementation's own env-touching and env-free computation are
+        separable - so this reports *total* training compute, not an
+        agent-only figure with environment cost subtracted out.
+
+        It still lands close to "one update's cost", not the whole
+        run's, for a structural reason rather than a deliberate
+        choice: every navix-shipped agent's `train` is a one-time init
+        followed by `jax.lax.scan(self.update, ..., length=num_updates)`,
+        and XLA's `cost_analysis()` on a compiled `scan`/`while` loop
+        reports the cost of *one* loop iteration, not `length` copies
+        of it (verified empirically - `cost_analysis()['flops']` on a
+        `scan` of `length` in `{1, 10, 100}` returns the same value all
+        three times). An agent whose `train` isn't scan-shaped would
+        get a different number here - e.g. one that unrolls its whole
+        budget in Python would report the FULL run's cost - which is a
+        real difference in what gets measured across agents, not a bug
+        in this method; `train` being the only guaranteed hook means
+        this can't be normalized away without assuming more structure
+        than the `Agent` contract promises."""
+        start = time.time()
+        compiled = jax.jit(self.train).lower(rng).compile()
+        compile_time_seconds = time.time() - start
+
+        flops = compiled.cost_analysis().get("flops", float("nan"))
+        mem = compiled.memory_analysis()
+        memory_bytes = (
+            mem.argument_size_in_bytes + mem.temp_size_in_bytes + mem.output_size_in_bytes
+        )
+        return CostAnalysis(
+            flops=flops,
+            memory_bytes=memory_bytes,
+            compile_time_seconds=compile_time_seconds,
+        )
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
         if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:

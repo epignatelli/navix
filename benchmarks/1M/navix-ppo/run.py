@@ -13,7 +13,7 @@ import yaml
 
 from benchmarks._common import flatten_obs
 from navix.agents import PPO, PPOHparams, ActorCritic
-from navix.benchmarks import AlgorithmEntry, Navix1M
+from navix.benchmark import AlgorithmEntry, Navix1M
 from navix.environments.environment import Environment
 
 HERE = Path(__file__).resolve().parent
@@ -36,10 +36,14 @@ if __name__ == "__main__":
         agent_factory=lambda env: make_ppo(env, PPOHparams()),
     )
 
-    result = Navix1M(entry).run(log_to_wandb=True)
-    print(f"{Navix1M.name} / {entry.name} results:")
-    print(f"  success_rate:   {result.success_rate}")
-    print(f"  returns:        {result.returns}")
-    print(f"  episode_length: {result.episode_length}")
-    print(f"  fps:            {result.fps}")
-    print(f"  wall_time:      {result.wall_time}")
+    result = Navix1M(entry).run(log_to_wandb=args.log_to_wandb)
+    print(f"{Navix1M.name} / {entry.name} overall:")
+    print(f"  returns:              {result.overall.returns}")
+    print(f"  episode_length:       {result.overall.episode_length}")
+    print(f"  flops:                {result.overall.flops}")
+    print(f"  memory_bytes:         {result.overall.memory_bytes}")
+    print(f"  compile_time_seconds: {result.overall.compile_time_seconds}")
+    print(f"  fps:                  {result.overall.fps}")
+    print(f"  wall_time:            {result.overall.wall_time}")
+    for env_id, m in result.per_environment.items():
+        print(f"  {env_id}: returns={m.returns} episode_length={m.episode_length}")
