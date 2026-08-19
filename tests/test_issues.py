@@ -304,6 +304,39 @@ def test_141():
             )
 
 
+def test_160():
+    # https://github.com/epignatelli/navix/issues/160
+    # KeyCorridor built *two* Door entities per row boundary at the same
+    # cell: the `for row in range(n_rows - 1)` loop split `k9, k10, k11,
+    # k12` but reused the single `door_pos` from `k9` for both doors, so
+    # `k11` - clearly meant to draw a second, different position - was
+    # never used. The pair only differed in colour (`k10` vs `k12`).
+    # They behave as one door (`open` and `_walkable` both reduce over the
+    # whole door array), so this is not a dynamics bug, but it does corrupt
+    # rendering: `observations.rgb` writes every door sprite into the frame
+    # with a single `.at[idx].set(...)`, and a duplicate-index scatter is
+    # undefined in JAX - on GPU it resolves per element, so the tile comes
+    # out a per-pixel mix of two differently coloured door sprites.
+    for env_id in [
+        "Navix-KeyCorridorS3R1-v0",
+        "Navix-KeyCorridorS3R2-v0",
+        "Navix-KeyCorridorS3R3-v0",
+        "Navix-KeyCorridorS6R3-v0",
+    ]:
+        env = nx.make(env_id)
+        keys = jax.random.split(jax.random.PRNGKey(0), 32)
+        for k in keys:
+            timestep = env.reset(k)
+            positions = timestep.state.get_doors().position
+            n_unique = jnp.unique(positions, axis=0).shape[0]
+            assert n_unique == positions.shape[0], (
+                f"{env_id}: expected every door to occupy its own cell, got "
+                f"{positions.shape[0]} doors on {n_unique} distinct cells "
+                f"(positions={positions.tolist()}) - stacked doors make the "
+                "duplicated cell render as a mix of both sprites"
+            )
+
+
 if __name__ == "__main__":
     test_82()
     test_91()
@@ -312,3 +345,4 @@ if __name__ == "__main__":
     test_146()
     test_147()
     test_141()
+    test_160()
