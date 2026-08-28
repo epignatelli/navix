@@ -10,10 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
+import jax
 import yaml
 
 from navix.agents import Dreamer, DreamerHparams, WorldModel, DreamerActor, DreamerCritic
-from navix.benchmark import AlgorithmEntry, Navix100K
+from navix.benchmark import AlgorithmEntry, Navix100K, last_percent_mean
 from navix.environments.environment import Environment
 
 HERE = Path(__file__).resolve().parent
@@ -52,15 +53,16 @@ if __name__ == "__main__":
         agent_factory=lambda env: make_dreamer(env, DreamerHparams()),
     )
 
-    result = Navix100K.run(entry, log_to_wandb=True)
-    print(f"{Navix100K.name} / {entry.name} summary:")
-    print(f"  returns:              {result.returns}")
-    print(f"  episode_length:       {result.episode_length}")
-    print(f"  flops:                {result.flops}")
-    print(f"  memory_bytes:         {result.memory_bytes}")
-    print(f"  compile_time_seconds: {result.compile_time_seconds}")
-    print(f"  fps:                  {result.fps}")
-    print(f"  wall_time:            {result.wall_time}")
-    for env_id, curve in result.history.items():
-        m = curve.last_fifth_mean()
+    raw = Navix100K.run(entry)
+    summary = Navix100K.summary(raw)
+    print(f"{Navix100K.__name__} / {entry.name} summary:")
+    print(f"  returns:              {summary.returns}")
+    print(f"  episode_length:       {summary.episode_length}")
+    print(f"  flops:                {summary.flops}")
+    print(f"  memory_bytes:         {summary.memory_bytes}")
+    print(f"  compile_time_seconds: {summary.compile_time_seconds}")
+    print(f"  fps:                  {summary.fps}")
+    print(f"  wall_time:            {summary.wall_time}")
+    for env_id, result in raw.items():
+        m = jax.tree.map(last_percent_mean, result)
         print(f"  {env_id}: returns={m.returns} episode_length={m.episode_length}")

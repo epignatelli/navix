@@ -25,7 +25,9 @@ folder per submitted entry.
        navix_commit_url=..., algorithm_commit_url=...,
        agent_factory=make_agent,
    )
-   result = Navix1M.run(entry)
+   raw = Navix1M.run(entry)          # Dict[str, BenchmarkResult], one per env_id
+   summary = Navix1M.summary(raw)    # one BenchmarkResult, aggregated - the leaderboard's table row
+   details = Navix1M.details(raw)    # what the leaderboard shows on click-through
    ```
 
    It must run as `python run.py`, no arguments - read your own
@@ -60,31 +62,27 @@ folder per submitted entry.
 
 ## What you get back
 
-`Navix1M.run(entry)` returns a `BenchmarkResult` - one object with
-everything needed to render a leaderboard entry, overall score and
-every per-environment breakdown alike:
+`Navix1M.run(entry)` returns `Dict[str, BenchmarkResult]`, one
+`BenchmarkResult` per `env_id`. Each `BenchmarkResult` holds:
 
 - `returns`, `episode_length`, `flops`, `memory_bytes`,
-  `compile_time_seconds`, `fps`, `wall_time` - the aggregate score:
-  each field's last-fifth-of-training mean, meaned across every
-  environment. `flops`/`memory_bytes`/`compile_time_seconds` come from
-  `Agent.cost_analysis`, a single measurement rather than a curve, so
-  they're always scalar.
-- `history: Dict[str, BenchmarkResult]` - one result per `env_id`,
-  same shape, holding full per-update curves for `returns`/
-  `episode_length`/`fps`/`wall_time` (plot these directly for training
-  curves) instead of the reduced scalar - call `.last_fifth_mean()` on
-  one to reduce it too. Each leaf's own `history` is empty.
-- `detail: Dict` - the complete raw per-update log for one
-  environment, algorithm-specific diagnostics included (e.g. PPO's
-  `loss/actor_loss`) - not just the standardized fields above. Empty
-  on the aggregate; populated on each `history` leaf.
+  `compile_time_seconds`, `fps`, `wall_time` - `returns`/
+  `episode_length`/`fps`/`wall_time` are full per-update curves;
+  `flops`/`memory_bytes`/`compile_time_seconds` (from
+  `Agent.cost_analysis`) are always scalar.
+- `info: Dict` - free-form, for whatever an entry wants to attach
+  beyond the fields above.
 
-This shape only fits the flat, order-independent env-list protocol
-above - a future curriculum, continual-learning, or open-ended-
-learning benchmark would need its own result type (see
-`navix/benchmark.py`'s module docstring for why).
+Call `navix.benchmark.last_percent_mean` on a `BenchmarkResult` via
+`jax.tree.map(last_percent_mean, result)` to reduce its curve fields
+to scalars (the last 20% of training, by default).
 
-See [issue #130](https://github.com/epignatelli/navix/issues/130) for
-the full design rationale behind `Benchmark`/`AlgorithmEntry`/
-`BenchmarkResult`.
+`Navix1M.summary(raw)` reduces and averages `raw` across every
+environment into one aggregate `BenchmarkResult` - the single
+comparable score a leaderboard's table shows. `Navix1M.details(raw)`
+returns the content a leaderboard shows for one entry beyond that -
+for this preset, `raw` itself (full per-environment training curves).
+
+See `navix/benchmark.py`'s module docstring for the full design, and
+[issue #130](https://github.com/epignatelli/navix/issues/130) for the
+leaderboard proposal this implements.

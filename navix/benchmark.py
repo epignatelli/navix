@@ -24,59 +24,82 @@ that's an argument to `run`, so the same `Benchmark` (or preset) can
 score many algorithms.
 
 Implements the "Benchmark" concept from issue #130 (the navix
-leaderboard proposal). `Benchmark` itself only owns what's truly
-protocol-agnostic - building an agent for one environment
-(`_build_agent`) and training it (`_train_on`). Everything about *how
-results are shaped* - what counts as a per-unit result, how per-unit
-results combine into an aggregate, whether training is even
-independent per environment - is a template method a protocol
-subclass overrides: `_score_env`, `_summarize`, and `run` itself.
+leaderboard proposal). `Benchmark` is abstract: `build_agent`/
+`train_on` build *some* agent for *some* environment and train it via
+`Experiment`, the same way for every protocol, so they're implemented
+here. `run` (what gets trained, and how raw `BenchmarkResult`s get
+produced and collected), `summary` (the single comparable score a
+leaderboard's table shows for one algorithm entry), and `details` (the
+content a leaderboard shows for that entry beyond its `summary` row -
+training curves, a retention matrix, a generated-level log, depending
+on the protocol) have no protocol-agnostic implementation, so all
+three raise `NotImplementedError` - a concrete protocol (see
+`FromScratchBenchmark`, below) overrides them. A caller interprets a
+`Benchmark.run()` call's raw output by calling `summary`/`details` on
+that same class, so the interpretation logic always travels with the
+class that produced the data. A preset's display name is
+`cls.__name__`; `budget` belongs to whichever concrete protocol
+defines one (a curriculum might have one per stage, open-ended
+learning might have none at all), not to `Benchmark` itself.
 
-This module implements exactly one protocol concretely: a flat,
-order-independent list of environments, each trained from scratch with
-no transfer between them (`Navix1M`/`Navix100K`, differing only in
-`budget`). Other protocols issue #130 anticipates - curriculum
-learning (a fixed stage sequence, graduating per stage), continual
-learning (one agent through a task sequence, tracking retention/
-forgetting via an R-matrix of task x task performance), open-ended
-learning (an adaptive generator, scored by periodic zero-shot
-performance on a fixed held-out suite) - have result shapes with
-nothing in common with this one or each other, so they're expected to
-subclass `Benchmark` and return their own result type rather than
-conform to `BenchmarkResult`.
+`BenchmarkResult` is the atomic, comparable unit of measurement every
+protocol shares; `run` decides how many to produce and how to collect
+them. Its fields are exactly what's structurally guaranteed for any
+navix agent: `returns`/`episode_length` (from `Agent.log_to_wandb`'s
+`done_mask`/`returns`/`lengths` handling), `fps`/`wall_time` (always
+logged per update), and `flops`/`memory_bytes`/`compile_time_seconds`
+(from `Agent.cost_analysis`, implemented generically using only
+`train`, so every `Agent` has it). `info: Dict` is a free-form field
+for whatever a protocol or caller wants to attach beyond that - empty
+by default.
 
-`Benchmark` never needs instantiating: `name`/`budget`/`env_ids`/
-`seeds` are class attributes fixed per preset, and `run` is a
-classmethod, so a preset is used directly as `Navix1M.run(entry)` -
-`entry` is the only thing that varies across runs.
+`BenchmarkResult` is a JAX pytree (`flax.struct.PyTreeNode`):
+`returns`/`episode_length`/`flops`/`memory_bytes`/
+`compile_time_seconds`/`fps`/`wall_time` are its leaves, while `info`
+is marked `pytree_node=False` - static auxiliary data, invisible to
+`jax.tree.map` and friends, so a tree reduction never touches it. A
+single, generic `last_percent_mean` function (below) reduces any
+`BenchmarkResult`'s curves to scalars via `jax.tree.map`, since the
+pytree registration already tracks which fields are leaves.
+
+`FromScratchBenchmark` implements a flat, order-independent list of
+environments, each trained from scratch with no transfer between them
+(`Navix1M`/`Navix100K`, below, fix `budget` on top of it). Its `run`
+returns `Dict[str, BenchmarkResult]`, one per env_id, full per-update
+curves; its `summary` reduces and means across environments into one
+aggregate `BenchmarkResult`, via `last_percent_mean` (the "last20%"
+convergence convention, by default) applied through `jax.tree.map`;
+its `details` is the identity, since `run`'s own output - full curves
+keyed by env_id - is already the click-through content a leaderboard
+would want to show. Other protocols issue #130 anticipates -
+curriculum learning (a fixed stage sequence, graduating per stage),
+continual learning (one agent through a task sequence, tracking
+retention/forgetting via an R-matrix of task x task performance),
+open-ended learning (an adaptive generator, scored by periodic zero-
+shot performance on a fixed held-out suite) - subclass `Benchmark`
+directly, collect their `BenchmarkResult`s by stage, by task pair, or
+by checkpoint, and derive `summary`/`details` with logic specific to
+each.
 
 Each algorithm scored is wrapped in an `AlgorithmEntry` - the
 provenance metadata #130 requires of a leaderboard row (name, GitHub-
 validated author, full commit URLs for both navix and the algorithm's
 own repo, paper link). Per #130's "never vendor an external
 algorithm's code" rule, `AlgorithmEntry.agent_factory` is how `run`
-stays algorithm-agnostic.
-
-`BenchmarkResult` (this protocol's own result type) is self-
-referential and carries three views, everything a leaderboard needs:
-`summary` (the standardized, comparable-across-algorithms fields -
-`returns`/`episode_length`/`fps`/`wall_time`/`flops`/`memory_bytes`/
-`compile_time_seconds` - full per-update curves on a leaf, reduced
-last-fifth-mean scalars on the aggregate), `history` (one leaf per
-`env_id`, for drill-down - empty on a leaf), and `detail` (the
-complete raw per-update log for one environment, algorithm-specific
-diagnostics included, not just the standardized subset - empty on the
-aggregate, since detail is inherently per-environment)."""
+stays algorithm-agnostic. `entry` isn't part of `BenchmarkResult` -
+the caller already has it (they passed it to `run`); pairing the two
+for display happens at the call site, not inside this module."""
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from typing import Callable, ClassVar, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import jax
 from jax import Array
 import jax.numpy as jnp
+from flax import struct
 
 from .agents.agent import Agent, CostAnalysis
 from .environments.environment import Environment
@@ -90,7 +113,7 @@ _GITHUB_HANDLE_RE = re.compile(r"^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}
 _SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
-def _is_commit_url(url: str) -> bool:
+def is_commit_url(url: str) -> bool:
     """A bare SHA doesn't say which repo it's a commit of - full URLs
     are self-describing and directly clickable."""
     parsed = urlparse(url)
@@ -135,7 +158,7 @@ class AlgorithmEntry:
             )
         for field_name in ("navix_commit_url", "algorithm_commit_url"):
             value = getattr(self, field_name)
-            if not _is_commit_url(value):
+            if not is_commit_url(value):
                 raise ValueError(
                     f"AlgorithmEntry.{field_name} {value!r} is not a valid commit "
                     "URL (expected an http(s) URL ending in a 7-40 character "
@@ -143,42 +166,22 @@ class AlgorithmEntry:
                 )
 
 
-def _last_fifth_mean(value: Array) -> Array:
-    """Mean over the last fifth of training ("last20%" convergence
-    convention). A scalar (no update axis, e.g. a cost field) passes
-    through unchanged - there's nothing to reduce."""
-    value = jnp.asarray(value)
-    if value.ndim == 0:
-        return value
-    tail = max(1, value.shape[-1] // 5)
-    return jnp.mean(value[..., -tail:])
+class BenchmarkResult(struct.PyTreeNode):
+    """The atomic unit of measurement every `Benchmark` protocol
+    produces (see module docstring). `returns`/`episode_length`/`fps`/
+    `wall_time` hold either full per-update curves (a raw, per-unit
+    result) or reduced scalars (a `summary` aggregate) - the type
+    doesn't distinguish; `flops`/`memory_bytes`/`compile_time_seconds`
+    (from `Agent.cost_analysis`) are always scalar.
 
+    A JAX pytree: the seven fields above are its leaves, `info` is
+    marked `pytree_node=False` (static, not a leaf) - so `jax.tree.map`
+    only ever touches the array fields. One consequence: combining
+    several `BenchmarkResult`s via a *multi*-input `jax.tree.map` (as
+    `FromScratchBenchmark.summary` does) requires their `info` to be
+    identical, since static data is part of a pytree's structure, not
+    something a reduction can average away."""
 
-# The array-valued fields that get reduced (last_fifth_mean) and
-# aggregated (summarize) - excludes entry/history, which aren't arrays.
-_METRIC_FIELDS: Tuple[str, ...] = (
-    "returns",
-    "episode_length",
-    "flops",
-    "memory_bytes",
-    "compile_time_seconds",
-    "fps",
-    "wall_time",
-)
-
-
-@dataclass
-class BenchmarkResult:
-    """Result shape for `Benchmark`'s flat, order-independent env-list
-    protocol (`Navix1M`/`Navix100K`) - not shared with other protocols
-    (see module docstring). Self-referential: this IS both one
-    environment's leaf result (full curves, `detail` populated,
-    `history={}`) and the aggregate `Benchmark.run` returns (`summary`
-    fields reduced and meaned, `history` populated with one leaf per
-    `env_id`, `detail={}`)."""
-
-    entry: AlgorithmEntry
-    """Echoes back the entry that was run."""
     returns: Array
     episode_length: Array
     flops: Array
@@ -193,53 +196,100 @@ class BenchmarkResult:
     wall_time: Array
     """Hardware-dependent - only meaningful across results on the same
     hardware."""
-    history: Dict[str, BenchmarkResult] = field(default_factory=dict)
-    """One leaf per `env_id`, for drill-down - empty on a leaf itself
-    (this result IS that leaf); populated only on what `Benchmark.run`
-    returns."""
-    detail: Dict = field(default_factory=dict)
-    """The complete raw per-update log for this environment - every
-    key `Experiment.run` produced, including algorithm-specific
-    diagnostics (e.g. `loss/actor_loss`) that aren't standardized or
-    comparable across different algorithms, unlike `summary`'s fields.
-    Populated on a leaf; empty on the aggregate, since detail is
-    inherently per-environment."""
+    info: Dict = struct.field(pytree_node=False, default_factory=dict)
+    """Free-form - whatever a protocol or caller wants to attach beyond
+    the mandatory fields above. Empty by default; nothing populates it
+    automatically."""
 
-    def last_fifth_mean(self) -> BenchmarkResult:
-        """Reduces this result's own `summary` fields to their last-
-        fifth-of-training mean - `history`/`detail` are left
-        untouched."""
-        return replace(
-            self,
-            **{
-                field_name: _last_fifth_mean(getattr(self, field_name))
-                for field_name in _METRIC_FIELDS
-            },
-        )
+
+def last_percent_mean(value: Array, percent: float = 20) -> Array:
+    """Mean over the last `percent`% of training (the "last20%"
+    convergence convention, by default). A scalar (no update axis,
+    e.g. a cost field) passes through unchanged - there's nothing to
+    reduce. Applied to a whole `BenchmarkResult` via
+    `jax.tree.map(last_percent_mean, result)`."""
+    value = jnp.asarray(value)
+    if value.ndim == 0:
+        return value
+    tail = max(1, int(value.shape[-1] * percent / 100))
+    return jnp.mean(value[..., -tail:])
 
 
 class Benchmark:
-    """A benchmark preset - a fixed protocol, not tied to any one
-    algorithm and not needing an instance: `name`/`budget` are class
-    attributes (subclasses `Navix1M`/`Navix100K`, below, fix them),
-    and `run` is a classmethod, so a preset is used directly as
-    `Navix1M.run(entry)`. `env_ids`/`seeds` follow the same pattern -
-    override for one call via `run(entry, env_ids=...)`, or for a
-    reusable custom preset via subclassing, the same way `name`/
-    `budget` are overridden.
+    """A benchmark protocol - not tied to any one algorithm, and not
+    needing an instance: every method is a classmethod, so a preset is
+    used directly as `Navix1M.run(entry)`. Its display name is
+    `cls.__name__`.
 
-    Only `_build_agent`/`_train_on` are truly protocol-agnostic - every
-    protocol trains *some* agent on *some* environment the same way.
-    `_score_env`/`_summarize`/`run` are template methods this class
-    implements for the flat, order-independent env-list protocol; a
-    different protocol (curriculum/continual/open-ended learning - see
-    module docstring) overrides them and returns its own result type
-    instead of `BenchmarkResult`."""
+    `build_agent`/`train_on` are shared, concrete mechanics - the "some
+    agent, some environment" primitive every protocol needs. A concrete
+    protocol with its own hparam overrides (e.g. a training budget)
+    layers them on by overriding `build_agent` (see
+    `FromScratchBenchmark`, below). `run`/`summary`/`details` have no
+    protocol-agnostic default and must be overridden (also see the
+    module docstring for the other protocols issue #130 anticipates)."""
 
-    name: ClassVar[str] = ""
+    @classmethod
+    def build_agent(cls, entry: AlgorithmEntry, env_id: str) -> Tuple[Environment, Agent]:
+        """Builds an agent for `env_id` via `entry.agent_factory`. A
+        protocol with its own hparam overrides layers them on top of
+        `super().build_agent(...)`."""
+        env = make(env_id)
+        agent = entry.agent_factory(env)
+        return env, agent
+
+    @classmethod
+    def train_on(cls, agent: Agent, env: Environment, seeds: Tuple[int, ...]) -> Tuple[Agent, Dict]:
+        """Trains `agent` on `env`, returning the pre-training `Agent`
+        alongside its `logs` - `Agent` is an immutable pytree, so
+        `experiment.run` below never mutates it; the caller can reuse
+        it for `cost_analysis` (which only depends on shapes, not
+        trained weight values) without building a second one. Never
+        streams to wandb - a benchmark run is always the fast, local
+        path (see `Agent`'s own docstring on the two logging
+        strategies); a caller wanting wandb integration does so itself
+        afterward, using the full `logs` this returns."""
+        experiment = Experiment(name=cls.__name__, agent=agent, env=env, seeds=seeds)
+        _, logs = experiment.run(log_to_wandb=False)
+        return agent, logs
+
+    @classmethod
+    def run(cls, entry: AlgorithmEntry):
+        """Trains `entry` under this protocol, returning however many
+        `BenchmarkResult`s it produces, collected however makes sense
+        for this protocol - a `Dict[str, BenchmarkResult]` keyed by
+        env_id for `FromScratchBenchmark`, something else entirely for
+        a sequential protocol. No protocol-agnostic default exists;
+        must be overridden."""
+        raise NotImplementedError
+
+    @classmethod
+    def summary(cls, raw):
+        """Reduces whatever `run` returned into one comparable
+        `BenchmarkResult`. How you reduce a protocol's own collection
+        into a single score is inherently protocol-specific (a flat
+        mean for independent environments; Average Accuracy/Forgetting
+        from an R-matrix for continual learning; ...), so there's no
+        default here either."""
+        raise NotImplementedError
+
+    @classmethod
+    def details(cls, raw):
+        """Shapes whatever `run` returned into what a leaderboard shows
+        for one algorithm entry beyond its `summary` row - the content
+        behind a click-through, e.g. training curves per environment,
+        a retention matrix, or a generated-level log, depending on the
+        protocol. No protocol-agnostic default exists here either."""
+        raise NotImplementedError
+
+
+class FromScratchBenchmark(Benchmark):
+    """Trains `entry` from scratch, independently, across a flat list
+    of environments - no ordering, no transfer assumed between them.
+    `Navix1M`/`Navix100K` (below) fix `budget` on top of this."""
+
     budget: ClassVar[int] = 0
-    """Overrides `agent.hparams.budget` - the one thing `Navix1M`/
-    `Navix100K` differ on."""
+    """Overrides `agent.hparams.budget`, layered on in `build_agent`."""
     env_ids: ClassVar[Optional[Tuple[str, ...]]] = None
     """`None` resolves lazily, at `run` time, to every registered
     environment - not resolved at class-definition time, so it
@@ -247,43 +297,19 @@ class Benchmark:
     seeds: ClassVar[Tuple[int, ...]] = (0,)
 
     @classmethod
-    def _build_agent(cls, entry: AlgorithmEntry, env_id: str) -> Tuple[Environment, Agent]:
-        env = make(env_id)
-        agent = entry.agent_factory(env)
+    def build_agent(cls, entry: AlgorithmEntry, env_id: str) -> Tuple[Environment, Agent]:
+        env, agent = super().build_agent(entry, env_id)
         agent = agent.replace(hparams=agent.hparams.replace(budget=cls.budget))
         return env, agent
 
     @classmethod
-    def _train_on(
-        cls, entry: AlgorithmEntry, env_id: str, seeds: Tuple[int, ...], log_to_wandb: bool
-    ) -> Tuple[Agent, Dict]:
-        """Builds and trains one environment's agent, returning the
-        pre-training `Agent` alongside its `logs` - `Agent` is an
-        immutable pytree, so `experiment.run` below never mutates it;
-        the caller can reuse it for `cost_analysis` (which only depends
-        on shapes, not trained weight values) without building a second
-        one."""
-        env, agent = cls._build_agent(entry, env_id)
-        experiment = Experiment(
-            name=cls.name,
-            agent=agent,
-            env=env,
-            env_id=env_id,
-            seeds=seeds,
-        )
-        _, logs = experiment.run(log_to_wandb=log_to_wandb)
-        return agent, logs
-
-    @classmethod
-    def _score_env(cls, entry: AlgorithmEntry, logs: Dict, cost: CostAnalysis) -> BenchmarkResult:
-        """Builds one environment's leaf result: full comparable-metric
-        curves (`summary`), this agent's `cost_analysis`, and `detail`
-        - the complete raw `logs` dict, unfiltered. Override to change
-        what "one environment's result" captures for a different
-        protocol."""
+    def score_env(cls, logs: Dict, cost: CostAnalysis) -> BenchmarkResult:
+        """Builds one environment's raw `BenchmarkResult`: full
+        comparable-metric curves (`returns`/`episode_length`/`fps`/
+        `wall_time`) plus this agent's `cost_analysis` (always
+        scalar)."""
         scalars = derive_scalar_metrics(logs)
         return BenchmarkResult(
-            entry=entry,
             returns=scalars["perf/returns"],
             episode_length=scalars["perf/episode_length"],
             flops=jnp.asarray(cost.flops),
@@ -291,67 +317,53 @@ class Benchmark:
             compile_time_seconds=jnp.asarray(cost.compile_time_seconds),
             fps=jnp.asarray(logs["iter/fps"]),
             wall_time=jnp.asarray(logs["iter/wall_time"]),
-            detail=logs,
-        )
-
-    @classmethod
-    def _summarize(
-        cls, entry: AlgorithmEntry, per_env: Dict[str, BenchmarkResult]
-    ) -> BenchmarkResult:
-        """Combines per-env leaf results into the aggregate `run`
-        returns: each `summary` field is its last-fifth-mean, meaned
-        across environments; `history` keeps the untouched leaves
-        (curves + detail) for drill-down. Override to change how a
-        protocol combines its own per-unit results - e.g. a continual-
-        learning subclass would build an R-matrix here instead of a
-        flat mean."""
-        reduced = [result.last_fifth_mean() for result in per_env.values()]
-        return BenchmarkResult(
-            entry=entry,
-            **{
-                field_name: jnp.mean(
-                    jnp.stack([jnp.asarray(getattr(m, field_name)) for m in reduced])
-                )
-                for field_name in _METRIC_FIELDS
-            },
-            history=per_env,
         )
 
     @classmethod
     def run(
         cls,
         entry: AlgorithmEntry,
-        log_to_wandb: bool = False,
         env_ids: Optional[Tuple[str, ...]] = None,
         seeds: Optional[Tuple[int, ...]] = None,
-    ) -> BenchmarkResult:
+    ) -> Dict[str, BenchmarkResult]:
         """Runs `entry` against `env_ids` (default: every registered
-        environment) independently, at `cls.budget` - no ordering, no
-        transfer assumed between environments. A sequential protocol
-        (curriculum/continual learning) that needs one environment's
-        outcome to affect the next overrides `run` itself, not just
-        `_score_env`/`_summarize`."""
+        environment) independently, at `cls.budget`. Returns one raw
+        `BenchmarkResult` per env_id - that's already the per-
+        environment breakdown for this protocol; call `summary` on
+        this same class to reduce it to a single comparable score."""
         env_ids = env_ids if env_ids is not None else cls.env_ids or tuple(registry().keys())
         seeds = seeds if seeds is not None else cls.seeds
-        per_env: Dict[str, BenchmarkResult] = {}
+        raw: Dict[str, BenchmarkResult] = {}
         for env_id in env_ids:
-            agent, logs = cls._train_on(entry, env_id, seeds, log_to_wandb)
+            env, agent = cls.build_agent(entry, env_id)
+            agent, logs = cls.train_on(agent, env, seeds)
             cost = agent.cost_analysis(jax.random.PRNGKey(seeds[0]))
-            per_env[env_id] = cls._score_env(entry, logs, cost)
-        return cls._summarize(entry, per_env)
+            raw[env_id] = cls.score_env(logs, cost)
+        return raw
+
+    @classmethod
+    def summary(cls, raw: Dict[str, BenchmarkResult]) -> BenchmarkResult:
+        """Each field's last-percent-mean, meaned across every
+        environment in `raw`."""
+        reduced = [jax.tree.map(last_percent_mean, result) for result in raw.values()]
+        return jax.tree.map(lambda *values: jnp.mean(jnp.stack(values)), *reduced)
+
+    @classmethod
+    def details(cls, raw: Dict[str, BenchmarkResult]) -> Dict[str, BenchmarkResult]:
+        """The per-environment training curves - already what `raw`
+        holds for this protocol."""
+        return raw
 
 
-class Navix1M(Benchmark):
+class Navix1M(FromScratchBenchmark):
     """1M-frame budget per environment - `PPOHparams`/`PQNHparams`'
     own default."""
 
-    name = "NAVIX-1m"
     budget = 1_000_000
 
 
-class Navix100K(Benchmark):
+class Navix100K(FromScratchBenchmark):
     """Same as `Navix1M`, at 100K frames - a cheaper preset for quick
     checks."""
 
-    name = "NAVIX-100k"
     budget = 100_000
