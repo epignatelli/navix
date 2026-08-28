@@ -1813,6 +1813,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.key_corridor.KeyCorridor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;KeyCorridor
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2199,6 +2210,85 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.key_corridor.KeyCorridor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>KeyCorridor</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p>Find a key hidden behind unlocked doors, then use it to open the one
+locked door guarding the goal.</p>
+<p>Rooms form an <code>n_rows x 3</code> grid: the agent starts in the middle column
+(always connected top-to-bottom - the "corridor"), keys live in the left
+column, the goal lives in the right column behind the episode's one
+locked door.</p>
+<p>Every other connector - including corridor&lt;-&gt;key-room doors - comes from
+a <code>jax.jit</code>-shaped port of MiniGrid's <code>RoomGrid.connect_all</code>: a
+randomised search that keeps adding doors until every non-goal room is
+reachable from the agent's start, without ever adding a second connector
+to the goal room. Door positions, counts, and which side of the grid
+gets inter-row connectors therefore vary per episode, rather than
+following a fixed layout.</p>
+<p>Implemented as a single-pass, randomised Kruskal-style union-find
+(activate a candidate wall iff it still joins two different components),
+since MiniGrid's own sample-with-replacement retry loop has no static
+iteration bound and can't be represented as a fixed-shape <code>jax.jit</code>
+program. Candidate walls that end up not connecting anything still exist
+as <code>Door</code> entities - a fixed count per <code>n_rows</code> is required for
+<code>jax.jit</code> - but are permanently unopenable, so they behave as ordinary
+walls.</p>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Because those non-connecting candidates are still <code>Door</code> entities,
+<code>observations.rgb</code>/<code>symbolic</code> render a closed, locked door sprite at
+every candidate wall - including the ones that are functionally
+solid walls. MiniGrid renders those as plain walls instead; there is
+no way to tell them apart visually, only by checking
+<code>state.entities["door"].requires</code> for the sentinel "no key can open
+this" value.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 
