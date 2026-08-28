@@ -50,6 +50,41 @@ def _room_id(row: int, col: int) -> int:
 
 
 class KeyCorridor(Environment):
+    """Find a key hidden behind unlocked doors, then use it to open the one
+    locked door guarding the goal.
+
+    Rooms form an `n_rows x 3` grid: the agent starts in the middle column
+    (always connected top-to-bottom - the "corridor"), keys live in the left
+    column, the goal lives in the right column behind the episode's one
+    locked door.
+
+    Every other connector - including corridor<->key-room doors - comes from
+    a `jax.jit`-shaped port of MiniGrid's `RoomGrid.connect_all`: a
+    randomised search that keeps adding doors until every non-goal room is
+    reachable from the agent's start, without ever adding a second connector
+    to the goal room. Door positions, counts, and which side of the grid
+    gets inter-row connectors therefore vary per episode, rather than
+    following a fixed layout.
+
+    Implemented as a single-pass, randomised Kruskal-style union-find
+    (activate a candidate wall iff it still joins two different components),
+    since MiniGrid's own sample-with-replacement retry loop has no static
+    iteration bound and can't be represented as a fixed-shape `jax.jit`
+    program. Candidate walls that end up not connecting anything still exist
+    as `Door` entities - a fixed count per `n_rows` is required for
+    `jax.jit` - but are permanently unopenable, so they behave as ordinary
+    walls.
+
+    Note:
+        Because those non-connecting candidates are still `Door` entities,
+        `observations.rgb`/`symbolic` render a closed, locked door sprite at
+        every candidate wall - including the ones that are functionally
+        solid walls. MiniGrid renders those as plain walls instead; there is
+        no way to tell them apart visually, only by checking
+        `state.entities["door"].requires` for the sentinel "no key can open
+        this" value.
+    """
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)
@@ -81,31 +116,12 @@ class KeyCorridor(Environment):
         goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k4)
         goal = Goal.create(goal_pos, probability=jnp.asarray(1.0))
 
-        # Doors: mirrors MiniGrid's RoomGrid.connect_all - one mandatory
-        # locked door gating the goal room, and every other connector
-        # (including the corridor<->key-room doors MiniGrid also treats
-        # as optional) resolved by randomly connecting rooms until every
-        # non-goal room is reachable from the agent's start, never
-        # touching the goal room a second time. Unlike MiniGrid's
-        # sample-with-replacement retry loop, this processes each
-        # candidate wall exactly once in a random order and adds it iff
-        # it still joins two different components (randomised Kruskal) -
-        # same reachability guarantee, no unbounded retries, so it stays
-        # `jax.jit`-shaped: a fixed number of doors per `n_rows`, decided
-        # by which candidates end up connecting something.
-        #
-        # `parent` (union-find) is kept fully flat (every entry points
-        # directly at its true root) as an invariant, not looked up via
-        # a worst-case-length pointer chase: a union starting from a
-        # flat array can only ever strand nodes that pointed at the
-        # losing root, and those are exactly 1 hop further off, so a
-        # single `parent[parent]` pass after each union always restores
-        # flatness - no need to scan up to `num_rooms` hops per lookup.
-        # This matters on GPU specifically: the difference is a handful
-        # of sequential, whole-array gathers per candidate instead of
-        # ~2*num_rooms of them, and this loop's per-candidate steps are
-        # inherently sequential (each depends on the last), which is
-        # exactly the shape that doesn't parallelise there.
+        # Doors: connect_all port - see the class docstring for the full
+        # design. `parent` (union-find) is kept fully flat as an invariant:
+        # a union from a flat state only ever strands nodes one hop further
+        # off, so a single `parent[parent]` pass after each union always
+        # restores it - cheaper than scanning up to `num_rooms` hops per
+        # lookup, which matters since this loop's steps are sequential.
         num_rooms = 3 * n_rows
         # (row, u, v, col, side) - `col`/`side` are `position_on_border`'s
         # own args for this wall; `u`/`v` are the two rooms it connects.
