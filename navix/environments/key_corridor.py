@@ -96,22 +96,17 @@ class KeyCorridor(Environment):
                 )
             )
         for row in range(n_rows - 1):
-            k9, k10, k11, k12 = jax.random.split(k9, num=4)
-            # first col
+            # Splits four ways though only two keys are used, so `k9` carries
+            # the same value into the next iteration as it always has.
+            k9, k10, _, _ = jax.random.split(k9, num=4)
+            # first col, one door per boundary: a second one from this same
+            # `door_pos` would stack on its cell.
             door_pos = grid.position_on_border(row, 0, 3, key=k9)
             doors.append(
                 Door.create(
                     position=door_pos,
                     requires=EMPTY_POCKET_ID,
                     colour=random_colour(k10),
-                    open=jnp.asarray(0),
-                )
-            )
-            doors.append(
-                Door.create(
-                    position=door_pos,
-                    requires=EMPTY_POCKET_ID,
-                    colour=random_colour(k12),
                     open=jnp.asarray(0),
                 )
             )
