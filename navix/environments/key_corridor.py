@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import List, Tuple, Union
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -36,8 +36,55 @@ from ..environments import Timestep
 from ..grid import random_directions, random_colour, RoomsGrid
 from .registry import register_env
 
+# A room stand-in for "no key will ever match this" - distinct from
+# EMPTY_POCKET_ID (-1, "no key needed") and from any real key id, so a
+# door assigned this permanently fails Door's `open` check. Used for
+# candidate connector walls that connect_all decides not to open, so
+# they act as ordinary walls (still a Door entity, for a fixed
+# per-n_rows entity count, but never passable).
+_UNOPENABLE = jnp.asarray(-2, dtype=jnp.int32)
+
+
+def _room_id(row: int, col: int) -> int:
+    return row * 3 + col
+
 
 class KeyCorridor(Environment):
+    """Find a key hidden behind unlocked doors, then use it to open the one
+    locked door guarding the goal.
+
+    Rooms form an `n_rows x 3` grid: the agent starts in the middle column
+    (always connected top-to-bottom - the "corridor"), keys live in the left
+    column, the goal lives in the right column behind the episode's one
+    locked door.
+
+    Every other connector - including corridor<->key-room doors - comes from
+    a `jax.jit`-shaped port of MiniGrid's `RoomGrid.connect_all`: a
+    randomised search that keeps adding doors until every non-goal room is
+    reachable from the agent's start, without ever adding a second connector
+    to the goal room. Door positions, counts, and which side of the grid
+    gets inter-row connectors therefore vary per episode, rather than
+    following a fixed layout.
+
+    Implemented as a single-pass, randomised Kruskal-style union-find
+    (activate a candidate wall iff it still joins two different components),
+    since MiniGrid's own sample-with-replacement retry loop has no static
+    iteration bound and can't be represented as a fixed-shape `jax.jit`
+    program. Candidate walls that end up not connecting anything still exist
+    as `Door` entities - a fixed count per `n_rows` is required for
+    `jax.jit` - but are permanently unopenable, so they behave as ordinary
+    walls.
+
+    Note:
+        Because those non-connecting candidates are still `Door` entities,
+        `observations.rgb`/`symbolic` render a closed, locked door sprite at
+        every candidate wall - including the ones that are functionally
+        solid walls. MiniGrid renders those as plain walls instead; there is
+        no way to tell them apart visually, only by checking
+        `state.entities["door"].requires` for the sentinel "no key can open
+        this" value.
+    """
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)
@@ -69,48 +116,76 @@ class KeyCorridor(Environment):
         goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k4)
         goal = Goal.create(goal_pos, probability=jnp.asarray(1.0))
 
-        # Doors
-        doors = []
+        # Doors: connect_all port - see the class docstring for the full
+        # design. `parent` (union-find) is kept fully flat as an invariant:
+        # a union from a flat state only ever strands nodes one hop further
+        # off, so a single `parent[parent]` pass after each union always
+        # restores it - cheaper than scanning up to `num_rooms` hops per
+        # lookup, which matters since this loop's steps are sequential.
+        num_rooms = 3 * n_rows
+        # (row, u, v, col, side) - `col`/`side` are `position_on_border`'s
+        # own args for this wall; `u`/`v` are the two rooms it connects.
+        candidates: List[Tuple[int, int, int, int, int]] = []
         for row in range(n_rows):
-            k5, k6, k7, k8, k9 = jax.random.split(k5, num=5)
-            # left corridor, right wall
-            door_pos = grid.position_on_border(row, 2, 0, key=k5)
-            requires, colour, open = jax.lax.cond(
-                jnp.array_equal(row, goal_room_row),
-                lambda: (key_id, key_colour, jnp.asarray(0)),
-                lambda: (jnp.asarray(-1), random_colour(k5), jnp.asarray(0)),
-            )
-            doors.append(
-                Door.create(
-                    position=door_pos, requires=requires, colour=colour, open=open
-                )
-            )
-            # right corridor, left wall
-            door_pos = grid.position_on_border(row, 0, 1, key=k7)
-            doors.append(
-                Door.create(
-                    position=door_pos,
-                    requires=EMPTY_POCKET_ID,
-                    colour=random_colour(k7),
-                    open=jnp.asarray(0),
-                )
-            )
+            candidates.append((row, _room_id(row, 0), _room_id(row, 1), 0, 1))
+            candidates.append((row, _room_id(row, 1), _room_id(row, 2), 2, 0))
         for row in range(n_rows - 1):
-            # Splits four ways though only two keys are used, so `k9` carries
-            # the same value into the next iteration as it always has.
-            k9, k10, _, _ = jax.random.split(k9, num=4)
-            # first col, one door per boundary: a second one from this same
-            # `door_pos` would stack on its cell.
-            door_pos = grid.position_on_border(row, 0, 3, key=k9)
-            doors.append(
-                Door.create(
-                    position=door_pos,
-                    requires=EMPTY_POCKET_ID,
-                    colour=random_colour(k10),
-                    open=jnp.asarray(0),
-                )
-            )
-        doors = jax.tree.map(lambda *x: jnp.stack(x), *doors)
+            candidates.append((row, _room_id(row, 0), _room_id(row + 1, 0), 0, 3))
+            candidates.append((row, _room_id(row, 2), _room_id(row + 1, 2), 2, 3))
+        num_candidates = len(candidates)
+
+        door_keys = jax.random.split(k5, num=num_candidates + 2)
+        positions = jnp.stack(
+            [
+                grid.position_on_border(row, col, side, key=door_keys[i])
+                for i, (row, _, _, col, side) in enumerate(candidates)
+            ]
+        )
+        colours = random_colour(door_keys[num_candidates], num_candidates)
+        perm = jax.random.permutation(door_keys[num_candidates + 1], num_candidates)
+
+        row_ids = jnp.asarray([row for row, *_ in candidates])
+        u_ids = jnp.asarray([u for _, u, _, _, _ in candidates])
+        v_ids = jnp.asarray([v for _, _, v, _, _ in candidates])
+        # the (row, col=1)<->(row, col=2) candidate, for whichever row
+        # turns out to be the goal row - the one mandatory locked door.
+        is_goal_slot = (u_ids % 3 == 1) & (v_ids % 3 == 2) & (row_ids == goal_room_row)
+
+        # The middle column's inter-row walls are unconditionally carved
+        # below regardless of doors, so every (row, col=1) room is
+        # already one component - point them all directly at row 0's
+        # (already flat, no unions/lookups needed to build this).
+        parent = jnp.arange(num_rooms)
+        corridor_root = _room_id(0, 1)
+        col1_ids = jnp.asarray([_room_id(row, 1) for row in range(n_rows)])
+        parent = parent.at[col1_ids].set(corridor_root)
+        # the mandatory locked door: the goal row's col=2 room joins the
+        # (already-flat) corridor component in one hop.
+        locked_room = goal_room_row * 3 + 2
+        parent = parent.at[locked_room].set(corridor_root)
+
+        eligible = (u_ids != locked_room) & (v_ids != locked_room)
+
+        active = jnp.zeros((num_candidates,), dtype=jnp.bool_)
+        for i in range(num_candidates):
+            idx = perm[i]
+            u, v, elig = u_ids[idx], v_ids[idx], eligible[idx]
+            ru, rv = parent[u], parent[v]  # O(1): parent enters every step flat
+            connect = elig & (ru != rv)
+            parent = parent.at[ru].set(jnp.where(connect, rv, ru))
+            parent = parent[parent]  # one pointer-doubling pass restores flatness
+            active = active.at[idx].set(connect)
+
+        requires = jnp.where(
+            is_goal_slot, key_id, jnp.where(active, EMPTY_POCKET_ID, _UNOPENABLE)
+        )
+        door_colours = jnp.where(is_goal_slot, key_colour, colours)
+        doors = Door.create(
+            position=positions,
+            requires=requires,
+            colour=door_colours,
+            open=jnp.zeros((num_candidates,), dtype=jnp.int32),
+        )
 
         entities = {
             "player": player[None],
