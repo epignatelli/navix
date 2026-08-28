@@ -25,7 +25,7 @@ folder per submitted entry.
        navix_commit_url=..., algorithm_commit_url=...,
        agent_factory=make_agent,
    )
-   result = Navix1M(entry).run()
+   result = Navix1M.run(entry)
    ```
 
    It must run as `python run.py`, no arguments - read your own
@@ -60,7 +60,7 @@ folder per submitted entry.
 
 ## What you get back
 
-`Navix1M(entry).run()` returns a `BenchmarkResult`:
+`Navix1M.run(entry)` returns a `BenchmarkResult`:
 
 - `summary: Metrics` - each field's last-fifth-of-training mean,
   meaned across every environment. The single-number score.

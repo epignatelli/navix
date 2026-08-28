@@ -72,8 +72,9 @@ def _make_tiny_entry(**overrides) -> AlgorithmEntry:
 
 class _TinyBenchmark(Benchmark):
     # A concrete Benchmark preset for tests - Benchmark itself is a base
-    # class (name/budget are ClassVars with no useful default), the same
-    # way Navix1M/Navix100K (navix/benchmarks/__init__.py) are.
+    # class (name/budget are ClassVars with no useful default), the
+    # same way Navix1M/Navix100K (navix/benchmark.py) are. Never
+    # instantiated - run is a classmethod, used as _TinyBenchmark.run(...).
     name = "test-benchmark"
     budget = 32
 
@@ -130,18 +131,11 @@ def test_algorithm_entry_rejects_invalid_commit_urls(field_name, bad_url):
 
 
 def test_benchmark_preset_fixes_name_and_budget_as_class_attributes():
-    # Navix1M(entry).run() only takes entry at construction time -
-    # name/budget must already be fixed by the preset class, not
-    # something the caller can (or needs to) pass in. Constructing with
-    # only `entry` (no name/budget kwargs) and getting the right values
-    # back out is the actual behavioural guarantee this needs.
-    entry = _make_tiny_entry()
-    benchmark = _TinyBenchmark(entry=entry)
-    assert benchmark.name == "test-benchmark"
-    assert benchmark.budget == 32
-
-    other = _TinyBenchmark64(entry=entry)
-    assert other.budget == 64
+    # Navix1M.run(entry) takes no name/budget at all - they're fixed by
+    # the preset class itself, not something a caller passes in.
+    assert _TinyBenchmark.name == "test-benchmark"
+    assert _TinyBenchmark.budget == 32
+    assert _TinyBenchmark64.budget == 64
 
 
 def test_benchmark_calls_agent_factory_once_per_env():
@@ -152,8 +146,7 @@ def test_benchmark_calls_agent_factory_once_per_env():
         return _tiny_ppo_factory(env)
 
     entry = _make_tiny_entry(agent_factory=counting_factory)
-    benchmark = _TinyBenchmark(entry=entry, env_ids=_TINY_ENV_IDS)
-    benchmark.run(log_to_wandb=False)
+    _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
 
     assert len(calls) == len(_TINY_ENV_IDS)
 
@@ -175,8 +168,7 @@ def test_benchmark_result_echoes_entry_and_exposes_summary_and_history():
     # result with per-env detail only reachable by re-deriving metrics
     # from raw logs yourself.
     entry = _make_tiny_entry()
-    benchmark = _TinyBenchmark(entry=entry, env_ids=_TINY_ENV_IDS)
-    result = benchmark.run(log_to_wandb=False)
+    result = _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
 
     assert isinstance(result, BenchmarkResult)
     assert result.entry is entry
@@ -210,8 +202,7 @@ def test_benchmark_overrides_agent_budget_not_agent_factorys_own():
         return agent
 
     entry = _make_tiny_entry(agent_factory=factory)
-    benchmark = _TinyBenchmark64(entry=entry, env_ids=("Navix-Empty-5x5-v0",))
-    benchmark.run(log_to_wandb=False)
+    _TinyBenchmark64.run(entry, log_to_wandb=False, env_ids=("Navix-Empty-5x5-v0",))
 
     # the factory itself always builds budget=32 (see _tiny_ppo_factory);
     # Benchmark.run must override it to 64 (the preset's own budget)

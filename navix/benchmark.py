@@ -17,24 +17,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""A `Benchmark` is a preset experimental setup (fixed environments,
-fixed training budget) that scores an algorithm - an orchestration
-layer over `Experiment` (navix/experiment.py), one `Experiment` per
-environment with `budget` overridden.
+"""A `Benchmark` is a fixed experimentation protocol - fixed
+environments, fixed training budget - independent of any one
+algorithm: an orchestration layer over `Experiment`
+(navix/experiment.py), one `Experiment` per environment with `budget`
+overridden. It does not hold the algorithm being scored; that's an
+argument to `run`, so the same `Benchmark` (or preset) can score many
+algorithms.
 
 Implements the "Benchmark" concept from issue #130 (the navix
 leaderboard proposal), for the from-scratch-training protocol only, as
 two presets (`Navix1M`, `Navix100K`) differing in `budget`.
 
-`Benchmark` is a base class: `name`/`budget` are class attributes fixed
-per preset, so a preset is used as `Navix1M(entry).run()`.
+`Benchmark` never needs instantiating: `name`/`budget`/`env_ids`/
+`seeds` are class attributes fixed per preset, and `run` is a
+classmethod, so a preset is used directly as `Navix1M.run(entry)` -
+`entry` is the only thing that varies across runs.
 
-Each algorithm is wrapped in an `AlgorithmEntry` - the provenance
-metadata #130 requires of a leaderboard row (name, GitHub-validated
-author, full commit URLs for both navix and the algorithm's own repo,
-paper link). Per #130's "never vendor an external algorithm's code"
-rule, `AlgorithmEntry.agent_factory` is how `Benchmark` stays algorithm-
-agnostic.
+Each algorithm scored is wrapped in an `AlgorithmEntry` - the
+provenance metadata #130 requires of a leaderboard row (name, GitHub-
+validated author, full commit URLs for both navix and the algorithm's
+own repo, paper link). Per #130's "never vendor an external
+algorithm's code" rule, `AlgorithmEntry.agent_factory` is how `run`
+stays algorithm-agnostic.
 
 `BenchmarkResult` has a `summary: Metrics` (one reduced scalar per
 field, meaned across environments) and a `history: Dict[str, Metrics]`
@@ -50,8 +55,8 @@ stay scalar in both)."""
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Callable, ClassVar, Dict, Iterable, Tuple
+from dataclasses import dataclass
+from typing import Callable, ClassVar, Dict, Iterable, Optional, Tuple
 from urllib.parse import urlparse
 
 import jax
@@ -199,7 +204,7 @@ class Metrics:
 @dataclass
 class BenchmarkResult:
     """The outcome of running one `AlgorithmEntry` against a
-    `Benchmark`. Valid only for the from-scratch-per-environment
+    `Benchmark.run`. Valid only for the from-scratch-per-environment
     protocol implemented by `Benchmark` - a future continual-learning
     or one-shot-generalisation protocol needs its own result type,
     since `history` assumes one independent `Metrics` per env_id."""
@@ -227,57 +232,74 @@ class BenchmarkResult:
         return cls(entry=entry, summary=summary, history=history)
 
 
-@dataclass
 class Benchmark:
-    """Base class for a benchmark preset. Subclasses (`Navix1M`,
-    `Navix100K`, below) fix `name`/`budget` as class attributes; used
-    as `Navix1M(entry).run()`."""
-
-    entry: AlgorithmEntry
-    env_ids: Tuple[str, ...] = field(default_factory=lambda: tuple(registry().keys()))
-    """Defaults to every registered environment - resolved lazily so it
-    reflects the full registry regardless of import order."""
-    seeds: Tuple[int, ...] = (0,)
+    """A benchmark preset - a fixed protocol, not tied to any one
+    algorithm and not needing an instance: `name`/`budget` are class
+    attributes (subclasses `Navix1M`/`Navix100K`, below, fix them),
+    and `run` is a classmethod, so a preset is used directly as
+    `Navix1M.run(entry)`. `env_ids`/`seeds` follow the same pattern -
+    override for one call via `run(entry, env_ids=...)`, or for a
+    reusable custom preset via subclassing, the same way `name`/
+    `budget` are overridden."""
 
     name: ClassVar[str] = ""
     budget: ClassVar[int] = 0
-    """Overrides `agent.hparams.budget` - the one thing the presets
-    below differ on."""
+    """Overrides `agent.hparams.budget` - the one thing `Navix1M`/
+    `Navix100K` differ on."""
+    env_ids: ClassVar[Optional[Tuple[str, ...]]] = None
+    """`None` resolves lazily, at `run` time, to every registered
+    environment - not resolved at class-definition time, so it
+    reflects the full registry regardless of import order."""
+    seeds: ClassVar[Tuple[int, ...]] = (0,)
 
-    def _build_agent(self, env_id: str) -> Tuple[Environment, Agent]:
+    @classmethod
+    def _build_agent(cls, entry: AlgorithmEntry, env_id: str) -> Tuple[Environment, Agent]:
         env = make(env_id)
-        agent = self.entry.agent_factory(env)
-        agent = agent.replace(hparams=agent.hparams.replace(budget=self.budget))
+        agent = entry.agent_factory(env)
+        agent = agent.replace(hparams=agent.hparams.replace(budget=cls.budget))
         return env, agent
 
-    def _train_on(self, env_id: str, log_to_wandb: bool) -> Dict:
-        """Builds and trains one environment's agent, returning its
-        `logs`. Separate from `run` so a future sequential protocol
+    @classmethod
+    def _train_on(
+        cls, entry: AlgorithmEntry, env_id: str, seeds: Tuple[int, ...], log_to_wandb: bool
+    ) -> Tuple[Agent, Dict]:
+        """Builds and trains one environment's agent, returning the
+        pre-training `Agent` alongside its `logs` - `Agent` is an
+        immutable pytree, so `experiment.run` below never mutates it;
+        the caller can reuse it for `cost_analysis` (which only depends
+        on shapes, not trained weight values) without building a second
+        one. Separate from `run` so a future sequential protocol
         (curriculum/open-ended learning) can override just this method,
         not scoring/aggregation too."""
-        env, agent = self._build_agent(env_id)
+        env, agent = cls._build_agent(entry, env_id)
         experiment = Experiment(
-            name=self.name,
+            name=cls.name,
             agent=agent,
             env=env,
             env_id=env_id,
-            seeds=self.seeds,
+            seeds=seeds,
         )
         _, logs = experiment.run(log_to_wandb=log_to_wandb)
-        return logs
+        return agent, logs
 
-    def run(self, log_to_wandb: bool = False) -> BenchmarkResult:
-        """Runs `self.entry` against every env in `self.env_ids`, at
-        `self.budget`."""
+    @classmethod
+    def run(
+        cls,
+        entry: AlgorithmEntry,
+        log_to_wandb: bool = False,
+        env_ids: Optional[Tuple[str, ...]] = None,
+        seeds: Optional[Tuple[int, ...]] = None,
+    ) -> BenchmarkResult:
+        """Runs `entry` against `env_ids` (default: every registered
+        environment), at `cls.budget`."""
+        env_ids = env_ids if env_ids is not None else cls.env_ids or tuple(registry().keys())
+        seeds = seeds if seeds is not None else cls.seeds
         logs_by_env: Dict[str, Dict] = {}
         cost_by_env: Dict[str, CostAnalysis] = {}
-        for env_id in self.env_ids:
-            logs_by_env[env_id] = self._train_on(env_id, log_to_wandb)
-            # Fresh agent, not _train_on's trained one - cost_analysis
-            # measures the program's shape, not trained weights.
-            _, agent = self._build_agent(env_id)
-            cost_by_env[env_id] = agent.cost_analysis(jax.random.PRNGKey(self.seeds[0]))
-        return BenchmarkResult.from_logs(self.entry, logs_by_env, cost_by_env)
+        for env_id in env_ids:
+            agent, logs_by_env[env_id] = cls._train_on(entry, env_id, seeds, log_to_wandb)
+            cost_by_env[env_id] = agent.cost_analysis(jax.random.PRNGKey(seeds[0]))
+        return BenchmarkResult.from_logs(entry, logs_by_env, cost_by_env)
 
 
 class Navix1M(Benchmark):

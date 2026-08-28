@@ -52,7 +52,7 @@ if __name__ == "__main__":
         agent_factory=lambda env: make_dreamer(env, DreamerHparams()),
     )
 
-    result = Navix100K(entry).run(log_to_wandb=True)
+    result = Navix100K.run(entry, log_to_wandb=True)
     print(f"{Navix100K.name} / {entry.name} summary:")
     print(f"  returns:              {result.summary.returns}")
     print(f"  episode_length:       {result.summary.episode_length}")
