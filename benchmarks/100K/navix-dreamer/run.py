@@ -52,14 +52,15 @@ if __name__ == "__main__":
         agent_factory=lambda env: make_dreamer(env, DreamerHparams()),
     )
 
-    result = Navix100K(entry).run(log_to_wandb=args.log_to_wandb)
-    print(f"{Navix100K.name} / {entry.name} overall:")
-    print(f"  returns:              {result.overall.returns}")
-    print(f"  episode_length:       {result.overall.episode_length}")
-    print(f"  flops:                {result.overall.flops}")
-    print(f"  memory_bytes:         {result.overall.memory_bytes}")
-    print(f"  compile_time_seconds: {result.overall.compile_time_seconds}")
-    print(f"  fps:                  {result.overall.fps}")
-    print(f"  wall_time:            {result.overall.wall_time}")
-    for env_id, m in result.per_environment.items():
+    result = Navix100K(entry).run(log_to_wandb=True)
+    print(f"{Navix100K.name} / {entry.name} summary:")
+    print(f"  returns:              {result.summary.returns}")
+    print(f"  episode_length:       {result.summary.episode_length}")
+    print(f"  flops:                {result.summary.flops}")
+    print(f"  memory_bytes:         {result.summary.memory_bytes}")
+    print(f"  compile_time_seconds: {result.summary.compile_time_seconds}")
+    print(f"  fps:                  {result.summary.fps}")
+    print(f"  wall_time:            {result.summary.wall_time}")
+    for env_id, curve in result.history.items():
+        m = curve.last_fifth_mean()
         print(f"  {env_id}: returns={m.returns} episode_length={m.episode_length}")

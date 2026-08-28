@@ -1,41 +1,81 @@
 # Navix benchmarks
 
-Each preset (`100K/`, `1M/` - see `navix.benchmark.Navix100K`,
-`Navix1M`) scores an algorithm from-scratch, across every registered
-navix environment, at a fixed training budget (100,000 / 1,000,000
-frames per environment respectively).
+A benchmark scores an algorithm from-scratch, across every registered
+navix environment, at a fixed frame budget. Two presets exist today:
+`100K` and `1M` (see `navix.benchmark.Navix100K`, `Navix1M`), one
+folder per submitted entry.
 
-## Structure
+## Submit your own entry
 
-One folder per algorithm entry, per preset:
+1. **Pick a preset** - `benchmarks/100K/` or `benchmarks/1M/`, or both.
+2. **Create your entry's folder**: `benchmarks/<preset>/<your-entry>/`,
+   e.g. `benchmarks/1M/my-algo/`.
+3. **Write `run.py`** - build your algorithm as a navix `Agent` per
+   environment and hand it to the preset:
 
-```
-benchmarks/<preset>/<entry>/
-  run.py              # entrypoint - must run with `python run.py`, no arguments
-  config.yml           # name, author, paper_url, navix_commit_url, algorithm_commit_url
-  requirements.txt     # pinned dependencies for this entry's own driver code
-  README.md            # optional - free-form notes specific to this entry
-```
+   ```python
+   from navix.benchmark import AlgorithmEntry, Navix1M  # or Navix100K
 
-- **`run.py`** builds the algorithm's `Agent` for each environment and calls the preset's `.run()` (e.g. `Navix1M(entry).run()`, see `navix.benchmark.Benchmark`). It must be runnable as `python run.py` with no CLI arguments - anything it needs comes from the sibling `config.yml`.
-- **`config.yml`** holds this entry's static, frozen provenance: `name`, `author` (this implementation's author - a validated GitHub handle - not necessarily the paper's), `paper_url`, `navix_commit_url` (a link to the navix commit this result was produced against), and `algorithm_commit_url` (a link to the commit of the algorithm implementation's own repo - equal to `navix_commit_url` for a navix-shipped agent like PPO/Dreamer/PQN, since the implementation lives in this repo). Both commit fields are full URLs, not bare SHAs - a bare SHA doesn't say which repo it's a commit of, which matters once an entry's algorithm lives outside navix's own repo. `AlgorithmEntry` validates all of these when the entry is constructed.
-- **`requirements.txt`** pins this entry's own driver code's dependencies - not navix's own dependencies in general, and not an external algorithm's own repo's (which manages those itself).
+   def make_agent(env):
+       ...  # your Environment -> Agent factory
+       return MyAgent(hparams=..., env=env)
 
-This mirrors the per-entry folder layout from [issue #130](https://github.com/epignatelli/navix/issues/130) (the navix leaderboard proposal), which is also where the design rationale for `Benchmark`/`AlgorithmEntry`/`BenchmarkResult` lives.
+   entry = AlgorithmEntry(
+       name=..., author=..., paper_url=...,
+       navix_commit_url=..., algorithm_commit_url=...,
+       agent_factory=make_agent,
+   )
+   result = Navix1M(entry).run()
+   ```
 
-## What a `BenchmarkResult` reports
+   It must run as `python run.py`, no arguments - read your own
+   metadata from the sibling `config.yml` you add next, not from CLI
+   flags. Per navix's "never vendor an external algorithm's code" rule
+   ([#130](https://github.com/epignatelli/navix/issues/130)): your
+   implementation stays in your own repo, and `agent_factory` is the
+   only seam that has to touch navix.
 
-A `BenchmarkResult` reports the same `Metrics` shape twice: `overall` (meaned across every environment the benchmark covers) and `per_environment` (one `Metrics` per `env_id`) - so "how did it do overall" and "how did it do on environment X" are both first-class, not one aggregate number with per-environment detail only reachable by re-deriving metrics from raw logs yourself.
+4. **Add `config.yml`** with your entry's provenance:
 
-`Metrics` has seven fields:
-- **`returns`**, **`episode_length`** - from training, the last-fifth-of-training mean (the "last20%" convergence convention).
-- **`flops`**, **`memory_bytes`**, **`compile_time_seconds`** - from `Agent.cost_analysis`, which measures `jax.jit(agent.train)`'s own compiled cost. These are hardware-independent (`flops`/`memory_bytes`) or close to it (`compile_time_seconds` depends on XLA version) - see `Agent.cost_analysis`'s docstring for exactly what's measured and why it's implemented once, generically, in `Agent` itself rather than per-algorithm (it only relies on `train`, the one method every `Agent` is guaranteed to have).
-- **`fps`**, **`wall_time`** - genuinely hardware-dependent, unlike everything above. Registered anyway because they're useful when comparing runs executed on the same hardware (e.g. navix's own entries, always run on the same infrastructure) - just not meaningful compared across different hardware.
+   ```yaml
+   name: MyAlgo
+   author: your-github-handle
+   paper_url: https://arxiv.org/abs/...
+   navix_commit_url: https://github.com/epignatelli/navix/commit/<sha>
+   algorithm_commit_url: https://github.com/<you>/<your-repo>/commit/<sha>
+   ```
 
-Per-environment, per-update raw logs stay available on `result.logs` for deeper inspection beyond what `Metrics` reduces to.
+   `author` must be a valid GitHub handle; both commit URLs must be
+   full URLs ending in a commit SHA, not a bare SHA - a SHA alone
+   doesn't say which repo it's from. `AlgorithmEntry` validates both
+   when `run.py` constructs it. For a navix-shipped agent,
+   `algorithm_commit_url` is the same commit as `navix_commit_url`.
 
-## Submitting a new entry
+5. **Add `requirements.txt`** - pinned dependencies for `run.py`
+   itself (not navix's own dependencies in general, not your
+   algorithm repo's).
+6. **Optional `README.md`** - free-form notes about your entry.
+7. **Open a PR** adding your `benchmarks/<preset>/<your-entry>/`
+   folder. No submission portal yet (tracked in #130).
 
-Per issue #130's "never vendor an external algorithm's code" rule: if you didn't write the algorithm as part of navix's own team, its implementation stays in your own repo - navix's job is to make it runnable and reproducible against navix environments, not to own a copy of it. `AlgorithmEntry.agent_factory` is the seam for this - point it at your own training entrypoint, wrapped to build an `Environment -> Agent`-shaped agent, the same way `benchmarks/<preset>/navix-ppo/run.py` does for navix's own PPO.
+## What you get back
 
-There's no submission portal yet (tracked in #130) - for now, open a PR adding your `benchmarks/<preset>/<your-entry>/` folder in the shape described above.
+`Navix1M(entry).run()` returns a `BenchmarkResult`:
+
+- `summary: Metrics` - each field's last-fifth-of-training mean,
+  meaned across every environment. The single-number score.
+- `history: Dict[str, Metrics]` - one `Metrics` per `env_id`, holding
+  full per-update curves for `returns`/`episode_length`/`fps`/
+  `wall_time` (plot these directly for training curves) - call
+  `.last_fifth_mean()` on one to reduce it to a per-env scalar.
+  `flops`/`memory_bytes`/`compile_time_seconds` come from
+  `Agent.cost_analysis`, a single measurement rather than a curve, so
+  they stay scalar here too.
+
+This shape only fits the from-scratch-per-environment protocol above
+- a future continual-learning or one-shot-generalisation benchmark
+would need its own result type.
+
+See [issue #130](https://github.com/epignatelli/navix/issues/130) for
+the full design rationale behind `Benchmark`/`AlgorithmEntry`/
+`BenchmarkResult`.

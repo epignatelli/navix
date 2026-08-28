@@ -169,30 +169,30 @@ _METRICS_FIELDS = (
 )
 
 
-def test_benchmark_result_echoes_entry_and_exposes_overall_and_per_environment():
-    # BenchmarkResult reports the same Metrics shape twice: overall
-    # (meaned across envs) and per_environment (one Metrics per env_id)
-    # - not an aggregate-only result with per-env detail only reachable
-    # by re-deriving metrics from raw logs yourself.
+def test_benchmark_result_echoes_entry_and_exposes_summary_and_history():
+    # BenchmarkResult reports summary (meaned across envs) and history
+    # (one Metrics per env_id, full curves) - not an aggregate-only
+    # result with per-env detail only reachable by re-deriving metrics
+    # from raw logs yourself.
     entry = _make_tiny_entry()
     benchmark = _TinyBenchmark(entry=entry, env_ids=_TINY_ENV_IDS)
     result = benchmark.run(log_to_wandb=False)
 
     assert isinstance(result, BenchmarkResult)
     assert result.entry is entry
-    assert isinstance(result.overall, Metrics)
-    assert set(result.per_environment.keys()) == set(_TINY_ENV_IDS)
+    assert isinstance(result.summary, Metrics)
+    assert set(result.history.keys()) == set(_TINY_ENV_IDS)
     for env_id in _TINY_ENV_IDS:
-        assert env_id in result.logs
-        assert isinstance(result.per_environment[env_id], Metrics)
+        assert isinstance(result.history[env_id], Metrics)
 
     for field in _METRICS_FIELDS:
-        value = getattr(result.overall, field)
-        assert np.all(np.isfinite(np.asarray(value))), f"overall.{field} is not finite"
+        value = getattr(result.summary, field)
+        assert np.all(np.isfinite(np.asarray(value))), f"summary.{field} is not finite"
         for env_id in _TINY_ENV_IDS:
-            per_env_value = getattr(result.per_environment[env_id], field)
+            reduced = result.history[env_id].last_fifth_mean()
+            per_env_value = getattr(reduced, field)
             assert np.all(np.isfinite(np.asarray(per_env_value))), (
-                f"per_environment[{env_id!r}].{field} is not finite"
+                f"history[{env_id!r}].{field} is not finite"
             )
 
 
@@ -244,9 +244,13 @@ def test_metrics_returns_matches_hand_computed_last_fifth_mean():
     }
     entry = _make_tiny_entry()
     result = BenchmarkResult.from_logs(entry, {"env-a": logs}, {"env-a": _fake_cost()})
-    np.testing.assert_allclose(np.asarray(result.overall.returns), 1.0)
-    np.testing.assert_allclose(np.asarray(result.overall.fps), 42.0)
-    np.testing.assert_allclose(np.asarray(result.overall.wall_time), 1.5)
+    np.testing.assert_allclose(np.asarray(result.summary.returns), 1.0)
+    np.testing.assert_allclose(np.asarray(result.summary.fps), 42.0)
+    np.testing.assert_allclose(np.asarray(result.summary.wall_time), 1.5)
+    # history keeps the full curve, unreduced - reducing it should match.
+    np.testing.assert_allclose(
+        np.asarray(result.history["env-a"].last_fifth_mean().returns), 1.0
+    )
 
     # flip it: only the *first* 80% succeed - returns should be ~0,
     # since the tail (what's actually aggregated) is all-failure.
@@ -254,11 +258,11 @@ def test_metrics_returns_matches_hand_computed_last_fifth_mean():
     returns2[-2:] = 0.0
     logs2 = {**logs, "returns": jnp.asarray(returns2)}
     result2 = BenchmarkResult.from_logs(entry, {"env-a": logs2}, {"env-a": _fake_cost()})
-    np.testing.assert_allclose(np.asarray(result2.overall.returns), 0.0)
+    np.testing.assert_allclose(np.asarray(result2.summary.returns), 0.0)
 
 
-def test_benchmark_result_overall_averages_across_environments():
-    # two envs with opposite returns - overall should land at their
+def test_benchmark_result_summary_averages_across_environments():
+    # two envs with opposite returns - summary should land at their
     # mean, not just one env's value.
     num_updates, num_steps, num_envs = 5, 4, 2
     done_mask = np.ones((num_updates, num_steps, num_envs), dtype=bool)
@@ -286,10 +290,14 @@ def test_benchmark_result_overall_averages_across_environments():
         {"env-a": logs_success, "env-b": logs_fail},
         {"env-a": _fake_cost(), "env-b": _fake_cost()},
     )
-    np.testing.assert_allclose(np.asarray(result.overall.returns), 0.5)
-    # per_environment must NOT be averaged - each env keeps its own value.
-    np.testing.assert_allclose(np.asarray(result.per_environment["env-a"].returns), 1.0)
-    np.testing.assert_allclose(np.asarray(result.per_environment["env-b"].returns), 0.0)
+    np.testing.assert_allclose(np.asarray(result.summary.returns), 0.5)
+    # history must NOT be averaged - each env keeps its own curve.
+    np.testing.assert_allclose(
+        np.asarray(result.history["env-a"].last_fifth_mean().returns), 1.0
+    )
+    np.testing.assert_allclose(
+        np.asarray(result.history["env-b"].last_fifth_mean().returns), 0.0
+    )
 
 
 def test_metrics_mean_averages_cost_fields_too():
@@ -316,7 +324,7 @@ def test_metrics_mean_averages_cost_fields_too():
             wall_time=jnp.asarray(0.0),
         ),
     }
-    overall = Metrics.mean(per_env)
-    np.testing.assert_allclose(np.asarray(overall.flops), 15.0)
-    np.testing.assert_allclose(np.asarray(overall.memory_bytes), 150.0)
-    np.testing.assert_allclose(np.asarray(overall.compile_time_seconds), 2.0)
+    summary = Metrics.mean(per_env.values())
+    np.testing.assert_allclose(np.asarray(summary.flops), 15.0)
+    np.testing.assert_allclose(np.asarray(summary.memory_bytes), 150.0)
+    np.testing.assert_allclose(np.asarray(summary.compile_time_seconds), 2.0)
