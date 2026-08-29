@@ -13,18 +13,6 @@ from flax.training.train_state import TrainState
 from ..environments.environment import Environment
 
 
-class CostAnalysis(struct.PyTreeNode):
-    flops: float
-    """From `compiled.cost_analysis()['flops']` - see
-    `Agent.cost_analysis` for what's compiled."""
-    memory_bytes: float
-    """Peak memory proxy: `argument_size + temp_size + output_size`
-    from `compiled.memory_analysis()`."""
-    compile_time_seconds: float
-    """Wall-clock time to compile. Hardware/XLA-version-sensitive,
-    like `iter/fps`/`iter/wall_time`."""
-
-
 def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     """Mean of `values` over entries where `mask` is True, computed via a masked
     sum/count rather than boolean-indexing `values[mask]`. Boolean-indexing
@@ -67,8 +55,8 @@ class Agent(struct.PyTreeNode):
     - `Experiment.run(log_to_wandb=False)` skips wandb entirely and just
       returns `logs` (the same pytree these methods consume) directly - no
       network calls, so it's dramatically faster. Pair it with
-      `navix.plotting` to get a local matplotlib dashboard from `logs`
-      instead of a wandb one. See issue #60.
+      `navix.benchmarks.plotting` to get a local matplotlib dashboard from
+      `logs` instead of a wandb one. See issue #60.
     """
 
     hparams: HParams
@@ -78,42 +66,6 @@ class Agent(struct.PyTreeNode):
 
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
         raise NotImplementedError
-
-    def cost_analysis(self, rng: jax.Array) -> CostAnalysis:
-        """Compiles `train` and reads its FLOPs/memory/compile-time.
-        One implementation here, not per-agent overrides - `train` is
-        the only method every `Agent` is guaranteed to have, so this
-        can't assume internals like a `sgd_step` method.
-
-        Necessarily includes whatever env interaction `train` does
-        internally (no way to separate that out without assuming more
-        than the `Agent` contract promises). In practice this lands
-        close to "one update's cost", not the whole run's: every navix-
-        shipped agent's `train` is init + `jax.lax.scan(self.update,
-        ..., length=num_updates)`, and XLA's `cost_analysis()` on a
-        compiled scan reports one iteration's cost, not `length` copies
-        (verified empirically). An agent whose `train` isn't scan-
-        shaped would report a different figure here - not a bug, just
-        what "only `train` is guaranteed" implies."""
-        start = time.time()
-        compiled = jax.jit(self.train).lower(rng).compile()
-        compile_time_seconds = time.time() - start
-
-        analysis = compiled.cost_analysis()
-        # Some jaxlib versions return a dict directly, others a list of
-        # per-computation dicts (usually length 1) - normalise both.
-        if isinstance(analysis, list):
-            analysis = analysis[0] if analysis else {}
-        flops = analysis.get("flops", float("nan"))
-        mem = compiled.memory_analysis()
-        memory_bytes = (
-            mem.argument_size_in_bytes + mem.temp_size_in_bytes + mem.output_size_in_bytes
-        )
-        return CostAnalysis(
-            flops=flops,
-            memory_bytes=memory_bytes,
-            compile_time_seconds=compile_time_seconds,
-        )
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
         if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:

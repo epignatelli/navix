@@ -87,8 +87,9 @@ class Experiment:
         - `log_to_wandb=False` skips wandb entirely; `logs` (this
           method's second return value) is returned either way, so with
           wandb off you get it back much faster, with no network calls at
-          all. Pair it with `navix.plotting` to get a local matplotlib
-          dashboard from `logs` instead of a wandb one. See issue #60.
+          all. Pair it with `navix.benchmarks.plotting` to get a local
+          matplotlib dashboard from `logs` instead of a wandb one. See
+          issue #60.
 
         Args:
             log_to_wandb (bool): Whether to log the results to wandb.

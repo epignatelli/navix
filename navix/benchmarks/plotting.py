@@ -48,7 +48,7 @@ from typing import Dict, Optional
 
 import jax.numpy as jnp
 
-from .agents.agent import masked_mean
+from ..agents.agent import masked_mean
 
 
 MANDATORY_METRICS: Dict[str, str] = {
@@ -63,11 +63,18 @@ directly comparable across algorithms. Kept intentionally small: only
 metrics that (a) exist regardless of which algorithm produced `logs`, and
 (b) are actually necessary to tell whether training worked at all."""
 
+_REQUIRED_KEYS: Dict[str, str] = {
+    "done_mask": "which steps ended an episode",
+    "lengths": "per-step episode length",
+    "returns": "per-step episodic return",
+}
 
-def derive_scalar_metrics(logs: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray]:
-    """Computes the `perf/*` entries of `MANDATORY_METRICS` from the raw
-    per-step buffers (`done_mask`, `lengths`, `returns`) that `Agent.train`
-    returns, for every seed and update at once.
+
+def derive_episodic_metrics(logs: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray]:
+    """Reduces the raw per-step buffers (`done_mask`, `lengths`,
+    `returns`) that `Agent.train` returns into the `perf/*` entries of
+    `MANDATORY_METRICS` - one point per training update, masked-mean
+    over completed episodes only.
 
     `Agent.log_to_wandb` computes the same values, but one training update
     at a time (for live wandb logging); this is the batched equivalent,
@@ -76,26 +83,32 @@ def derive_scalar_metrics(logs: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray
     Args:
         logs (Dict[str, Array]): The `logs` pytree returned by
             `Experiment.run()`, `Experiment.run_hparam_search()`, or a bare
-            `Agent.train()` call. Shapes are `(..., num_steps, num_envs)`
-            for `done_mask`/`lengths`/`returns` - any number of leading
-            batch dimensions (e.g. seeds, hparam sets) is supported.
+            `Agent.train()` call. Must contain `done_mask`/`lengths`/
+            `returns`, shaped `(..., num_steps, num_envs)` - any number of
+            leading batch dimensions (e.g. seeds, hparam sets) is
+            supported.
 
     Returns:
         Dict[str, Array]: `logs`, plus `perf/episode_length`,
         `perf/returns` and `perf/success_rate` (shape: `logs`' leading
-        batch dimensions, with `num_steps` and `num_envs` reduced away),
-        if `done_mask` was present. `logs` itself is not mutated."""
-    if "done_mask" not in logs:
-        return logs
+        batch dimensions, with `num_steps` and `num_envs` reduced away).
+        `logs` itself is not mutated.
+
+    Raises:
+        KeyError: If `logs` is missing `done_mask`, `lengths`, or
+            `returns`.
+    """
+    missing = [key for key in _REQUIRED_KEYS if key not in logs]
+    if missing:
+        reasons = ", ".join(f"{key!r} ({_REQUIRED_KEYS[key]})" for key in missing)
+        raise KeyError(f"logs is missing required key(s): {reasons}.")
 
     metrics = dict(logs)
     mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
-    if "lengths" in logs:
-        metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
-    if "returns" in logs:
-        returns = logs["returns"]
-        metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
-        metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
+    metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
+    returns = logs["returns"]
+    metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
+    metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
     return metrics
 
 
@@ -112,7 +125,7 @@ def plot_metric(
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree, as returned by
-            `derive_scalar_metrics` (for `perf/*` keys) or directly from
+            `derive_episodic_metrics` (for `perf/*` keys) or directly from
             `Experiment.run()` (for raw keys like `loss/*`, `iter/*`).
         key (str): The key in `logs` to plot.
         title (str, optional): The plot title. Defaults to `key`.
@@ -188,7 +201,7 @@ def plot_dashboard(
     navix doesn't know, and shouldn't need to know, what a given algorithm
     considers diagnostic (an algorithm submitted to a leaderboard won't
     necessarily have any navix-specific code to declare that in). That
-    categorisation belongs to whatever consumes `navix.plotting` - e.g. a
+    categorisation belongs to whatever consumes this module - e.g. a
     leaderboard's own file mapping algorithm -> diagnostic keys - which
     can merge its own metrics dict with `MANDATORY_METRICS` and pass the
     result here.

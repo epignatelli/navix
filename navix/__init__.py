@@ -32,11 +32,10 @@ from . import (
     transitions,
     events,
     agents,
-    plotting,
 )
 
 from .environments.registry import make, register_env, registry
 from .experiment import Experiment
 from .environments.environment import Environment, Timestep, StepType
-from . import benchmark
-from .benchmark import Benchmark, BenchmarkResult, AlgorithmEntry, Navix1M, Navix100K
+from . import benchmarks
+from .benchmarks import Benchmark, TrainingCurve, AlgorithmEntry, Navix1M, Navix100K
