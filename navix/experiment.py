@@ -1,3 +1,6 @@
+"""`Experiment`: trains one `Agent` against one `Environment`, across
+`seeds`, optionally logging to wandb (`run`), or searches its
+hyperparameters via Evolution Strategies (`run_hparam_search`)."""
 from dataclasses import asdict, replace, fields
 import time
 import warnings
@@ -40,6 +43,127 @@ from navix.environments.environment import Environment
 # a real cost worth knowing about before choosing `log_to_wandb=True`.
 
 
+def _probe_hparam_field_stats(
+    hparams_distr: Dict[str, distrax.Distribution], n_probe: int, key: jax.Array
+) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, bool]]:
+    """Empirically estimates each searched field's starting value, scale,
+    and sign from `n_probe` samples of its own distribution - see
+    `Experiment.run_hparam_search`'s docstring for why this is more
+    robust than relying on a distribution's `.mean()`/`.stddev()`.
+
+    Args:
+        hparams_distr (Dict[str, distrax.Distribution]): One distribution
+            per searched field.
+        n_probe (int): Samples drawn per field.
+        key (jax.Array): PRNG key, split once per field.
+
+    Returns:
+        Tuple[Dict, Dict, Dict]: `(theta, scale, non_negative)` - each
+        field's probe mean, probe std (floored to avoid a degenerate
+        zero-sigma field), and whether every probe sample was `>= 0`.
+    """
+    theta: Dict[str, jax.Array] = {}
+    scale: Dict[str, jax.Array] = {}
+    non_negative: Dict[str, bool] = {}
+    for k, distr in hparams_distr.items():
+        key, sample_key = jax.random.split(key)
+        raw_samples = distr.sample(seed=sample_key, sample_shape=(n_probe,))
+        samples = jnp.asarray(raw_samples, dtype=jnp.float32)
+        theta[k] = jnp.mean(samples)
+        scale[k] = jnp.maximum(jnp.std(samples), 1e-8)
+        non_negative[k] = bool(jnp.all(samples >= 0))
+    return theta, scale, non_negative
+
+
+def _sample_antithetic_candidates(
+    theta: Dict[str, jax.Array],
+    scale: Dict[str, jax.Array],
+    non_negative: Dict[str, bool],
+    pop_size: int,
+    sigma: float,
+    key: jax.Array,
+) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array]]:
+    """One ES generation's population: `pop_size // 2` i.i.d. standard-
+    normal noise vectors per field, mirrored (antithetic sampling) to
+    fill the rest of the population, then `theta + sigma * scale *
+    noise` per field (clipped to `>= 0` for fields whose probe was
+    non-negative - see `_probe_hparam_field_stats`).
+
+    Args:
+        theta (Dict[str, Array]): Current per-field mean.
+        scale (Dict[str, Array]): Per-field noise scale (see
+            `_probe_hparam_field_stats`).
+        non_negative (Dict[str, bool]): Per-field non-negativity flag.
+        pop_size (int): Population size. Must be even.
+        sigma (float): Noise scale, in units of `scale`.
+        key (jax.Array): PRNG key, split once per field.
+
+    Returns:
+        Tuple[Dict, Dict]: `(noise, candidates)`, each `Dict[str,
+        Array]` shaped `(pop_size,)` per field - `noise` is what the ES
+        gradient estimate is computed from, `candidates` is what
+        actually gets trained.
+    """
+    half = pop_size // 2
+    noise: Dict[str, jax.Array] = {}
+    candidates: Dict[str, jax.Array] = {}
+    for k in theta:
+        key, noise_key = jax.random.split(key)
+        eps = jax.random.normal(noise_key, (half,))
+        noise[k] = jnp.concatenate([eps, -eps])
+        values = theta[k] + sigma * scale[k] * noise[k]
+        if non_negative[k]:
+            values = jnp.maximum(values, 0.0)
+        candidates[k] = values
+    return noise, candidates
+
+
+def _build_search_set(
+    base_hparams: HParams, candidates: Dict[str, jax.Array], pop_size: int
+) -> HParams:
+    """Batches `pop_size` individually-`replace`'d copies of
+    `base_hparams` (one per population member's `candidates`) into a
+    single `HParams` pytree with a new leading population axis - ready
+    for `jax.vmap`.
+
+    Args:
+        base_hparams (HParams): Every other (non-searched) field's value.
+        candidates (Dict[str, Array]): This generation's per-field
+            candidate values, each shaped `(pop_size,)` (see
+            `_sample_antithetic_candidates`).
+        pop_size (int): Population size.
+
+    Returns:
+        HParams: Every searched field's leaves shaped `(pop_size, ...)`.
+    """
+    search_set_list = []
+    for i in range(pop_size):
+        hparams_i = base_hparams
+        for k, values in candidates.items():
+            hparams_i = replace(hparams_i, **{k: values[i]})
+        search_set_list.append(hparams_i)
+    return jax.tree.map(lambda *x: jnp.stack(x), *search_set_list)
+
+
+def _hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
+    """One scalar fitness per population member, from `logs` (as
+    returned by a `run_hparam_search` generation's `search_fn` call):
+    last-20%-mean `perf/returns` (`navix.benchmarks.plotting.
+    derive_episodic_metrics`), averaged over the seed axis.
+
+    Args:
+        logs (Dict[str, Array]): Shape `(pop_size, num_seeds,
+            num_updates, num_steps, num_envs)` for `done_mask`/
+            `returns`/`lengths`.
+
+    Returns:
+        Array: Shape `(pop_size,)`.
+    """
+    returns = derive_episodic_metrics(logs)["perf/returns"]  # (pop_size, num_seeds, num_updates)
+    tail = max(1, int(returns.shape[-1] * 0.2))
+    return jnp.mean(jnp.mean(returns[..., -tail:], axis=-1), axis=-1)
+
+
 class Experiment:
     """A class to run an experiment with a given agent and environment.
 
@@ -78,7 +202,8 @@ class Experiment:
         self.group = group
 
     def run(self, log_to_wandb: bool = True, do_log: Optional[bool] = None):
-        """Default function to run the experiment. This function compiles the training function, trains the agent, and logs the results.
+        """Default function to run the experiment. This function compiles
+        the training function, trains the agent, and logs the results.
 
         Two strategies exist for looking at the results, and they trade off
         against each other:
@@ -246,7 +371,9 @@ class Experiment:
                 `pytree_node=False` field.
         """
         if pop_size % 2 != 0:
-            raise ValueError(f"pop_size must be even (antithetic sampling pairs +/-), got {pop_size}.")
+            raise ValueError(
+                f"pop_size must be even (antithetic sampling pairs +/-), got {pop_size}."
+            )
 
         hparams_fields = fields(self.agent.hparams)
         for k in hparams_distr:
@@ -254,7 +381,7 @@ class Experiment:
             if (
                 len(member) > 0
                 and "pytree_node" in member[0].metadata
-                and member[0].metadata["pytree_node"] == False
+                and member[0].metadata["pytree_node"] is False
             ):
                 raise ValueError(
                     f"Hyperparameter {k} is not a traceable pytree node. "
@@ -264,16 +391,9 @@ class Experiment:
         if solver is None:
             solver = optax.sgd(0.1)
 
-        theta: Dict[str, jax.Array] = {}
-        scale: Dict[str, jax.Array] = {}
-        non_negative: Dict[str, bool] = {}
-        probe_key = jax.random.PRNGKey(0)
-        for k, distr in hparams_distr.items():
-            probe_key, sample_key = jax.random.split(probe_key)
-            samples = jnp.asarray(distr.sample(seed=sample_key, sample_shape=(n_probe,)), dtype=jnp.float32)
-            theta[k] = jnp.mean(samples)
-            scale[k] = jnp.maximum(jnp.std(samples), 1e-8)
-            non_negative[k] = bool(jnp.all(samples >= 0))
+        theta, scale, non_negative = _probe_hparam_field_stats(
+            hparams_distr, n_probe, jax.random.PRNGKey(0)
+        )
         opt_state = solver.init(theta)
 
         rngs = jnp.asarray([jax.random.PRNGKey(seed) for seed in self.seeds])
@@ -288,8 +408,11 @@ class Experiment:
         # generation, only its (searched) leaf values do.
         search_fn = jax.jit(jax.vmap(search))
 
-        print("Running evolution-strategies hyperparameter search with the following configuration:")
-        print(f"  fields: {list(hparams_distr.keys())}, pop_size: {pop_size}, num_generations: {num_generations}")
+        print("Running evolution-strategies hyperparameter search:")
+        print(
+            f"  fields: {list(hparams_distr.keys())}, pop_size: {pop_size}, "
+            f"num_generations: {num_generations}"
+        )
         print(f"  starting point: {theta}")
         print(f"  per-field scale: {scale}")
 
@@ -310,28 +433,13 @@ class Experiment:
         start_time = time.time()
         for generation in range(num_generations):
             gen_key = jax.random.PRNGKey(generation)
-            half = pop_size // 2
-            noise: Dict[str, jax.Array] = {}
-            candidates: Dict[str, jax.Array] = {}
-            for k in hparams_distr:
-                gen_key, noise_key = jax.random.split(gen_key)
-                eps = jax.random.normal(noise_key, (half,))
-                noise[k] = jnp.concatenate([eps, -eps])
-                values = theta[k] + sigma * scale[k] * noise[k]
-                if non_negative[k]:
-                    values = jnp.maximum(values, 0.0)
-                candidates[k] = values
-
-            search_set_list = []
-            for i in range(pop_size):
-                hparams_i = self.agent.hparams
-                for k in candidates:
-                    hparams_i = replace(hparams_i, **{k: candidates[k][i]})
-                search_set_list.append(hparams_i)
-            search_set = jax.tree.map(lambda *x: jnp.stack(x), *search_set_list)
+            noise, candidates = _sample_antithetic_candidates(
+                theta, scale, non_negative, pop_size, sigma, gen_key
+            )
+            search_set = _build_search_set(self.agent.hparams, candidates, pop_size)
 
             gen_start = time.time()
-            train_states, logs = jax.block_until_ready(search_fn(search_set))
+            _, logs = jax.block_until_ready(search_fn(search_set))
             gen_wall_time = time.time() - gen_start
 
             # Same reasoning as Experiment.run: iter/fps/iter/wall_time
@@ -342,13 +450,11 @@ class Experiment:
             gen_num_updates = logs["iter/updates"].shape[-1]
             gen_frames = jnp.mean(jnp.asarray(logs["iter/frames"])[..., -1])
             gen_fps = gen_frames / gen_wall_time
-            logs["iter/wall_time"] = jnp.full((pop_size, len(self.seeds), gen_num_updates), gen_wall_time)
-            logs["iter/fps"] = jnp.full((pop_size, len(self.seeds), gen_num_updates), gen_fps)
+            gen_logs_shape = (pop_size, len(self.seeds), gen_num_updates)
+            logs["iter/wall_time"] = jnp.full(gen_logs_shape, gen_wall_time)
+            logs["iter/fps"] = jnp.full(gen_logs_shape, gen_fps)
 
-            metrics = derive_episodic_metrics(logs)
-            returns = metrics["perf/returns"]  # (pop_size, num_seeds, num_updates)
-            tail = max(1, int(returns.shape[-1] * 0.2))
-            fitness = jnp.mean(jnp.mean(returns[..., -tail:], axis=-1), axis=-1)  # (pop_size,)
+            fitness = _hparam_search_fitness(logs)  # (pop_size,)
 
             shaped = (fitness - jnp.mean(fitness)) / jnp.sqrt(jnp.var(fitness) + 1e-8)
             grad = {k: jnp.mean(shaped * noise[k]) for k in candidates}
@@ -357,10 +463,10 @@ class Experiment:
             # fitness instead, then apply_updates-style addition (not
             # subtraction) matching optax's own convention.
             updates, opt_state = solver.update({k: -g for k, g in grad.items()}, opt_state, theta)
-            theta = {k: theta[k] + scale[k] * updates[k] for k in theta}
-            for k in theta:
+            theta = {k: value + scale[k] * updates[k] for k, value in theta.items()}
+            for k, value in theta.items():
                 if non_negative[k]:
-                    theta[k] = jnp.maximum(theta[k], 0.0)
+                    theta[k] = jnp.maximum(value, 0.0)
 
             gen_best_idx = int(jnp.argmax(fitness))
             gen_best_fitness = float(fitness[gen_best_idx])
