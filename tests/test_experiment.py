@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import distrax
 import pytest
 import wandb
 import jax.numpy as jnp
@@ -35,6 +36,29 @@ class _FakeAgent(Agent):
         logs = {
             "iter/updates": jnp.arange(n_updates),
             "iter/frames": jnp.arange(n_updates) * 100,
+        }
+        return None, logs
+
+
+class _QuadraticFitnessHParams(HParams):
+    x: float = 0.0
+
+
+class _QuadraticFitnessAgent(Agent):
+    """A minimal Agent whose fitness (perf/returns, via
+    derive_episodic_metrics) is a known, smooth function of its own
+    hparams.x - peaks at x=2.0 - so run_hparam_search's ES loop can be
+    tested against a known optimum without any real training."""
+
+    def train(self, rng):
+        n_updates, num_steps, num_envs = 2, 4, 2
+        fitness = -jnp.square(self.hparams.x - 2.0)
+        logs = {
+            "iter/updates": jnp.arange(n_updates),
+            "iter/frames": jnp.arange(n_updates) * 100,
+            "done_mask": jnp.ones((n_updates, num_steps, num_envs), dtype=bool),
+            "returns": jnp.full((n_updates, num_steps, num_envs), fitness),
+            "lengths": jnp.ones((n_updates, num_steps, num_envs)),
         }
         return None, logs
 
@@ -129,6 +153,50 @@ def test_experiment_run_with_no_seeds_does_not_crash(monkeypatch):
         seeds=(),
     )
     experiment.run(log_to_wandb=True)
+
+
+def _make_quadratic_experiment(seeds=(0, 1)):
+    return Experiment(
+        name="test",
+        agent=_QuadraticFitnessAgent(hparams=_QuadraticFitnessHParams(log_frequency=1), env=None),  # type: ignore[arg-type]
+        env=None,  # type: ignore[arg-type]
+        seeds=seeds,
+    )
+
+
+def test_run_hparam_search_rejects_odd_pop_size():
+    experiment = _make_quadratic_experiment()
+    with pytest.raises(ValueError, match="even"):
+        experiment.run_hparam_search({"x": distrax.Normal(0.0, 1.0)}, pop_size=3, log_to_wandb=False)
+
+
+def test_run_hparam_search_rejects_non_pytree_fields():
+    # log_frequency is pytree_node=False (HParams) - not traceable, so
+    # not searchable. This check predates the ES rewrite and must keep
+    # working unchanged.
+    experiment = _make_quadratic_experiment()
+    with pytest.raises(ValueError, match="pytree node"):
+        experiment.run_hparam_search(
+            {"log_frequency": distrax.Normal(0.0, 1.0)}, pop_size=4, log_to_wandb=False
+        )
+
+
+def test_run_hparam_search_moves_toward_known_optimum():
+    # fitness = -(x - 2)^2, peaks at x=2 (see _QuadraticFitnessAgent).
+    # Starting the search distribution at mean 0 - after enough
+    # generations, the best hparams found should have moved substantially
+    # closer to 2 than the starting point ever was, and its fitness
+    # should be a real improvement over the starting point's -(0-2)^2 = -4.
+    experiment = _make_quadratic_experiment()
+    hparams_distr = {"x": distrax.Normal(loc=0.0, scale=1.0)}
+
+    best_hparams, best_fitness = experiment.run_hparam_search(
+        hparams_distr, pop_size=8, num_generations=15, sigma=1.0, log_to_wandb=False
+    )
+
+    assert isinstance(best_hparams, _QuadraticFitnessHParams)
+    assert abs(float(best_hparams.x) - 2.0) < abs(0.0 - 2.0)
+    assert float(best_fitness) > -4.0
 
 
 if __name__ == "__main__":
