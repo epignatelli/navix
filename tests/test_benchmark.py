@@ -29,7 +29,7 @@ from flax import struct
 
 from navix.agents import PPO, PPOHparams, ActorCritic
 from navix.agents.agent import masked_mean
-from navix.benchmarks import AlgorithmEntry, Benchmark, BenchmarkResult, FromScratchBenchmark, TrainingCurve
+from navix.benchmarks import AlgorithmEntry, Benchmark, BenchmarkResult, CostAnalysis, FromScratchBenchmark, TrainingCurve
 from navix.benchmarks.scratch import DEFAULT_ENV_IDS
 from navix.environments.environment import Environment
 from navix.environments.registry import make, registry
@@ -298,9 +298,56 @@ def test_from_scratch_benchmark_summary_excludes_non_numeric_and_length():
     assert set(details.keys()) - set(summary.keys()) == {"env_ids", "length"}
     assert details["env_ids"] == _TINY_ENV_IDS
     for key, value in summary.items():
-        assert np.all(np.isfinite(np.asarray(value))), f"summary[{key!r}] is not finite"
-        # summary is each numeric detail column meaned across envs.
-        np.testing.assert_allclose(np.asarray(value), np.asarray(jnp.mean(details[key])))
+        # returns_convergence_rate excluded: it's overall/target (see
+        # TrainingCurve.convergence_rate), so a still-near-untrained tiny
+        # entry (budget=32) can legitimately produce 0/0 = NaN for every
+        # env/seed here - there's no valid signal to average, so NaN is
+        # the correct output, not a bug (see the test below for the
+        # actual non-finite-robustness behavior, on hand-built data where
+        # only *some* values are degenerate).
+        if key != "returns_convergence_rate":
+            assert np.all(np.isfinite(np.asarray(value))), f"summary[{key!r}] is not finite"
+        # summary is each numeric detail column meaned across envs,
+        # ignoring non-finite entries (see Benchmark.summary's docstring).
+        finite = np.where(np.isfinite(np.asarray(details[key])), np.asarray(details[key]), np.nan)
+        np.testing.assert_allclose(np.asarray(value), np.nanmean(finite))
+
+
+def test_summary_ignores_non_finite_values_details_keeps_them():
+    # env 0: a real, varying returns curve -> convergence_rate (overall
+    # mean / tail mean) is finite. env 1: returns are exactly zero for
+    # every step - the algorithm never solved it - so convergence_rate
+    # is 0/0 = NaN for every seed. summary must still report env 0's
+    # real value, not let env 1's NaN blank out the whole aggregate;
+    # details must keep env 1's NaN visible, since it's real information
+    # (this environment was never solved), not something to hide.
+    num_seeds, num_updates = 2, 10
+    env0_returns = jnp.tile(jnp.linspace(0.1, 1.0, num_updates), (num_seeds, 1))
+    env1_returns = jnp.zeros((num_seeds, num_updates))
+    returns = jnp.stack([env0_returns, env1_returns])  # (2 envs, 2 seeds, 10 updates)
+
+    curve = TrainingCurve(episodic_returns=returns, lengths=jnp.ones_like(returns))
+    cost = CostAnalysis(
+        flops=jnp.asarray([1.0, 1.0]),
+        memory_bytes=jnp.asarray([1.0, 1.0]),
+        compile_time_seconds=jnp.asarray([1.0, 1.0]),
+    )
+    raw = BenchmarkResult(
+        curve=curve, wall_time=jnp.asarray([1.0, 1.0]), fps=jnp.asarray([1.0, 1.0]), cost=cost
+    )
+
+    benchmark = _TinyBenchmark(seeds=(0, 1))
+    details = benchmark.details(raw)
+    summary = benchmark.summary(raw)
+
+    conv_rate = np.asarray(details["returns_convergence_rate"])
+    assert np.all(np.isnan(conv_rate[1])), "env 1 (all-zero returns) should keep its NaN in details"
+    assert np.all(np.isfinite(conv_rate[0])), "env 0 (real curve) should be finite in details"
+
+    assert np.isfinite(np.asarray(summary["returns_convergence_rate"])), "summary should not be NaN"
+    np.testing.assert_allclose(
+        np.asarray(summary["returns_convergence_rate"]), np.mean(conv_rate[0]), rtol=1e-5
+    )
 
 
 def test_from_scratch_benchmark_falsy_env_ids_resolves_to_registry(monkeypatch):

@@ -34,14 +34,26 @@ from ..environments.registry import registry
 
 
 DEFAULT_ENV_IDS: Tuple[str, ...] = (
-    "Navix-Empty-5x5-v0",
+    "Navix-Empty-8x8-v0",
     "Navix-Dynamic-Obstacles-5x5-v0",
+    "Navix-FourRooms-v0",
+    "Navix-KeyCorridorS4R3-v0",
     "Navix-DoorKey-8x8-v0",
     "Navix-SimpleCrossingS9N2-v0",
 )
-"""`FromScratchBenchmark.env_ids`'s default - one env from each of a
-few distinct families (sparse-goal navigation, dynamic obstacles,
-key/door, hazard-crossing), not every registered environment."""
+"""`FromScratchBenchmark.env_ids`'s default - chosen for the RL
+capability each env isolates, not just family coverage: `Empty-8x8`
+(convergence rate - solvable with no confounding structure, so speed
+differences are legible), `Dynamic-Obstacles-5x5` (variance - the
+stochasticity is in the environment itself, moving obstacles differ
+every episode), `FourRooms` (exploration - Sutton & Precup's original
+domain, no reward signal until the goal room is found), `KeyCorridorS4R3`
+(credit assignment, deep chain - key -> door -> goal with no partial
+credit), `DoorKey-8x8` (credit assignment, shallow chain - the same
+idea at a smaller difficulty gradient), `SimpleCrossingS9N2` (static-
+obstacle pathing). Not every registered environment - falsy (e.g.
+explicitly set to `None`) resolves lazily, at `run`/`details` time, to
+every registered environment instead."""
 
 
 class FromScratchBenchmark(Benchmark):
@@ -101,11 +113,24 @@ class FromScratchBenchmark(Benchmark):
             and convergence rate, plus `fps`/`flops`/`memory_bytes`/
             `compile_time_seconds`/`wall_time`'s bias. `length`/
             `env_ids` (see `NON_NUMERIC_DETAILS`) aren't included -
-            still on `self.details(results)`.
+            still on `self.details(results)`. Non-finite values (e.g.
+            `returns_convergence_rate`'s `overall / target` is `0/0` or
+            `x/0` when an environment's episodic_returns never leaves
+            zero - a real algorithm never solving that environment, not
+            a bug) are excluded from the mean rather than propagated -
+            one degenerate environment/seed shouldn't blank out every
+            other one's otherwise-valid signal. `self.details(results)`
+            keeps the raw, un-filtered per-environment values (a NaN
+            there is itself informative), only this aggregate step
+            filters them.
         """
         details = self.details(results)
         skip = self.NON_NUMERIC_DETAILS + ("length",)
-        return {key: jnp.mean(value) for key, value in details.items() if key not in skip}
+
+        def finite_mean(value: jax.Array) -> jax.Array:
+            return jnp.nanmean(jnp.where(jnp.isfinite(value), value, jnp.nan))
+
+        return {key: finite_mean(value) for key, value in details.items() if key not in skip}
 
     def details(self, results: BenchmarkResult) -> Dict[str, Any]:
         """Per-environment breakdown of this run's metrics.
