@@ -1,0 +1,6 @@
+# Pinned dependencies for this entry's own driver code (run.py) - the
+# rejax library being scored, plus navix.benchmarks to run it. rejax's
+# navix compat extra ("rejax[compat]") already depends on navix itself,
+# so no separate navix pin is needed here.
+rejax[compat]
+pyyaml
