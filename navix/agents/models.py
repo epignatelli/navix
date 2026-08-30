@@ -36,17 +36,30 @@ class MLPEncoder(nn.Module):
 
 
 class ConvEncoder(nn.Module):
+    """`strides=(2, 2)` on every layer, not flax's `nn.Conv` default of
+    1 (full-resolution, no downsampling) - an RL rollout batch is huge
+    (`num_steps * num_envs` samples backprop'd through at once), and
+    without downsampling each layer's activations stay at the input's
+    full spatial resolution while channels grow 16->32->64, which blows
+    up to tens of GB for a modest image (e.g. a 56x56 partially-
+    observable render) at a real rollout batch size - confirmed via an
+    actual OOM (single-op 24.5GB allocation) benchmarking navix's own
+    PPO with this encoder on `observations.rgb_first_person`. Standard
+    strided downsampling (every real CNN vision encoder in RL, e.g.
+    Nature DQN's) keeps each layer's activation footprint bounded
+    instead of constant-times-growing-channels."""
+
     hidden_size: int = 64
 
     @nn.compact
     def __call__(self, x):
         return nn.Sequential(
             [
-                nn.Conv(16, kernel_size=(2, 2)),
+                nn.Conv(16, kernel_size=(2, 2), strides=(2, 2)),
                 nn.relu,
-                nn.Conv(32, kernel_size=(2, 2)),
+                nn.Conv(32, kernel_size=(2, 2), strides=(2, 2)),
                 nn.relu,
-                nn.Conv(64, kernel_size=(2, 2)),
+                nn.Conv(64, kernel_size=(2, 2), strides=(2, 2)),
                 nn.relu,
                 jnp.ravel,
                 nn.Dense(self.hidden_size),

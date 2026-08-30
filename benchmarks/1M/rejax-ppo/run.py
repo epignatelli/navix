@@ -17,7 +17,15 @@ before the real, full-budget scoring run - see `HPARAMS_DISTR`/
 `AlgorithmEntry` feature (see `navix/benchmarks/search.py`'s module
 docstring for why) - it's just this entry's own `run.py` using
 `search_hparams` as a library, then baking the per-env results into
-`RejaxPPOEntry.hparams` before the real run."""
+`RejaxPPOEntry.hparams` before the real run.
+
+MDP (fully observable) only, written to an `mdp/` subdirectory
+(`Benchmark.submit_entry`'s `subdir` argument) for consistency with
+`navix-ppo`'s entry, which also has a `pomdp/` arm - every rejax
+network (`DiscretePolicy`, `VNetwork`, ...) is MLP-only, no pluggable
+CNN encoder, so handing it raw partially-observable pixels would just
+flatten them into a plain MLP - not a meaningful visual-RL comparison,
+so it's skipped here rather than forced."""
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -112,7 +120,7 @@ if __name__ == "__main__":
     raw = benchmark.run(entry)
     summary = benchmark.summary(raw)
     details = benchmark.details(raw)
-    benchmark.submit_entry(entry, raw)
+    benchmark.submit_entry(entry, raw, subdir="mdp")
     print(f"{type(benchmark).__name__} / {entry.name} summary:")
     print(f"  episodic_returns:     {summary['episodic_returns']}")
     print(f"  flops:                {summary['flops']}")

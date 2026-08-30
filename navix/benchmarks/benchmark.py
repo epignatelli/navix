@@ -524,7 +524,9 @@ class Benchmark(struct.PyTreeNode):
         """
         raise NotImplementedError
 
-    def submit_entry(self, entry: AlgorithmEntry, results: BenchmarkResult, max_points: int = 50) -> None:
+    def submit_entry(
+        self, entry: AlgorithmEntry, results: BenchmarkResult, max_points: int = 50, subdir: str = ""
+    ) -> None:
         """Writes one `self.run(entry)`'s output into the directory of
         whichever script called this - the same convention every
         submission's `run.py` already follows for
@@ -554,9 +556,24 @@ class Benchmark(struct.PyTreeNode):
             max_points (int): Number of points `curve.episodic_returns`/
                 `curve.lengths`/`curve.diagnostics`' values are
                 resampled to in `diagnostics.npz`.
+            subdir (str): If non-empty, writes into a subdirectory of
+                the caller's own directory instead of the directory
+                itself (created if missing). For a `run.py` that scores
+                the same algorithm under more than one configuration it
+                doesn't expose as a structured `AlgorithmEntry` field
+                (e.g. observation type - see `navix.benchmarks.search`'s
+                module docstring for the same reasoning applied to
+                hyperparameters: what's configurable is inherently
+                entry-specific, so `Benchmark` stays agnostic to it) -
+                one `submit_entry` call per configuration, each into its
+                own `subdir`, instead of colliding on one shared
+                `summary.json`.
         """
         caller = inspect.stack()[1]
         path = Path(caller.filename).resolve().parent
+        if subdir:
+            path = path / subdir
+            path.mkdir(parents=True, exist_ok=True)
         entry_payload = dataclasses.asdict(entry)
 
         def to_jsonable(tree):
