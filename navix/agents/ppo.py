@@ -3,7 +3,6 @@
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
 from functools import partial
-import time
 from typing import Callable, Dict, Tuple
 
 import distrax
@@ -348,10 +347,10 @@ class PPO(Agent):
                 partial(self.network.apply, method="value"), in_axes=(None, 0)
             ),
         )
-        start_time = time.time()
+        # iter/fps and iter/wall_time are NOT set here - train() runs inside
+        # a jax.jit trace (see Experiment.run), where time.time() only ever
+        # fires once, at trace-build time. Experiment.run fills both in
+        # itself, from real wall-clock timing measured outside any trace.
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
-        elapsed = time.time() - start_time
-        logs["iter/fps"] = jnp.asarray([train_state.frames / elapsed] * num_updates)
-        logs["iter/wall_time"] = jnp.asarray([elapsed] * num_updates)
 
         return train_state, logs

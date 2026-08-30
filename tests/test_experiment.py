@@ -71,7 +71,7 @@ def test_experiment_run_logs_every_seed_via_its_own_run(monkeypatch):
     seeds = (0, 1, 2, 3)
     experiment = Experiment(
         name="test",
-        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
+        agent=_FakeAgent(hparams=HParams(log_frequency=1), env=None),  # type: ignore[arg-type]
         env=None,  # type: ignore[arg-type]
         seeds=seeds,
     )
@@ -96,7 +96,7 @@ def test_experiment_run_do_log_is_deprecated_but_still_works(monkeypatch):
     seeds = (0, 1)
     experiment = Experiment(
         name="test",
-        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
+        agent=_FakeAgent(hparams=HParams(log_frequency=1), env=None),  # type: ignore[arg-type]
         env=None,  # type: ignore[arg-type]
         seeds=seeds,
     )
@@ -124,7 +124,7 @@ def test_experiment_run_with_no_seeds_does_not_crash(monkeypatch):
 
     experiment = Experiment(
         name="test",
-        agent=_FakeAgent(hparams=HParams(log_frequency=1)),
+        agent=_FakeAgent(hparams=HParams(log_frequency=1), env=None),  # type: ignore[arg-type]
         env=None,  # type: ignore[arg-type]
         seeds=(),
     )

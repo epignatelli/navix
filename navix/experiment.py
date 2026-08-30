@@ -120,9 +120,28 @@ class Experiment:
 
         print("Training agent...")
         start_time = time.time()
-        train_state, logs = train_fn(rng)
+        train_state, logs = jax.block_until_ready(train_fn(rng))
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
+
+        # iter/fps and iter/wall_time can't be measured inside agent.train
+        # itself - it runs inside the jax.jit trace just compiled above,
+        # where time.time() only ever fires once, at trace-build time (see
+        # each agent's train()). training_time above, timed here from
+        # outside any trace and block_until_ready'd, is the real thing -
+        # one number for the whole vmapped call (seeds train together, so
+        # there's no per-seed breakdown), broadcast to match every other
+        # per-seed/per-update logged key's shape. fps is derived from each
+        # seed's own final iter/frames count (real, already correctly
+        # accumulated by the scan) rather than hparams.budget, both because
+        # not every Agent.hparams carries a budget field and because a
+        # seed's actual frame count can land slightly under budget (budget
+        # // (num_steps * num_envs) floors to a whole number of updates).
+        num_updates = logs["iter/updates"].shape[-1]
+        frames = jnp.mean(jnp.asarray(logs["iter/frames"])[..., -1])
+        fps = frames / training_time
+        logs["iter/wall_time"] = jnp.full((len(self.seeds), num_updates), training_time)
+        logs["iter/fps"] = jnp.full((len(self.seeds), num_updates), fps)
 
         if not self.agent.hparams.debug and log_to_wandb:
             print("Logging final results to wandb...")
@@ -212,9 +231,25 @@ class Experiment:
 
         print("Searching for optimal hyperparameters...")
         start_time = time.time()
-        train_states, logs = search_fn(search_set)
+        train_states, logs = jax.block_until_ready(search_fn(search_set))
         search_time = time.time() - start_time
         print(f"Search time cost: {search_time}")
+
+        # Same reasoning as Experiment.run: iter/fps/iter/wall_time can't
+        # be measured inside agent.train itself (see each agent's
+        # train()) - search_time above, timed here from outside any trace
+        # and block_until_ready'd, is the real thing. Every hparam set/
+        # seed trains together in one fused computation, so there's no
+        # meaningful per-hparam-set/per-seed timing breakdown - broadcast
+        # to match every other logged key's shape. fps is derived from
+        # each run's own final iter/frames count (real, already correctly
+        # accumulated by the scan), not hparams.budget, since budget can
+        # floor to slightly fewer actual frames than requested.
+        num_updates = logs["iter/updates"].shape[-1]
+        frames = jnp.mean(jnp.asarray(logs["iter/frames"])[..., -1])
+        fps = frames / search_time
+        logs["iter/wall_time"] = jnp.full((len_search_set, len(self.seeds), num_updates), search_time)
+        logs["iter/fps"] = jnp.full((len_search_set, len(self.seeds), num_updates), fps)
 
         print("Logging final results to wandb...")
         start_time = time.time()

@@ -75,7 +75,6 @@ heads, and the `Dreamer` agent's collection/replay/training loop.
 """
 
 from __future__ import annotations
-import time
 from typing import Callable, Dict, Tuple
 
 import numpy as np
@@ -1432,10 +1431,10 @@ class Dreamer(Agent):
         )
         num_updates = hp.budget // (hp.num_steps * hp.num_envs)
 
-        start_time = time.time()
+        # iter/fps and iter/wall_time are NOT set here - train() runs inside
+        # a jax.jit trace (see Experiment.run), where time.time() only ever
+        # fires once, at trace-build time. Experiment.run fills both in
+        # itself, from real wall-clock timing measured outside any trace.
         ts, logs = jax.lax.scan(self.update, ts, None, length=num_updates)
-        elapsed = time.time() - start_time
-        logs["iter/fps"] = jnp.asarray([ts.frames / elapsed] * num_updates)
-        logs["iter/wall_time"] = jnp.asarray([elapsed] * num_updates)
 
         return ts, logs

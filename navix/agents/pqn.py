@@ -102,7 +102,6 @@ same); `rejax`'s adaptation caches `Q` at the state the transition
 backward recursion. This module's `evaluate_experience` follows the
 official convention, not rejax's.
 """
-import time
 from typing import Dict, Tuple
 
 import distrax
@@ -408,10 +407,10 @@ class PQN(Agent):
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
         )
-        start_time = time.time()
+        # iter/fps and iter/wall_time are NOT set here - train() runs inside
+        # a jax.jit trace (see Experiment.run), where time.time() only ever
+        # fires once, at trace-build time. Experiment.run fills both in
+        # itself, from real wall-clock timing measured outside any trace.
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
-        elapsed = time.time() - start_time
-        logs["iter/fps"] = jnp.asarray([train_state.frames / elapsed] * num_updates)
-        logs["iter/wall_time"] = jnp.asarray([elapsed] * num_updates)
 
         return train_state, logs
