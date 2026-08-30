@@ -29,11 +29,15 @@ external, un-jitted wrapper can measure; and the abstract `Benchmark`
 base every protocol implements), `hardware.py` (the hardware-detection
 functions `AlgorithmEntry` auto-populates itself from), `scratch.py`
 (`FromScratchBenchmark` and its `Navix1M`/`Navix100K` presets - the one
-concrete protocol so far), and `plotting.py` (a local no-wandb dashboard
-for `logs` - see `Agent`'s docstring and issue #60, unrelated to
-scoring). A future protocol (curriculum learning, continual learning,
-open-ended learning) gets its own file alongside `scratch.py`,
-subclassing `Benchmark` directly.
+concrete protocol so far), `search.py` (`search_hparams` - an optional,
+`Benchmark`-independent Evolution-Strategies search an entry's own
+`run.py` can use to tune its hyperparameters before scoring; not part
+of `Benchmark`/`AlgorithmEntry` itself, since what's searchable is
+inherently entry-specific), and `plotting.py` (a local no-wandb
+dashboard for `logs` - see `Agent`'s docstring and issue #60, unrelated
+to scoring). A future protocol (curriculum learning, continual
+learning, open-ended learning) gets its own file alongside
+`scratch.py`, subclassing `Benchmark` directly.
 
 Typical usage:
 
@@ -50,6 +54,7 @@ See `benchmarks/README.md` for the full submission workflow."""
 from .benchmark import AlgorithmEntry, Benchmark, BenchmarkResult, CostAnalysis, TrainingCurve, is_commit_url
 from .hardware import cpu_type, cuda_version, cudnn_version, gpu_type, ram_bytes
 from .scratch import FromScratchBenchmark, Navix1M, Navix100K
+from .search import search_hparams
 from . import plotting
 from .plotting import (
     MANDATORY_METRICS,
@@ -74,6 +79,7 @@ __all__ = [
     "FromScratchBenchmark",
     "Navix1M",
     "Navix100K",
+    "search_hparams",
     "plotting",
     "MANDATORY_METRICS",
     "derive_episodic_metrics",

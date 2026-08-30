@@ -15,6 +15,7 @@ import wandb.util
 from navix.agents.agent import Agent, HParams
 from navix.benchmarks.plotting import derive_episodic_metrics
 from navix.environments.environment import Environment
+from navix.es import probe_hparam_field_stats, sample_antithetic_candidates
 
 # Logging to wandb is sequential, one seed/hparam-set at a time - both
 # concurrency options that were tried here turned out not to hold up:
@@ -43,81 +44,6 @@ from navix.environments.environment import Environment
 # a real cost worth knowing about before choosing `log_to_wandb=True`.
 
 
-def _probe_hparam_field_stats(
-    hparams_distr: Dict[str, distrax.Distribution], n_probe: int, key: jax.Array
-) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, bool]]:
-    """Empirically estimates each searched field's starting value, scale,
-    and sign from `n_probe` samples of its own distribution - see
-    `Experiment.run_hparam_search`'s docstring for why this is more
-    robust than relying on a distribution's `.mean()`/`.stddev()`.
-
-    Args:
-        hparams_distr (Dict[str, distrax.Distribution]): One distribution
-            per searched field.
-        n_probe (int): Samples drawn per field.
-        key (jax.Array): PRNG key, split once per field.
-
-    Returns:
-        Tuple[Dict, Dict, Dict]: `(theta, scale, non_negative)` - each
-        field's probe mean, probe std (floored to avoid a degenerate
-        zero-sigma field), and whether every probe sample was `>= 0`.
-    """
-    theta: Dict[str, jax.Array] = {}
-    scale: Dict[str, jax.Array] = {}
-    non_negative: Dict[str, bool] = {}
-    for k, distr in hparams_distr.items():
-        key, sample_key = jax.random.split(key)
-        raw_samples = distr.sample(seed=sample_key, sample_shape=(n_probe,))
-        samples = jnp.asarray(raw_samples, dtype=jnp.float32)
-        theta[k] = jnp.mean(samples)
-        scale[k] = jnp.maximum(jnp.std(samples), 1e-8)
-        non_negative[k] = bool(jnp.all(samples >= 0))
-    return theta, scale, non_negative
-
-
-def _sample_antithetic_candidates(
-    theta: Dict[str, jax.Array],
-    scale: Dict[str, jax.Array],
-    non_negative: Dict[str, bool],
-    pop_size: int,
-    sigma: float,
-    key: jax.Array,
-) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array]]:
-    """One ES generation's population: `pop_size // 2` i.i.d. standard-
-    normal noise vectors per field, mirrored (antithetic sampling) to
-    fill the rest of the population, then `theta + sigma * scale *
-    noise` per field (clipped to `>= 0` for fields whose probe was
-    non-negative - see `_probe_hparam_field_stats`).
-
-    Args:
-        theta (Dict[str, Array]): Current per-field mean.
-        scale (Dict[str, Array]): Per-field noise scale (see
-            `_probe_hparam_field_stats`).
-        non_negative (Dict[str, bool]): Per-field non-negativity flag.
-        pop_size (int): Population size. Must be even.
-        sigma (float): Noise scale, in units of `scale`.
-        key (jax.Array): PRNG key, split once per field.
-
-    Returns:
-        Tuple[Dict, Dict]: `(noise, candidates)`, each `Dict[str,
-        Array]` shaped `(pop_size,)` per field - `noise` is what the ES
-        gradient estimate is computed from, `candidates` is what
-        actually gets trained.
-    """
-    half = pop_size // 2
-    noise: Dict[str, jax.Array] = {}
-    candidates: Dict[str, jax.Array] = {}
-    for k in theta:
-        key, noise_key = jax.random.split(key)
-        eps = jax.random.normal(noise_key, (half,))
-        noise[k] = jnp.concatenate([eps, -eps])
-        values = theta[k] + sigma * scale[k] * noise[k]
-        if non_negative[k]:
-            values = jnp.maximum(values, 0.0)
-        candidates[k] = values
-    return noise, candidates
-
-
 def _build_search_set(
     base_hparams: HParams, candidates: Dict[str, jax.Array], pop_size: int
 ) -> HParams:
@@ -130,7 +56,7 @@ def _build_search_set(
         base_hparams (HParams): Every other (non-searched) field's value.
         candidates (Dict[str, Array]): This generation's per-field
             candidate values, each shaped `(pop_size,)` (see
-            `_sample_antithetic_candidates`).
+            `navix.es.sample_antithetic_candidates`).
         pop_size (int): Population size.
 
     Returns:
@@ -391,7 +317,7 @@ class Experiment:
         if solver is None:
             solver = optax.sgd(0.1)
 
-        theta, scale, non_negative = _probe_hparam_field_stats(
+        theta, scale, non_negative = probe_hparam_field_stats(
             hparams_distr, n_probe, jax.random.PRNGKey(0)
         )
         opt_state = solver.init(theta)
@@ -433,7 +359,7 @@ class Experiment:
         start_time = time.time()
         for generation in range(num_generations):
             gen_key = jax.random.PRNGKey(generation)
-            noise, candidates = _sample_antithetic_candidates(
+            noise, candidates = sample_antithetic_candidates(
                 theta, scale, non_negative, pop_size, sigma, gen_key
             )
             search_set = _build_search_set(self.agent.hparams, candidates, pop_size)
