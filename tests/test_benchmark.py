@@ -17,14 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import importlib.util
+import json
+from typing import Tuple
+
 import numpy as np
+import jax
 import jax.numpy as jnp
 import pytest
+from flax import struct
 
 from navix.agents import PPO, PPOHparams, ActorCritic
-from navix.agents.agent import CostAnalysis
-from navix.benchmark import AlgorithmEntry, Benchmark, BenchmarkResult
+from navix.agents.agent import masked_mean
+from navix.benchmarks import AlgorithmEntry, Benchmark, BenchmarkResult, FromScratchBenchmark, TrainingCurve
+from navix.benchmarks.scratch import DEFAULT_ENV_IDS
 from navix.environments.environment import Environment
+from navix.environments.registry import make, registry
 
 
 def _flatten_obs(env: Environment) -> Environment:
@@ -36,96 +44,150 @@ def _flatten_obs(env: Environment) -> Environment:
     )
 
 
-def _tiny_ppo_factory(env: Environment) -> PPO:
-    # A deliberately tiny configuration - just enough for every code path
-    # to execute, matching the pattern used in test_pqn.py/test_dreamer.py.
-    hp = PPOHparams(
-        budget=32,  # num_steps * num_envs -> exactly 1 update
-        num_envs=4,
-        num_steps=8,
-        num_minibatches=2,
-        num_epochs=1,
-    )
-    # max_steps=num_steps guarantees every parallel env times out (and so
-    # produces a done=True) within one rollout, the same way
-    # test_dreamer.py/test_pqn.py's own tiny-config helpers do - without
-    # this, done_mask can be all-False over such a short rollout (the
-    # env's own default max_steps is far longer), and masked_mean's 0/0
-    # division turns the score into NaN.
-    env = env.replace(max_steps=hp.num_steps)
-    env = _flatten_obs(env)
-    return PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
+class _TinyPPOEntry(AlgorithmEntry):
+    """A deliberately tiny PPO entry - just enough for every code path
+    (train/cost_analysis/validate_train_contract) to actually execute,
+    matching the pattern used in test_pqn.py/test_dreamer.py."""
+
+    def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+        env = _flatten_obs(make(env_id))
+        hp = PPOHparams(
+            budget=budget,  # num_steps * num_envs -> exactly 1 update at budget=32
+            num_envs=4,
+            num_steps=8,
+            num_minibatches=2,
+            num_epochs=1,
+        )
+        # max_steps=num_steps guarantees every parallel env times out (and so
+        # produces a done=True) within one rollout, the same way
+        # test_dreamer.py/test_pqn.py's own tiny-config helpers do - without
+        # this, done_mask can be all-False over such a short rollout, and
+        # masked_mean's 0/0 division turns the curve into NaN.
+        env = env.replace(max_steps=hp.num_steps)
+        agent = PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
+        _, logs = agent.train(rng)
+        mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+        return TrainingCurve(
+            episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
+            lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        )
 
 
-def _make_tiny_entry(**overrides) -> AlgorithmEntry:
-    defaults = dict(
-        name="PPO",
-        author="test-author",
-        paper_url="https://arxiv.org/abs/1707.06347",
-        navix_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
-        algorithm_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
-        agent_factory=_tiny_ppo_factory,
-    )
-    defaults.update(overrides)
-    return AlgorithmEntry(**defaults)
+class _BadTrainingCurveEntry(AlgorithmEntry):
+    """train() returns something that isn't a TrainingCurve at all."""
+
+    def train(self, env_id: str, budget: int, rng: jax.Array):
+        return {"episodic_returns": jnp.zeros((4,)), "lengths": jnp.zeros((4,))}
 
 
-class _TinyBenchmark(Benchmark):
-    # A concrete Benchmark preset for tests - Benchmark itself is a base
-    # class (name/budget are ClassVars with no useful default), the
-    # same way Navix1M/Navix100K (navix/benchmark.py) are. Never
-    # instantiated - every method is a classmethod, used as
-    # _TinyBenchmark.run(...)/_TinyBenchmark.summary(...).
-    name = "test-benchmark"
-    budget = 32
+class _WrongRankEntry(AlgorithmEntry):
+    """train() returns a TrainingCurve, but its fields are rank 2, not the
+    required rank 1 (one un-vmapped call must produce one point per
+    update, not a batch of curves)."""
+
+    def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+        return TrainingCurve(
+            episodic_returns=jnp.zeros((2, 4)),
+            lengths=jnp.zeros((2, 4)),
+        )
 
 
-class _TinyBenchmark64(Benchmark):
-    # A second preset, differing only in budget - for asserting the
-    # override in Benchmark.run actually takes effect.
-    name = "test-benchmark-64"
-    budget = 64
-
-
-_TINY_ENV_IDS = ("Navix-Empty-5x5-v0", "Navix-Empty-6x6-v0")
-
-_METRIC_FIELDS = (
-    "returns",
-    "episode_length",
-    "flops",
-    "memory_bytes",
-    "compile_time_seconds",
-    "fps",
-    "wall_time",
+_TINY_KWARGS = dict(
+    name="PPO",
+    author="test-author",
+    paper_url="https://arxiv.org/abs/1707.06347",
+    navix_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
+    algorithm_commit_url="https://github.com/epignatelli/navix/commit/deadbeef",
 )
+
+
+def _make_tiny_entry(**overrides) -> _TinyPPOEntry:
+    kwargs = {**_TINY_KWARGS, **overrides}
+    return _TinyPPOEntry(**kwargs)
+
+
+_TINY_ENV_IDS: Tuple[str, ...] = ("Navix-Empty-5x5-v0", "Navix-Empty-6x6-v0")
+
+
+class _TinyBenchmark(FromScratchBenchmark):
+    budget: int = struct.field(pytree_node=False, default=32)
+    env_ids: Tuple[str, ...] = struct.field(pytree_node=False, default_factory=lambda: _TINY_ENV_IDS)
+
+
+# ----------------------------------------------------------------------
+# TrainingCurve
+# ----------------------------------------------------------------------
+
+
+def test_training_curve_last_percent_mean_matches_hand_computed_value():
+    # 10 updates - only the last 2 (last 20%) should count. Earlier
+    # points are all 0, the last two are all 1, so a bug that averages
+    # over the whole history (instead of just the tail) would be caught.
+    values = jnp.concatenate([jnp.zeros((8,)), jnp.ones((2,))])
+    curve = TrainingCurve(episodic_returns=values, lengths=values, diagnostics={"loss": values})
+
+    reduced = curve.last_percent_mean()
+
+    np.testing.assert_allclose(np.asarray(reduced.episodic_returns), 1.0)
+    np.testing.assert_allclose(np.asarray(reduced.lengths), 1.0)
+    # diagnostics are reduced exactly the same way as the mandatory
+    # fields - no special-casing.
+    np.testing.assert_allclose(np.asarray(reduced.diagnostics["loss"]), 1.0)
+
+
+def test_training_curve_last_percent_variance_matches_hand_computed_value():
+    # last 20% (2 points) alternate 0/1 -> variance 0.25; the other 80%
+    # is constant, so a bug averaging over the whole history would give
+    # a much smaller (near-zero) variance instead.
+    values = jnp.concatenate([jnp.full((8,), 5.0), jnp.array([0.0, 1.0])])
+    curve = TrainingCurve(episodic_returns=values, lengths=values)
+
+    reduced = curve.last_percent_variance()
+
+    np.testing.assert_allclose(np.asarray(reduced.episodic_returns), 0.25)
+    np.testing.assert_allclose(np.asarray(reduced.lengths), 0.25)
+
+
+def test_training_curve_convergence_rate_is_one_for_a_flat_curve():
+    # a curve that's already at its own asymptote for its entire length
+    # has convergence_rate == 1 by construction (overall mean == tail
+    # mean).
+    values = jnp.full((10,), 3.0)
+    curve = TrainingCurve(episodic_returns=values, lengths=values)
+
+    reduced = curve.convergence_rate()
+
+    np.testing.assert_allclose(np.asarray(reduced.episodic_returns), 1.0)
+    np.testing.assert_allclose(np.asarray(reduced.lengths), 1.0)
+
+
+def test_training_curve_diagnostics_defaults_empty():
+    curve = TrainingCurve(episodic_returns=jnp.zeros((4,)), lengths=jnp.zeros((4,)))
+    assert curve.diagnostics == {}
+
+
+# ----------------------------------------------------------------------
+# AlgorithmEntry construction / validation
+# ----------------------------------------------------------------------
 
 
 def test_algorithm_entry_requires_its_metadata_fields():
-    # every navix leaderboard entry needs these (issue #130) - a
-    # dataclass with no defaults for them is the enforcement mechanism,
-    # not just documentation.
     with pytest.raises(TypeError):
-        AlgorithmEntry(agent_factory=_tiny_ppo_factory)  # type: ignore[call-arg]
+        _TinyPPOEntry(name="PPO")  # type: ignore[call-arg]
 
 
-@pytest.mark.parametrize(
-    "bad_author", ["-leading-hyphen", "trailing-hyphen-", "double--hyphen", "", "a" * 40]
-)
+@pytest.mark.parametrize("bad_author", ["-leading-hyphen", "trailing-hyphen-", "double--hyphen", "", "a" * 40])
 def test_algorithm_entry_rejects_invalid_github_handles(bad_author):
     with pytest.raises(ValueError, match="GitHub handle"):
         _make_tiny_entry(author=bad_author)
 
 
 def test_algorithm_entry_accepts_valid_github_handles():
-    # single hyphens, alphanumeric, up to 39 chars are all legal.
     for handle in ("navix", "epignatelli", "a-b-c", "a" * 39):
         _make_tiny_entry(author=handle)  # must not raise
 
 
-@pytest.mark.parametrize(
-    "field_name",
-    ["navix_commit_url", "algorithm_commit_url"],
-)
+@pytest.mark.parametrize("field_name", ["navix_commit_url", "algorithm_commit_url"])
 @pytest.mark.parametrize(
     "bad_url",
     [
@@ -141,217 +203,153 @@ def test_algorithm_entry_rejects_invalid_commit_urls(field_name, bad_url):
         _make_tiny_entry(**{field_name: bad_url})
 
 
-def test_benchmark_preset_fixes_name_and_budget_as_class_attributes():
-    # Navix1M.run(entry) takes no name/budget at all - they're fixed by
-    # the preset class itself, not something a caller passes in.
-    assert _TinyBenchmark.name == "test-benchmark"
-    assert _TinyBenchmark.budget == 32
-    assert _TinyBenchmark64.budget == 64
-
-
-def test_benchmark_calls_agent_factory_once_per_env():
-    calls = []
-
-    def counting_factory(env):
-        calls.append(env)
-        return _tiny_ppo_factory(env)
-
-    entry = _make_tiny_entry(agent_factory=counting_factory)
-    _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
-
-    assert len(calls) == len(_TINY_ENV_IDS)
-
-
-def test_run_returns_one_benchmark_result_per_env_with_info_empty():
-    # run's raw output is the mandatory unit only - BenchmarkResult,
-    # never a collection itself - keyed by env_id; info is not
-    # auto-populated with anything (not raw logs, not anything else).
+def test_algorithm_entry_populates_hardware_fields():
     entry = _make_tiny_entry()
-    raw = _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
-
-    assert set(raw.keys()) == set(_TINY_ENV_IDS)
-    for env_id in _TINY_ENV_IDS:
-        result = raw[env_id]
-        assert isinstance(result, BenchmarkResult)
-        assert result.info == {}
-        for field in _METRIC_FIELDS:
-            value = getattr(result, field)
-            assert np.all(np.isfinite(np.asarray(value))), (
-                f"raw[{env_id!r}].{field} is not finite"
-            )
+    assert entry.cpu_type
+    assert entry.jax_version
+    assert entry.jaxlib_version
 
 
-def test_summary_reduces_and_averages_across_environments():
-    # summary is a template method the preset class defines - for the
-    # flat env-list protocol, it's each field's last-fifth-mean, meaned
-    # across every environment in raw.
+def test_algorithm_entry_rejects_train_not_returning_training_curve():
+    with pytest.raises(TypeError, match="TrainingCurve"):
+        _BadTrainingCurveEntry(**_TINY_KWARGS)
+
+
+def test_algorithm_entry_rejects_wrong_rank_training_curve():
+    with pytest.raises(AssertionError):
+        _WrongRankEntry(**_TINY_KWARGS)
+
+
+def test_algorithm_entry_cost_analysis_returns_finite_values():
     entry = _make_tiny_entry()
-    raw = _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
-    summary = _TinyBenchmark.summary(raw)
-
-    assert isinstance(summary, BenchmarkResult)
-    for field in _METRIC_FIELDS:
-        value = getattr(summary, field)
-        assert np.all(np.isfinite(np.asarray(value))), f"summary.{field} is not finite"
+    cost = entry.cost_analysis("Navix-Empty-5x5-v0", budget=32)
+    assert np.isfinite(cost.flops)
+    assert np.isfinite(cost.memory_bytes)
+    assert np.isfinite(cost.compile_time_seconds)
 
 
-def test_history_is_identity_for_flat_env_list_protocol():
-    # raw is already env-keyed BenchmarkResults for this protocol, so
-    # history doesn't need to reshape anything - a different protocol
-    # (e.g. continual learning's task-pair matrix) would do real work
-    # here instead.
+# ----------------------------------------------------------------------
+# Benchmark.run_env
+# ----------------------------------------------------------------------
+
+
+def test_benchmark_requires_more_than_one_seed():
+    with pytest.raises(ValueError, match="more than one seed"):
+        _TinyBenchmark(seeds=(0,))
+
+
+def test_run_env_shapes():
     entry = _make_tiny_entry()
-    raw = _TinyBenchmark.run(entry, log_to_wandb=False, env_ids=_TINY_ENV_IDS)
-    history = _TinyBenchmark.history(raw)
+    benchmark = _TinyBenchmark(seeds=(0, 1))
 
-    assert history == raw
+    result = benchmark.run_env(entry, "Navix-Empty-5x5-v0", budget=32)
 
-
-def test_benchmark_overrides_agent_budget_not_agent_factorys_own():
-    # the whole point of budget being fixed per Benchmark subclass (not
-    # left to whatever the agent_factory's own hparams say) is that
-    # Navix1M vs Navix100K only differ on this - assert the override
-    # actually takes effect rather than silently using the factory's own
-    # default.
-    seen_budgets = []
-
-    def factory(env):
-        agent = _tiny_ppo_factory(env)
-        seen_budgets.append(agent.hparams.budget)
-        return agent
-
-    entry = _make_tiny_entry(agent_factory=factory)
-    _TinyBenchmark64.run(entry, log_to_wandb=False, env_ids=("Navix-Empty-5x5-v0",))
-
-    # the factory itself always builds budget=32 (see _tiny_ppo_factory);
-    # Benchmark.run must override it to 64 (the preset's own budget)
-    # before training.
-    assert seen_budgets == [32]
+    assert isinstance(result, BenchmarkResult)
+    # one curve per seed, one point per update (budget=32, num_envs=4,
+    # num_steps=8 -> exactly 1 update).
+    assert result.curve.episodic_returns.shape == (2, 1)
+    assert result.curve.lengths.shape == (2, 1)
+    # wall_time/fps/cost are single scalars for the whole vmapped call -
+    # seeds train together, so there's no per-seed breakdown.
+    assert result.wall_time.shape == ()
+    assert result.fps.shape == ()
+    assert np.isfinite(np.asarray(result.wall_time))
+    assert np.isfinite(np.asarray(result.fps))
 
 
-def _fake_cost(flops=1.0, memory_bytes=2.0, compile_time_seconds=3.0) -> CostAnalysis:
-    return CostAnalysis(
-        flops=flops, memory_bytes=memory_bytes, compile_time_seconds=compile_time_seconds
-    )
+# ----------------------------------------------------------------------
+# FromScratchBenchmark
+# ----------------------------------------------------------------------
 
 
-def test_last_fifth_mean_matches_hand_computed_value():
-    # 10 updates, 4 steps, 2 envs. Only the last 2 updates (last 20%)
-    # should count towards returns - make the earlier ones all-0 and
-    # the last two all-1, so a bug that averages over the whole history
-    # (instead of the last 20%) would be caught.
-    num_updates, num_steps, num_envs = 10, 4, 2
-    done_mask = np.ones((num_updates, num_steps, num_envs), dtype=bool)
-    returns = np.zeros((num_updates, num_steps, num_envs), dtype=np.float32)
-    returns[-2:] = 1.0  # last 2 updates (20%) are successes
-
-    logs = {
-        "done_mask": jnp.asarray(done_mask),
-        "returns": jnp.asarray(returns),
-        "lengths": jnp.ones((num_updates, num_steps, num_envs)),
-        "iter/fps": jnp.full((num_updates,), 42.0),
-        "iter/wall_time": jnp.full((num_updates,), 1.5),
-    }
-    result = Benchmark._score_env(logs, _fake_cost())
-    reduced = result.last_fifth_mean()
-    np.testing.assert_allclose(np.asarray(reduced.returns), 1.0)
-    np.testing.assert_allclose(np.asarray(reduced.fps), 42.0)
-    np.testing.assert_allclose(np.asarray(reduced.wall_time), 1.5)
-    # cost fields are already scalar - last_fifth_mean must pass them
-    # through unchanged, not touch them.
-    np.testing.assert_allclose(np.asarray(reduced.flops), np.asarray(result.flops))
-
-    # flip it: only the *first* 80% succeed - returns should be ~0,
-    # since the tail (what's actually reduced) is all-failure.
-    returns2 = np.ones((num_updates, num_steps, num_envs), dtype=np.float32)
-    returns2[-2:] = 0.0
-    logs2 = {**logs, "returns": jnp.asarray(returns2)}
-    result2 = Benchmark._score_env(logs2, _fake_cost())
-    np.testing.assert_allclose(np.asarray(result2.last_fifth_mean().returns), 0.0)
+def test_from_scratch_benchmark_env_ids_defaults_to_curated_set():
+    assert FromScratchBenchmark().env_ids == DEFAULT_ENV_IDS
 
 
-def test_summary_averages_across_environments_from_hand_built_results():
-    # two envs with opposite returns - summary should land at their
-    # mean, not just one env's value.
+def test_default_env_ids_are_all_registered():
+    # a typo here (e.g. an unregistered env id) would silently break
+    # every default Navix1M()/Navix100K() run.
+    known = set(registry().keys())
+    for env_id in DEFAULT_ENV_IDS:
+        assert env_id in known, f"{env_id!r} is not a registered environment"
+
+
+def test_from_scratch_benchmark_run_stacks_one_result_per_env():
     entry = _make_tiny_entry()
-    raw = {
-        "env-a": BenchmarkResult(
-            returns=jnp.asarray(1.0),
-            episode_length=jnp.asarray(0.0),
-            flops=jnp.asarray(1.0),
-            memory_bytes=jnp.asarray(1.0),
-            compile_time_seconds=jnp.asarray(1.0),
-            fps=jnp.asarray(0.0),
-            wall_time=jnp.asarray(0.0),
-        ),
-        "env-b": BenchmarkResult(
-            returns=jnp.asarray(0.0),
-            episode_length=jnp.asarray(0.0),
-            flops=jnp.asarray(1.0),
-            memory_bytes=jnp.asarray(1.0),
-            compile_time_seconds=jnp.asarray(1.0),
-            fps=jnp.asarray(0.0),
-            wall_time=jnp.asarray(0.0),
-        ),
-    }
-    summary = Benchmark.summary(raw)
-    np.testing.assert_allclose(np.asarray(summary.returns), 0.5)
-    # history must NOT be averaged - each env keeps its own value.
-    history = Benchmark.history(raw)
-    np.testing.assert_allclose(np.asarray(history["env-a"].returns), 1.0)
-    np.testing.assert_allclose(np.asarray(history["env-b"].returns), 0.0)
+    benchmark = _TinyBenchmark(seeds=(0, 1))
+
+    raw = benchmark.run(entry)
+
+    # leading env axis, then seed, then update.
+    assert raw.curve.episodic_returns.shape == (len(_TINY_ENV_IDS), 2, 1)
+    assert raw.wall_time.shape == (len(_TINY_ENV_IDS),)
 
 
-def test_summary_averages_cost_fields_too():
-    # flops/memory_bytes/compile_time_seconds must be part of the same
-    # mean reduction as returns/fps/etc - not silently dropped or left
-    # unaggregated.
-    raw = {
-        "env-a": BenchmarkResult(
-            returns=jnp.asarray(0.0),
-            episode_length=jnp.asarray(0.0),
-            flops=jnp.asarray(10.0),
-            memory_bytes=jnp.asarray(100.0),
-            compile_time_seconds=jnp.asarray(1.0),
-            fps=jnp.asarray(0.0),
-            wall_time=jnp.asarray(0.0),
-        ),
-        "env-b": BenchmarkResult(
-            returns=jnp.asarray(0.0),
-            episode_length=jnp.asarray(0.0),
-            flops=jnp.asarray(20.0),
-            memory_bytes=jnp.asarray(200.0),
-            compile_time_seconds=jnp.asarray(3.0),
-            fps=jnp.asarray(0.0),
-            wall_time=jnp.asarray(0.0),
-        ),
-    }
-    summary = Benchmark.summary(raw)
-    np.testing.assert_allclose(np.asarray(summary.flops), 15.0)
-    np.testing.assert_allclose(np.asarray(summary.memory_bytes), 150.0)
-    np.testing.assert_allclose(np.asarray(summary.compile_time_seconds), 2.0)
+def test_from_scratch_benchmark_summary_excludes_non_numeric_and_length():
+    entry = _make_tiny_entry()
+    benchmark = _TinyBenchmark(seeds=(0, 1))
+    raw = benchmark.run(entry)
+
+    summary = benchmark.summary(raw)
+    details = benchmark.details(raw)
+
+    assert "env_ids" not in summary
+    assert "length" not in summary
+    assert set(details.keys()) - set(summary.keys()) == {"env_ids", "length"}
+    assert details["env_ids"] == _TINY_ENV_IDS
+    for key, value in summary.items():
+        assert np.all(np.isfinite(np.asarray(value))), f"summary[{key!r}] is not finite"
+        # summary is each numeric detail column meaned across envs.
+        np.testing.assert_allclose(np.asarray(value), np.asarray(jnp.mean(details[key])))
 
 
-def test_benchmark_result_info_defaults_empty_and_is_free_form():
-    result = BenchmarkResult(
-        returns=jnp.asarray(0.0),
-        episode_length=jnp.asarray(0.0),
-        flops=jnp.asarray(0.0),
-        memory_bytes=jnp.asarray(0.0),
-        compile_time_seconds=jnp.asarray(0.0),
-        fps=jnp.asarray(0.0),
-        wall_time=jnp.asarray(0.0),
-    )
-    assert result.info == {}
+def test_from_scratch_benchmark_falsy_env_ids_resolves_to_registry(monkeypatch):
+    fake_registry = {env_id: None for env_id in _TINY_ENV_IDS}
+    monkeypatch.setattr("navix.benchmarks.scratch.registry", lambda: fake_registry)
 
-    with_info = BenchmarkResult(
-        returns=jnp.asarray(0.0),
-        episode_length=jnp.asarray(0.0),
-        flops=jnp.asarray(0.0),
-        memory_bytes=jnp.asarray(0.0),
-        compile_time_seconds=jnp.asarray(0.0),
-        fps=jnp.asarray(0.0),
-        wall_time=jnp.asarray(0.0),
-        info={"anything": "goes"},
-    )
-    assert with_info.info == {"anything": "goes"}
+    benchmark = _TinyBenchmark(env_ids=(), seeds=(0, 1))
+    entry = _make_tiny_entry()
+
+    raw = benchmark.run(entry)
+    details = benchmark.details(raw)
+
+    assert details["env_ids"] == tuple(fake_registry.keys())
+
+
+# ----------------------------------------------------------------------
+# Benchmark.submit_entry
+# ----------------------------------------------------------------------
+
+
+def test_submit_entry_writes_three_files(tmp_path):
+    # submit_entry locates its output directory from its caller's own
+    # __file__ (the convention every run.py already follows), so the
+    # call must happen from a file that actually lives in tmp_path -
+    # calling it directly from this test module would write into the
+    # tests/ directory instead.
+    caller_path = tmp_path / "caller.py"
+    caller_path.write_text("def call(benchmark, entry, raw):\n    benchmark.submit_entry(entry, raw)\n")
+    spec = importlib.util.spec_from_file_location("caller", caller_path)
+    caller = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(caller)  # type: ignore[union-attr]
+
+    entry = _make_tiny_entry()
+    benchmark = _TinyBenchmark(seeds=(0, 1))
+    raw = benchmark.run(entry)
+
+    caller.call(benchmark, entry, raw)
+
+    assert (tmp_path / "summary.json").exists()
+    assert (tmp_path / "details.json").exists()
+    assert (tmp_path / "diagnostics.npz").exists()
+
+    summary_payload = json.loads((tmp_path / "summary.json").read_text())
+    assert summary_payload["entry"]["name"] == entry.name
+    assert "episodic_returns" in summary_payload["summary"]
+
+    details_payload = json.loads((tmp_path / "details.json").read_text())
+    assert details_payload["details"]["env_ids"] == list(_TINY_ENV_IDS)
+
+    npz = np.load(tmp_path / "diagnostics.npz")
+    for key in ("episodic_returns", "length", "wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"):
+        assert key in npz.files

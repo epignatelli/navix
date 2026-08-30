@@ -23,7 +23,7 @@ environments. See `navix.benchmarks` (this package's `__init__.py`)
 for the full design."""
 from __future__ import annotations
 
-from typing import Any, ClassVar, Dict, Optional, Tuple
+from typing import Any, ClassVar, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -37,8 +37,11 @@ DEFAULT_ENV_IDS: Tuple[str, ...] = (
     "Navix-Empty-5x5-v0",
     "Navix-Dynamic-Obstacles-5x5-v0",
     "Navix-DoorKey-8x8-v0",
-    "Navix-Crossings-S9N2-v0",
+    "Navix-SimpleCrossingS9N2-v0",
 )
+"""`FromScratchBenchmark.env_ids`'s default - one env from each of a
+few distinct families (sparse-goal navigation, dynamic obstacles,
+key/door, hazard-crossing), not every registered environment."""
 
 
 class FromScratchBenchmark(Benchmark):
@@ -53,9 +56,12 @@ class FromScratchBenchmark(Benchmark):
     Attributes:
         budget (int): Passed to `entry.train`/`entry.cost_analysis` as
             their `budget` argument.
-        env_ids (Optional[Tuple[str, ...]]): Environments to train on.
-            `None` resolves lazily, at `run` time, to every registered
-            environment.
+        env_ids (Tuple[str, ...]): Environments to train on. Defaults
+            to `DEFAULT_ENV_IDS` - a small, curated set spanning
+            several environment families, not every registered
+            environment. Falsy (e.g. explicitly set to `None`)
+            resolves lazily, at `run`/`details` time, to every
+            registered environment instead.
     """
 
     budget: int = struct.field(pytree_node=False, default=0)

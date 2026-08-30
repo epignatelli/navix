@@ -38,4 +38,4 @@ from .environments.registry import make, register_env, registry
 from .experiment import Experiment
 from .environments.environment import Environment, Timestep, StepType
 from . import benchmarks
-from .benchmarks import Benchmark, TrainingCurve, AlgorithmEntry, Navix1M, Navix100K
+from .benchmarks import Benchmark, BenchmarkResult, TrainingCurve, AlgorithmEntry, Navix1M, Navix100K

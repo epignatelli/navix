@@ -387,17 +387,16 @@ class BenchmarkResult(struct.PyTreeNode):
     """One `AlgorithmEntry`'s scored run under a `Benchmark` protocol -
     a `TrainingCurve` plus everything only an external, un-jitted
     wrapper can measure. Built by `Benchmark.run_env` in one shot, from
-    three independently-measured pieces - never partially constructed,
-    unlike `curve`'s own fields there's nothing here that starts as a
-    placeholder waiting to be filled in later.
+    three independently-measured pieces.
 
     Attributes:
         curve (TrainingCurve): `AlgorithmEntry.train`'s output.
-        wall_time (Array): Real wall-clock time to execute the already
-            -compiled `AlgorithmEntry.train` (all of `Benchmark.seeds`,
-            vmapped together) - timed and `jax.block_until_ready`'d
-            from outside any `jax.jit` trace, unlike anything `train`
-            could measure about itself. Excludes compile time (see
+        wall_time (Array): Real wall-clock time to execute the
+            already-compiled `AlgorithmEntry.train` (all of
+            `Benchmark.seeds`, vmapped together) - timed and
+            `jax.block_until_ready`'d from outside any `jax.jit`
+            trace, unlike anything `train` could measure about
+            itself. Excludes compile time (see
             `cost.compile_time_seconds`). Scalar.
         fps (Array): Training throughput: `budget / wall_time`. Scalar.
             Comparable only across results measured on the same
@@ -588,5 +587,5 @@ class Benchmark(struct.PyTreeNode):
             "compile_time_seconds": np.asarray(result.cost.compile_time_seconds),
         }
         for key, value in result.curve.diagnostics.items():
-            curves[f"diagnostics/{key}"] = resample(value)
+            curves[f"diagnostics_{key}"] = resample(value)
         np.savez_compressed(path / "diagnostics.npz", **curves)
