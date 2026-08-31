@@ -7,6 +7,7 @@ jax
 flax
 rlax
 chex
+distrax
 tyro
 pyyaml
 wandb

@@ -13,6 +13,7 @@ jax
 flax
 rlax
 chex
+distrax
 # experiments
 tyro
 pyyaml
