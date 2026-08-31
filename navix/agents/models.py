@@ -310,16 +310,17 @@ class PostNet(nn.Module):
 # -------------------------
 
 
-class QNetwork(nn.Module):
-    """The Q-network PQN regresses towards Q(lambda) targets - plain
-    Dense/LayerNorm/ReLU stacked twice, then a linear head over
-    `action_dim` raw Q-values (no output activation). LayerNorm after
-    every hidden layer is not incidental here the way it might be in an
-    encoder elsewhere: it's the specific regularizer the PQN paper shows
-    keeps online Q-learning convergent with no replay buffer and no
-    target network (see `navix.agents.pqn`'s module docstring)."""
+class QMLPEncoder(nn.Module):
+    """`QNetwork`'s default (MDP, fully-observable/flattened) feature
+    extractor: Dense/LayerNorm/ReLU stacked twice. LayerNorm after every
+    hidden layer is not incidental here the way it might be in `MLPEncoder`
+    above: it's the specific regularizer the PQN paper shows keeps online
+    Q-learning convergent with no replay buffer and no target network
+    (see `navix.agents.pqn`'s module docstring) - so unlike `ActorCritic`'s
+    encoders, `QNetwork`'s own encoders (this and `QConvEncoder`) always
+    keep it, rather than leaving it out like the shared `MLPEncoder`/
+    `ConvEncoder` do."""
 
-    action_dim: int
     hidden_size: int = 64
 
     @nn.compact
@@ -332,7 +333,7 @@ class QNetwork(nn.Module):
         # `examples/ppo.py`'s FlattenObsWrapper) the way PPO's does -
         # same ergonomics as Dreamer's `_flatten_obs`.
         x = jnp.ravel(x)
-        net = nn.Sequential(
+        return nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_size,
@@ -348,16 +349,64 @@ class QNetwork(nn.Module):
                 ),
                 nn.LayerNorm(),
                 nn.relu,
-                # Unlike PPO's actor head (small-std output init) or
-                # Dreamer's zero-init heads, the reference PQN
-                # implementation uses the same orthogonal(sqrt(2)) init
-                # on the output layer as every hidden layer - no special
-                # small-scale treatment for the Q-value outputs.
+            ]
+        )(x)
+
+
+class QConvEncoder(nn.Module):
+    """`QNetwork`'s POMDP (partially-observable pixel) feature extractor:
+    same strided-downsampling conv stack as `ConvEncoder` (see its
+    docstring for why the stride matters), projected through a Dense/
+    LayerNorm/ReLU head to match `QMLPEncoder`'s regularization - PQN's
+    LayerNorm-for-stability argument applies to the features `QNetwork`
+    regresses Q-values from regardless of whether they came from a Dense
+    or Conv stack, so this keeps it rather than dropping it for pixels."""
+
+    hidden_size: int = 64
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        return nn.Sequential(
+            [
+                nn.Conv(16, kernel_size=(2, 2), strides=(2, 2)),
+                nn.relu,
+                nn.Conv(32, kernel_size=(2, 2), strides=(2, 2)),
+                nn.relu,
+                nn.Conv(64, kernel_size=(2, 2), strides=(2, 2)),
+                nn.relu,
+                jnp.ravel,
                 nn.Dense(
-                    self.action_dim,
+                    self.hidden_size,
                     kernel_init=orthogonal(jnp.sqrt(2.0)),
                     bias_init=constant(0.0),
                 ),
+                nn.LayerNorm(),
+                nn.relu,
             ]
-        )
-        return net(x)  # raw Q-values, (action_dim,)
+        )(x)
+
+
+class QNetwork(nn.Module):
+    """The Q-network PQN regresses towards Q(lambda) targets - a
+    pluggable feature extractor (`encoder`, `QMLPEncoder` by default for
+    MDP/flattened observations, swappable for `QConvEncoder` for POMDP/
+    pixel observations, same `actor_encoder`/`critic_encoder` pattern
+    `ActorCritic` uses) followed by a linear head over `action_dim` raw
+    Q-values (no output activation)."""
+
+    action_dim: int
+    encoder: nn.Module = QMLPEncoder()
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        x = self.encoder(x)
+        # Unlike PPO's actor head (small-std output init) or Dreamer's
+        # zero-init heads, the reference PQN implementation uses the
+        # same orthogonal(sqrt(2)) init on the output layer as every
+        # hidden layer - no special small-scale treatment for the
+        # Q-value outputs.
+        return nn.Dense(
+            self.action_dim,
+            kernel_init=orthogonal(jnp.sqrt(2.0)),
+            bias_init=constant(0.0),
+        )(x)  # raw Q-values, (action_dim,)
