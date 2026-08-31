@@ -73,7 +73,7 @@ def build_search_set(
 def hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
     """One scalar fitness per population member, from `logs` (as
     returned by a `run_hparam_search` generation's `search_fn` call):
-    last-20%-mean `perf/returns` (`navix.agents.agent.
+    last-20%-mean `agent/episode/returns` (`navix.agents.agent.
     derive_episodic_metrics`), averaged over the seed axis.
 
     Args:
@@ -248,7 +248,7 @@ class Experiment:
         `pop_size` hyperparameter sets around the current mean, train all
         of them in one fused `jax.jit(jax.vmap(...))` call (the same shape
         `Experiment.run` itself uses), score each by its last-20%-mean
-        `perf/returns` (`navix.agents.agent.derive_episodic_metrics`,
+        `agent/episode/returns` (`navix.agents.agent.derive_episodic_metrics`,
         averaged over `self.seeds`), then take an ES step: z-score the
         fitnesses, estimate a gradient from fitness-weighted noise, and
         update the mean via `solver`. The best-scoring hyperparameter set
@@ -294,7 +294,7 @@ class Experiment:
         Returns:
             Tuple[HParams, Array]: The best-scoring hyperparameter set
             actually evaluated across every generation, and its fitness
-            (last-20%-mean `perf/returns`, averaged over `self.seeds`).
+            (last-20%-mean `agent/episode/returns`, averaged over `self.seeds`).
 
         Raises:
             ValueError: If `pop_size` is odd, or `hparams_distr` names a
