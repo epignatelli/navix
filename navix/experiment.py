@@ -43,7 +43,7 @@ from navix.es import probe_hparam_field_stats, sample_antithetic_candidates
 # a real cost worth knowing about before choosing `log_to_wandb=True`.
 
 
-def _build_search_set(
+def build_search_set(
     base_hparams: HParams, candidates: Dict[str, jax.Array], pop_size: int
 ) -> HParams:
     """Batches `pop_size` individually-`replace`'d copies of
@@ -70,7 +70,7 @@ def _build_search_set(
     return jax.tree.map(lambda *x: jnp.stack(x), *search_set_list)
 
 
-def _hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
+def hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
     """One scalar fitness per population member, from `logs` (as
     returned by a `run_hparam_search` generation's `search_fn` call):
     last-20%-mean `perf/returns` (`navix.agents.agent.
@@ -361,7 +361,7 @@ class Experiment:
             noise, candidates = sample_antithetic_candidates(
                 theta, scale, lo, hi, pop_size, sigma, gen_key
             )
-            search_set = _build_search_set(self.agent.hparams, candidates, pop_size)
+            search_set = build_search_set(self.agent.hparams, candidates, pop_size)
 
             gen_start = time.time()
             _, logs = jax.block_until_ready(search_fn(search_set))
@@ -379,7 +379,7 @@ class Experiment:
             logs["iter/wall_time"] = jnp.full(gen_logs_shape, gen_wall_time)
             logs["iter/fps"] = jnp.full(gen_logs_shape, gen_fps)
 
-            fitness = _hparam_search_fitness(logs)  # (pop_size,)
+            fitness = hparam_search_fitness(logs)  # (pop_size,)
 
             shaped = (fitness - jnp.mean(fitness)) / jnp.sqrt(jnp.var(fitness) + 1e-8)
             grad = {k: jnp.mean(shaped * noise[k]) for k in candidates}

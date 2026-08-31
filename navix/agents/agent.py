@@ -35,7 +35,7 @@ def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     return jnp.sum(jnp.where(mask, values, 0), axis=axis) / jnp.sum(mask, axis=axis)
 
 
-_REQUIRED_LOG_KEYS: Dict[str, str] = {
+REQUIRED_LOG_KEYS: Dict[str, str] = {
     "done_mask": "which steps ended an episode",
     "lengths": "per-step episode length",
     "returns": "per-step episodic return",
@@ -73,9 +73,9 @@ def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
         KeyError: If `logs` is missing `done_mask`, `lengths`, or
             `returns`.
     """
-    missing = [key for key in _REQUIRED_LOG_KEYS if key not in logs]
+    missing = [key for key in REQUIRED_LOG_KEYS if key not in logs]
     if missing:
-        reasons = ", ".join(f"{key!r} ({_REQUIRED_LOG_KEYS[key]})" for key in missing)
+        reasons = ", ".join(f"{key!r} ({REQUIRED_LOG_KEYS[key]})" for key in missing)
         raise KeyError(f"logs is missing required key(s): {reasons}.")
 
     metrics = dict(logs)

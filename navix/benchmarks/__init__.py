@@ -33,13 +33,15 @@ concrete protocol so far), `search.py` (`search_hparams` - an optional,
 `Benchmark`-independent Evolution-Strategies search an entry's own
 `run.py` can use to tune its hyperparameters before scoring; not part
 of `Benchmark`/`AlgorithmEntry` itself, since what's searchable is
-inherently entry-specific), and `plotting.py` (a local no-wandb
-dashboard for `logs` - see `Agent`'s docstring and issue #60 - plus
-`Benchmark.plot_summary`/`plot_details`/`plot_diagnostics` for locally
-inspecting a scored run's `summary`/`details`/`diagnostics.npz`
-without the online leaderboard). A future protocol (curriculum
-learning, continual learning, open-ended learning) gets its own file
-alongside `scratch.py`, subclassing `Benchmark` directly.
+inherently entry-specific - `benchmark.py` also has `Benchmark.
+plot_summary`/`plot_details`/`plot_diagnostics` for locally inspecting
+a scored run's `summary`/`details`/`diagnostics.npz` without the
+online leaderboard, next to the `Benchmark` methods they render), and
+`plotting.py` (a local no-wandb dashboard for `logs` - see `Agent`'s
+docstring and issue #60, unrelated to `Benchmark` scoring). A future
+protocol (curriculum learning, continual learning, open-ended
+learning) gets its own file alongside `scratch.py`, subclassing
+`Benchmark` directly.
 
 Typical usage:
 
@@ -53,20 +55,22 @@ Typical usage:
     benchmark.submit_entry(entry, results)
 
 See `benchmarks/README.md` for the full submission workflow."""
-from .benchmark import AlgorithmEntry, Benchmark, BenchmarkResult, CostAnalysis, TrainingCurve, is_commit_url
-from .hardware import cpu_type, cuda_version, cudnn_version, gpu_type, ram_bytes
-from .scratch import FromScratchBenchmark, Navix1M, Navix100K
-from .search import search_hparams
-from . import plotting
-from .plotting import (
-    MANDATORY_METRICS,
-    plot_metric,
-    plot_metrics,
-    plot_dashboard,
+from .benchmark import (
+    AlgorithmEntry,
+    Benchmark,
+    BenchmarkResult,
+    CostAnalysis,
+    TrainingCurve,
+    is_commit_url,
     plot_benchmark_summary,
     plot_benchmark_details,
     plot_benchmark_diagnostics,
 )
+from .hardware import cpu_type, cuda_version, cudnn_version, gpu_type, ram_bytes
+from .scratch import FromScratchBenchmark, Navix1M, Navix100K
+from .search import search_hparams
+from . import plotting
+from .plotting import MANDATORY_METRICS, plot_metric, plot_metrics, plot_dashboard
 
 __all__ = [
     "AlgorithmEntry",
