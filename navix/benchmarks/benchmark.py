@@ -44,10 +44,12 @@ import jax
 import jaxlib
 from jax import Array
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 from flax import struct
 
 from .hardware import cpu_type, cuda_version, cudnn_version, gpu_type, ram_bytes
+from .plotting import format_scalar, is_numeric_sequence, row_labels
 from ..environments.registry import registry
 
 # Budget used only to shape-check train()'s output in AlgorithmEntry's
@@ -669,10 +671,6 @@ class Benchmark(struct.PyTreeNode):
 
         Returns:
             matplotlib.figure.Figure: The table figure."""
-        import matplotlib.pyplot as plt
-
-        from .plotting import format_scalar
-
         summary = jax.device_get(self.summary(results))
         rows = [(key, format_scalar(value)) for key, value in summary.items()]
         fig, ax = plt.subplots(figsize=(6, 0.4 * max(len(rows), 1) + 1))
@@ -699,10 +697,6 @@ class Benchmark(struct.PyTreeNode):
 
         Returns:
             matplotlib.figure.Figure: One panel per numeric metric."""
-        import matplotlib.pyplot as plt
-
-        from .plotting import is_numeric_sequence, row_labels
-
         details = jax.device_get(self.details(results))
         label_key, labels = row_labels(details)
         numeric = {key: value for key, value in details.items() if key != label_key and is_numeric_sequence(value)}
@@ -746,8 +740,6 @@ class Benchmark(struct.PyTreeNode):
 
         Returns:
             matplotlib.figure.Figure: One panel per curve."""
-        import matplotlib.pyplot as plt
-
         # curve_diagnostics's own keys (benchmark/episode/returns,
         # benchmark/episode/length, plus curve.diagnostics's own keys
         # unchanged) can never collide with NON_CURVE_DIAGNOSTICS_KEYS
