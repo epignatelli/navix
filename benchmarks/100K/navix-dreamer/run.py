@@ -78,7 +78,7 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
 
     Returns:
         TrainingCurve: `episodic_returns`/`lengths` (masked-mean over
-        completed episodes), plus every `loss/*`/`agent/*` entry
+        completed episodes), plus every `diagnostics/*` entry
         Dreamer's own training loop already computes per update as
         `diagnostics` (world-model KL/reconstruction losses, actor/
         critic losses, imagined-rollout statistics)."""
@@ -103,7 +103,7 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
         ),
     )
     _, logs = agent.train(rng)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
     # Dreamer's own training loop already reduces every diagnostics/*
     # entry to one scalar per training update - already the exact
     # per-update-curve shape TrainingCurve.diagnostics wants, no
@@ -111,8 +111,8 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
     # run.py).
     diagnostics = {key: value for key, value in logs.items() if key.startswith("diagnostics/")}
     return TrainingCurve(
-        episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-        lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        episodic_returns=masked_mean(logs["train/returns"], mask, axis=(-2, -1)),
+        lengths=masked_mean(logs["train/lengths"], mask, axis=(-2, -1)),
         diagnostics=diagnostics,
     )
 

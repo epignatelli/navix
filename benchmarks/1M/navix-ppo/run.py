@@ -133,7 +133,7 @@ def train_with_hparams(
     network = ActorCritic(action_dim=len(env.action_set), actor_encoder=encoder_cls(), critic_encoder=encoder_cls())
     agent = PPO(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
     # PPO.update already reduces every diagnostics/* entry to one scalar
     # per training update (see PPO.sgd_step/update in navix/agents/ppo.py) -
     # already the exact per-update-curve shape TrainingCurve.diagnostics
@@ -143,8 +143,8 @@ def train_with_hparams(
     # episodic_returns/length for this entry.
     diagnostics = {key: value for key, value in logs.items() if key.startswith("diagnostics/")}
     return TrainingCurve(
-        episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-        lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        episodic_returns=masked_mean(logs["train/returns"], mask, axis=(-2, -1)),
+        lengths=masked_mean(logs["train/lengths"], mask, axis=(-2, -1)),
         diagnostics=diagnostics,
     )
 

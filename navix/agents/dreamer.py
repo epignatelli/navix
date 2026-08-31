@@ -1389,14 +1389,17 @@ class Dreamer(Agent):
         logs.update(mlogs)
         logs.update(alogs)
         logs.update(clogs)
-        logs["done_mask"] = experience.done
-        logs["returns"] = experience.info["return"]
-        logs["lengths"] = experience.t
-        logs["iter/frames"] = ts.frames
-        logs["iter/updates"] = ts.updates
-        logs["iter/model_lr"] = self.hparams.model_lr
-        logs["iter/actor_lr"] = self.hparams.actor_lr
-        logs["iter/critic_lr"] = self.hparams.critic_lr
+        logs["train/done_mask"] = experience.done
+        logs["train/returns"] = experience.info["return"]
+        logs["train/lengths"] = experience.t
+        logs["train/frames"] = ts.frames
+        logs["train/updates"] = ts.updates
+        # Not guaranteed uniform across every navix agent (PPO/PQN
+        # have one learning rate, not three - see Agent.train's
+        # docstring) - diagnostics/*, not train/*.
+        logs["diagnostics/model_lr"] = self.hparams.model_lr
+        logs["diagnostics/actor_lr"] = self.hparams.actor_lr
+        logs["diagnostics/critic_lr"] = self.hparams.critic_lr
         logs["diagnostics/return_norm_scale"] = return_norm_scale
 
         if self.hparams.log_render:

@@ -130,7 +130,7 @@ def train_with_hparams(
 
     Returns:
         TrainingCurve: `episodic_returns`/`lengths` (masked-mean over
-        completed episodes), plus every `loss/*`/`agent/*` entry PQN's
+        completed episodes), plus every `diagnostics/*` entry PQN's
         own training loop already computes per update as
         `diagnostics`."""
     encoder_cls: Type[nn.Module]
@@ -150,7 +150,7 @@ def train_with_hparams(
     network = QNetwork(action_dim=len(env.action_set), encoder=encoder_cls(hidden_size=hp.hidden_size))
     agent = PQN(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
     # PQN.update already reduces diagnostics/q_loss (and diagnostics/
     # epsilon, PQN's exploration schedule) to one scalar per training
     # update (see PQN.update in navix/agents/pqn.py) - already the exact
@@ -160,8 +160,8 @@ def train_with_hparams(
     # episodic_returns/length for this entry.
     diagnostics = {key: value for key, value in logs.items() if key.startswith("diagnostics/")}
     return TrainingCurve(
-        episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-        lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        episodic_returns=masked_mean(logs["train/returns"], mask, axis=(-2, -1)),
+        lengths=masked_mean(logs["train/lengths"], mask, axis=(-2, -1)),
         diagnostics=diagnostics,
     )
 

@@ -32,8 +32,8 @@ than auto-detecting whatever keys happen to be in `logs`. Each entry is
 derivable purely from the (state, action, reward, done) interaction
 stream plus wall-clock time - the one interface every RL algorithm
 shares, regardless of its internals - so the set stays meaningful for any
-future agent, not just the ones navix ships: `perf/returns`,
-`perf/success_rate`, `perf/episode_length`, `iter/fps`, `iter/wall_time`.
+future agent, not just the ones navix ships: `episode/returns`,
+`episode/success_rate`, `episode/length`, `iter/fps`, `iter/wall_time`.
 Identical across every navix agent so results are visually comparable
 across algorithms - this is the set the navix leaderboard (#130) is
 expected to standardise on.
@@ -47,7 +47,7 @@ diagnostic keys), not to navix itself. `plot_metrics`/`plot_dashboard`
 both accept an arbitrary metrics dict for exactly this reason.
 
 `navix.agents.agent.derive_episodic_metrics` (formerly defined here)
-builds the `perf/*` keys `plot_metric`/`plot_dashboard` expect in
+builds the `episode/*` keys `plot_metric`/`plot_dashboard` expect in
 `logs` - it moved out because it's load-bearing for `Experiment.
 run_hparam_search`'s fitness computation too, not just plotting, so a
 plotting-only module was the wrong home for it.
@@ -62,9 +62,9 @@ import numpy as np
 
 
 MANDATORY_METRICS: Dict[str, str] = {
-    "perf/returns": "Episodic Return",
-    "perf/success_rate": "Success Rate",
-    "perf/episode_length": "Episode Length",
+    "episode/returns": "Episodic Return",
+    "episode/success_rate": "Success Rate",
+    "episode/length": "Episode Length",
     "iter/fps": "Training Throughput (steps/s)",
     "iter/wall_time": "Wall-clock Training Time (s)",
 }
@@ -78,7 +78,7 @@ def plot_metric(
     logs: Dict[str, jnp.ndarray],
     key: str,
     title: Optional[str] = None,
-    x_key: str = "iter/frames",
+    x_key: str = "train/frames",
     xlabel: str = "Frames",
     ax=None,
 ):
@@ -87,9 +87,9 @@ def plot_metric(
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree, as returned by
-            `navix.agents.agent.derive_episodic_metrics` (for `perf/*`
-            keys) or directly from `Experiment.run()` (for raw keys
-            like `diagnostics/*`, `iter/*`).
+            `navix.agents.agent.derive_episodic_metrics` (for
+            `episode/*` keys) or directly from `Experiment.run()` (for
+            raw keys like `train/*`, `diagnostics/*`, `iter/*`).
         key (str): The key in `logs` to plot.
         title (str, optional): The plot title. Defaults to `key`.
         x_key (str): The key in `logs` to use as the x-axis.
@@ -128,7 +128,7 @@ def plot_metric(
 def plot_metrics(
     logs: Dict[str, jnp.ndarray],
     metrics: Dict[str, str],
-    x_key: str = "iter/frames",
+    x_key: str = "train/frames",
     xlabel: str = "Frames",
 ) -> Dict[str, "plt.Figure"]:
     """Plots each metric in `metrics` as its own standalone figure.
@@ -154,7 +154,7 @@ def plot_metrics(
 def plot_dashboard(
     logs: Dict[str, jnp.ndarray],
     metrics: Optional[Dict[str, str]] = None,
-    x_key: str = "iter/frames",
+    x_key: str = "train/frames",
     xlabel: str = "Frames",
 ):
     """Plots `metrics` (`MANDATORY_METRICS` by default) as a single combined

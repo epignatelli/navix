@@ -78,13 +78,13 @@ def hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
 
     Args:
         logs (Dict[str, Array]): Shape `(pop_size, num_seeds,
-            num_updates, num_steps, num_envs)` for `done_mask`/
-            `returns`/`lengths`.
+            num_updates, num_steps, num_envs)` for `train/done_mask`/
+            `train/returns`/`train/lengths`.
 
     Returns:
         Array: Shape `(pop_size,)`.
     """
-    returns = derive_episodic_metrics(logs)["perf/returns"]  # (pop_size, num_seeds, num_updates)
+    returns = derive_episodic_metrics(logs)["episode/returns"]  # (pop_size, num_seeds, num_updates)
     tail = max(1, int(returns.shape[-1] * 0.2))
     return jnp.mean(jnp.mean(returns[..., -tail:], axis=-1), axis=-1)
 
@@ -184,13 +184,17 @@ class Experiment:
         # one number for the whole vmapped call (seeds train together, so
         # there's no per-seed breakdown), broadcast to match every other
         # per-seed/per-update logged key's shape. fps is derived from each
-        # seed's own final iter/frames count (real, already correctly
+        # seed's own final train/frames count (real, already correctly
         # accumulated by the scan) rather than hparams.budget, both because
         # not every Agent.hparams carries a budget field and because a
         # seed's actual frame count can land slightly under budget (budget
         # // (num_steps * num_envs) floors to a whole number of updates).
-        num_updates = logs["iter/updates"].shape[-1]
-        frames = jnp.mean(jnp.asarray(logs["iter/frames"])[..., -1])
+        # Deliberately still iter/* (not train/*): Experiment adds these
+        # after agent.train() already returned, so they aren't part of
+        # Agent.train's own guaranteed-floor contract (see its docstring) -
+        # this is the one place iter/* still exists.
+        num_updates = logs["train/updates"].shape[-1]
+        frames = jnp.mean(jnp.asarray(logs["train/frames"])[..., -1])
         fps = frames / training_time
         logs["iter/wall_time"] = jnp.full((len(self.seeds), num_updates), training_time)
         logs["iter/fps"] = jnp.full((len(self.seeds), num_updates), fps)
@@ -372,8 +376,8 @@ class Experiment:
             # here instead, for whichever generation's logs end up
             # surfaced as best_logs below (plotting.py's MANDATORY_METRICS
             # contract expects both to be present).
-            gen_num_updates = logs["iter/updates"].shape[-1]
-            gen_frames = jnp.mean(jnp.asarray(logs["iter/frames"])[..., -1])
+            gen_num_updates = logs["train/updates"].shape[-1]
+            gen_frames = jnp.mean(jnp.asarray(logs["train/frames"])[..., -1])
             gen_fps = gen_frames / gen_wall_time
             gen_logs_shape = (pop_size, len(self.seeds), gen_num_updates)
             logs["iter/wall_time"] = jnp.full(gen_logs_shape, gen_wall_time)

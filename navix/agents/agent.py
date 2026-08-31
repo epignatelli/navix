@@ -36,42 +36,49 @@ def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
 
 
 REQUIRED_LOG_KEYS: Dict[str, str] = {
-    "done_mask": "which steps ended an episode",
-    "lengths": "per-step episode length",
-    "returns": "per-step episodic return",
+    "train/done_mask": "which steps ended an episode",
+    "train/lengths": "per-step episode length",
+    "train/returns": "per-step episodic return",
 }
+"""`train/*` is `Agent.train`'s own guaranteed-floor namespace - see its
+docstring for exactly what's verified common across every navix agent
+and why (as opposed to `diagnostics/*`, algorithm-specific and never
+guaranteed)."""
 
 
 def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
-    """Reduces the raw per-step buffers (`done_mask`, `lengths`,
-    `returns`) that `Agent.train` returns into `perf/episode_length`,
-    `perf/returns`, `perf/success_rate` - one point per training
-    update, masked-mean over completed episodes only.
+    """Reduces the raw per-step buffers (`train/done_mask`,
+    `train/lengths`, `train/returns`) that `Agent.train` returns into
+    `episode/length`, `episode/returns`, `episode/success_rate` - one
+    point per training update, masked-mean over completed episodes
+    only. Not itself a per-episode log (nothing in `logs` is - see
+    `Agent.train`'s docstring): a single aggregate statistic over
+    however many episodes happened to complete that update.
 
     `Agent.log_to_wandb` computes the same values, but one training
     update at a time (for live wandb logging); this is the batched
     equivalent, for reducing an entire already-finished `logs` history
     in one call - used by `Experiment.run_hparam_search` (as the ES
     search's fitness signal) and `navix.benchmarks.plotting` (as
-    `plot_metric`/`plot_dashboard`'s `perf/*` inputs).
+    `plot_metric`/`plot_dashboard`'s `episode/*` inputs).
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree returned by
             `Experiment.run()`, `Experiment.run_hparam_search()`, or a
-            bare `Agent.train()` call. Must contain `done_mask`/
-            `lengths`/`returns`, shaped `(..., num_steps, num_envs)` -
-            any number of leading batch dimensions (e.g. seeds,
-            hparam sets) is supported.
+            bare `Agent.train()` call. Must contain `train/done_mask`/
+            `train/lengths`/`train/returns`, shaped `(..., num_steps,
+            num_envs)` - any number of leading batch dimensions (e.g.
+            seeds, hparam sets) is supported.
 
     Returns:
-        Dict[str, Array]: `logs`, plus `perf/episode_length`,
-        `perf/returns` and `perf/success_rate` (shape: `logs`'
+        Dict[str, Array]: `logs`, plus `episode/length`,
+        `episode/returns` and `episode/success_rate` (shape: `logs`'
         leading batch dimensions, with `num_steps` and `num_envs`
         reduced away). `logs` itself is not mutated.
 
     Raises:
-        KeyError: If `logs` is missing `done_mask`, `lengths`, or
-            `returns`.
+        KeyError: If `logs` is missing `train/done_mask`,
+            `train/lengths`, or `train/returns`.
     """
     missing = [key for key in REQUIRED_LOG_KEYS if key not in logs]
     if missing:
@@ -79,11 +86,11 @@ def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
         raise KeyError(f"logs is missing required key(s): {reasons}.")
 
     metrics = dict(logs)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
-    metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
-    returns = logs["returns"]
-    metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
-    metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
+    mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
+    metrics["episode/length"] = masked_mean(logs["train/lengths"], mask, axis=(-2, -1))
+    returns = logs["train/returns"]
+    metrics["episode/returns"] = masked_mean(returns, mask, axis=(-2, -1))
+    metrics["episode/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
     return metrics
 
 
@@ -121,36 +128,42 @@ class Agent(struct.PyTreeNode):
         training history every downstream consumer (`log_to_wandb`,
         `Experiment`, `navix.benchmarks`) reads.
 
-        `logs`' keys split into what's structurally guaranteed to
-        exist (because it comes from the shared collect/derive path
-        every concrete agent already goes through, not something each
-        implementation writes by hand) and what's genuinely bespoke -
-        verified directly against every navix agent's own `update`/
-        `train`, not assumed:
+        `logs`' keys split into exactly two namespaces here - what's
+        structurally guaranteed (`train/*`, from the shared collect/
+        derive path every concrete agent already goes through, not
+        something each implementation writes by hand) and what's
+        genuinely bespoke (`diagnostics/*`) - verified directly
+        against every navix agent's own `update`/`train`, not assumed:
 
-        - **Guaranteed**: `done_mask`/`returns`/`lengths` (the raw,
-          per-step interaction stream - required by
-          `derive_episodic_metrics`, which raises `KeyError` if any is
-          missing) and `iter/frames`/`iter/updates` (identical across
-          every navix agent). `perf/returns`/`perf/success_rate`/
-          `perf/episode_length` are then always derivable from the raw
-          stream via `derive_episodic_metrics` - the one comparison
-          every algorithm supports regardless of internals.
-        - **Not guaranteed, even within `iter/*`**: `iter/epochs`
-          (PPO/PQN only - Dreamer has no epoch concept) and
-          `iter/learning_rate` (PPO/PQN's single optimizer - Dreamer
-          has three instead: `iter/model_lr`/`iter/actor_lr`/
-          `iter/critic_lr`). Structural, not an oversight - an agent's
-          own optimizer/loop shape decides these.
-        - **Bespoke, `diagnostics/*`**: everything algorithm-specific
-          (PPO's `diagnostics/entropy`/`diagnostics/value_loss`/...;
-          PQN's `diagnostics/q_loss`/`diagnostics/epsilon`; Dreamer's
-          `diagnostics/model/*`/`diagnostics/actor/*`/`diagnostics/
-          critic/*`). One shared prefix, no shared key names - a
-          caller (e.g. `benchmarks/*/*/run.py`'s `TrainingCurve.
-          diagnostics` construction) can always filter on
+        - **`train/*`, guaranteed**: `train/done_mask`/`train/returns`/
+          `train/lengths` (the raw, per-step interaction stream -
+          required by `derive_episodic_metrics`, which raises
+          `KeyError` if any is missing) and `train/frames`/
+          `train/updates` (identical across every navix agent). None
+          of these are themselves per-episode values - `returns`/
+          `lengths` are dense running sums reset on episode boundary,
+          only meaningful where `done_mask` is true (see
+          `navix.environments.environment.Environment.step`'s
+          `info["return"]` accumulation).
+        - **`diagnostics/*`, bespoke**: everything else, including
+          things that look like they should be structural but aren't
+          actually uniform - e.g. an epoch count or learning-rate
+          schedule state exists for PPO/PQN but not in the same shape
+          for Dreamer (three optimizers, not one) - alongside the
+          obviously algorithm-specific values (PPO's `diagnostics/
+          entropy`/`diagnostics/value_loss`/...; PQN's `diagnostics/
+          q_loss`/`diagnostics/epsilon`; Dreamer's `diagnostics/
+          model/*`/`diagnostics/actor/*`/`diagnostics/critic/*`). One
+          shared prefix, no shared key names - a caller (e.g.
+          `benchmarks/*/*/run.py`'s `TrainingCurve.diagnostics`
+          construction) can always filter on
           `key.startswith("diagnostics/")` without needing to know
           which specific keys a given agent happens to log.
+
+        Neither namespace has anything called `episode/*` - that's
+        `derive_episodic_metrics`' own output, computed downstream
+        from `train/*`'s raw stream, never populated by `train()`
+        itself.
 
         Args:
             rng (jax.Array): PRNG key for the whole training run.
@@ -161,32 +174,32 @@ class Agent(struct.PyTreeNode):
         raise NotImplementedError
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
-        if len(logs) == 0 or logs["iter/updates"] % self.hparams.log_frequency != 0:
+        if len(logs) == 0 or logs["train/updates"] % self.hparams.log_frequency != 0:
             return
 
         start_time = time.time()
-        msg = f"Update Step: {logs['iter/updates']}, Frames: {logs['iter/frames']}"
-        step = jnp.asarray(logs["iter/updates"], dtype=jnp.int32)
+        msg = f"Update Step: {logs['train/updates']}, Frames: {logs['train/frames']}"
+        step = jnp.asarray(logs["train/updates"], dtype=jnp.int32)
 
         # log renders
         if self.hparams.log_render:
             render_human = logs.pop("render/human")  # (T, 3, H, W)
             logs[f"render/human"] = wandb.Video(np.array(render_human), fps=4)
 
-        if "done_mask" in logs:
-            mask = jnp.asarray(logs.pop("done_mask"), dtype=jnp.bool_)  # (T, N)
+        if "train/done_mask" in logs:
+            mask = jnp.asarray(logs.pop("train/done_mask"), dtype=jnp.bool_)  # (T, N)
             # log episode length
-            if "lengths" in logs:
-                lengths: jax.Array = logs.pop("lengths")  # (T, N)
-                logs["perf/episode_length"] = masked_mean(lengths, mask)
-                msg += f", Length: {logs['perf/episode_length']}"
+            if "train/lengths" in logs:
+                lengths: jax.Array = logs.pop("train/lengths")  # (T, N)
+                logs["episode/length"] = masked_mean(lengths, mask)
+                msg += f", Length: {logs['episode/length']}"
 
             # log returns
-            if "returns" in logs:
-                returns = logs.pop("returns")  # (T, N)
-                logs["perf/returns"] = masked_mean(returns, mask)
-                logs["perf/success_rate"] = masked_mean(returns == 1.0, mask)
-                msg += f", Returns: {logs['perf/returns']}, Success Rate: {logs['perf/success_rate']}"
+            if "train/returns" in logs:
+                returns = logs.pop("train/returns")  # (T, N)
+                logs["episode/returns"] = masked_mean(returns, mask)
+                logs["episode/success_rate"] = masked_mean(returns == 1.0, mask)
+                msg += f", Returns: {logs['episode/returns']}, Success Rate: {logs['episode/success_rate']}"
 
         msg += f", Logging time cost: {time.time() - start_time}"
         # Use the explicit Run object when given, rather than the
@@ -198,8 +211,8 @@ class Agent(struct.PyTreeNode):
 
     def log_to_wandb_on_train_end(self, logs, run=None):
         print(jax.tree.map(lambda x: x.shape, logs))
-        len_logs = len(logs["iter/updates"])
-        updates = logs["iter/updates"]
+        len_logs = len(logs["train/updates"])
+        updates = logs["train/updates"]
         for step in range(len_logs):
             if updates[step] % self.hparams.log_frequency != 0:
                 continue

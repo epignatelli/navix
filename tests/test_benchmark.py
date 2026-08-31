@@ -66,10 +66,10 @@ class _TinyPPOEntry(AlgorithmEntry):
         env = env.replace(max_steps=hp.num_steps)
         agent = PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
         _, logs = agent.train(rng)
-        mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+        mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
         return TrainingCurve(
-            episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-            lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+            episodic_returns=masked_mean(logs["train/returns"], mask, axis=(-2, -1)),
+            lengths=masked_mean(logs["train/lengths"], mask, axis=(-2, -1)),
         )
 
 

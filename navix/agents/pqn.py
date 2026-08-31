@@ -343,14 +343,16 @@ class PQN(Agent):
 
         learning_rate = train_state.opt_state[1].hyperparams["learning_rate"]  # type: ignore
 
-        logs["done_mask"] = experience.done
-        logs["returns"] = experience.info["return"]
-        logs["lengths"] = experience.t
+        logs["train/done_mask"] = experience.done
+        logs["train/returns"] = experience.info["return"]
+        logs["train/lengths"] = experience.t
 
-        logs["iter/frames"] = train_state.frames
-        logs["iter/epochs"] = train_state.epoch
-        logs["iter/updates"] = train_state.step
-        logs["iter/learning_rate"] = learning_rate
+        logs["train/frames"] = train_state.frames
+        logs["train/updates"] = train_state.step
+        # Not guaranteed uniform across every navix agent (see
+        # Agent.train's docstring) - diagnostics/*, not train/*.
+        logs["diagnostics/epochs"] = train_state.epoch
+        logs["diagnostics/learning_rate"] = learning_rate
         logs["diagnostics/epsilon"] = self.epsilon(train_state.frames)
 
         if self.hparams.log_render:
