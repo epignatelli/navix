@@ -742,14 +742,17 @@ class Benchmark(struct.PyTreeNode):
             matplotlib.figure.Figure: One panel per curve."""
         import matplotlib.pyplot as plt
 
-        from .plotting import NON_CURVE_DIAGNOSTICS_KEYS
-
+        # curve_diagnostics's own keys (episodic_returns/length/
+        # diagnostics_<key>) can never collide with NON_CURVE_DIAGNOSTICS_
+        # KEYS (navix/benchmarks/plotting.py) - those five scalar cost
+        # fields are only ever added to a *different* dict, inside
+        # submit_entry, when building diagnostics.npz - so no filtering
+        # against them is needed here. The ndim check still matters: a
+        # TrainingCurve's own `diagnostics` values aren't shape-checked the
+        # way episodic_returns/lengths are, so a genuinely scalar one
+        # would break the reshape below if plotted as a curve.
         diagnostics = curve_diagnostics(jax.device_get(results))
-        curve_keys = [
-            key
-            for key, value in diagnostics.items()
-            if key not in NON_CURVE_DIAGNOSTICS_KEYS and np.asarray(value).ndim >= 1
-        ]
+        curve_keys = [key for key, value in diagnostics.items() if np.asarray(value).ndim >= 1]
         n_cols = max(len(curve_keys), 1)
         fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
 

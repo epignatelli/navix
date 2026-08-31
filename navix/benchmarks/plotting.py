@@ -196,16 +196,6 @@ def plot_dashboard(
     return fig
 
 
-# -------------------------
-# Small, generic formatting/detection helpers `Benchmark.plot_summary`/
-# `plot_details`/`plot_diagnostics` (navix/benchmarks/benchmark.py)
-# build their figures from - kept here rather than in benchmark.py
-# since they're generic (not `Benchmark`-shaped data specifically) and
-# this module is where every other "turn data into something plottable"
-# helper already lives.
-# -------------------------
-
-
 def format_scalar(value) -> str:
     """Renders one `Benchmark.summary()` value as a table cell: fixed-
     precision for a float scalar, `str()` otherwise."""
