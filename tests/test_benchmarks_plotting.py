@@ -25,9 +25,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
 
-from navix.plotting import (
+from navix.agents.agent import derive_episodic_metrics
+from navix.benchmarks.plotting import (
     MANDATORY_METRICS,
-    derive_scalar_metrics,
     plot_metric,
     plot_metrics,
     plot_dashboard,
@@ -53,34 +53,9 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
     }, mask, lengths, returns
 
 
-def test_derive_scalar_metrics_matches_manual_masked_mean():
-    logs, mask, lengths, returns = _make_logs()
-    n_seeds, n_updates = mask.shape[:2]
-
-    derived = derive_scalar_metrics(logs)
-
-    for s in range(n_seeds):
-        for u in range(n_updates):
-            m = mask[s, u]
-            expected_length = np.mean(lengths[s, u][m])
-            expected_returns = np.mean(returns[s, u][m])
-            expected_success = np.mean(returns[s, u][m] == 1.0)
-            assert np.allclose(derived["perf/episode_length"][s, u], expected_length)
-            assert np.allclose(derived["perf/returns"][s, u], expected_returns)
-            assert np.allclose(derived["perf/success_rate"][s, u], expected_success)
-
-    # original logs dict must not be mutated
-    assert "perf/returns" not in logs
-
-
-def test_derive_scalar_metrics_without_done_mask_is_a_noop():
-    logs = {"iter/frames": jnp.arange(5)}
-    assert derive_scalar_metrics(logs) is logs
-
-
 def test_plot_metric_returns_figure_with_data():
     logs, *_ = _make_logs()
-    logs = derive_scalar_metrics(logs)
+    logs = derive_episodic_metrics(logs)
     fig = plot_metric(logs, "perf/returns", x_key="iter/frames")
     assert isinstance(fig, plt.Figure)
     ax = fig.axes[0]
@@ -90,7 +65,7 @@ def test_plot_metric_returns_figure_with_data():
 
 def test_plot_metrics_skips_missing_keys():
     logs, *_ = _make_logs()
-    logs = derive_scalar_metrics(logs)
+    logs = derive_episodic_metrics(logs)
     figs = plot_metrics(logs, MANDATORY_METRICS, x_key="iter/frames")
     # perf/episode_length, perf/returns, perf/success_rate, iter/fps,
     # iter/wall_time all present
@@ -101,7 +76,7 @@ def test_plot_metrics_skips_missing_keys():
 
 def test_plot_dashboard_defaults_to_mandatory_metrics():
     logs, *_ = _make_logs()
-    logs = derive_scalar_metrics(logs)
+    logs = derive_episodic_metrics(logs)
     fig = plot_dashboard(logs, x_key="iter/frames")
     on_axes = [ax for ax in fig.axes if ax.axison]
     assert len(on_axes) == len(MANDATORY_METRICS)
@@ -109,11 +84,11 @@ def test_plot_dashboard_defaults_to_mandatory_metrics():
 
 
 def test_plot_dashboard_accepts_an_arbitrary_metrics_dict():
-    # navix.plotting doesn't know about "diagnostic" metrics - a caller
+    # navix.benchmarks.plotting doesn't know about "diagnostic" metrics - a caller
     # (e.g. a leaderboard's own algorithm -> diagnostic-keys mapping) can
     # pass whatever combined dict it wants
     logs, *_ = _make_logs()
-    logs = derive_scalar_metrics(logs)
+    logs = derive_episodic_metrics(logs)
     custom_metrics = {**MANDATORY_METRICS, "loss/total_loss": "Total Loss"}
 
     fig = plot_dashboard(logs, metrics=custom_metrics, x_key="iter/frames")

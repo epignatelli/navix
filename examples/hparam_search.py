@@ -16,7 +16,10 @@ class Args:
     project_name = "navix-debug"
     population_size: int = 2
     """Small by default - this script is a quick usage demo of the search
-    API, not a real hyperparameter sweep."""
+    API, not a real hyperparameter sweep. Must be even (antithetic
+    sampling)."""
+    num_generations: int = 2
+    """Small by default, same reason as population_size."""
     seed: int = 0
     # env
     env_id: str = "Navix-DoorKey-Random-6x6-v0"
@@ -73,10 +76,14 @@ if __name__ == "__main__":
     base_hparams = args.ppo_config
     experiment = nx.Experiment(
         name=args.project_name,
-        agent=PPO(base_hparams, ActorCritic(len(env.action_set)), env),
+        agent=PPO(hparams=base_hparams, network=ActorCritic(len(env.action_set)), env=env),
         env=env,
         env_id=args.env_id,
         seeds=(args.seed,),
     )
 
-    experiment.run_hparam_search(hparams_distr, args.population_size)
+    best_hparams, best_fitness = experiment.run_hparam_search(
+        hparams_distr, args.population_size, num_generations=args.num_generations
+    )
+    print("Best hparams found:", best_hparams)
+    print("Best fitness found:", best_fitness)

@@ -26,7 +26,7 @@ import jax.numpy as jnp
 import navix as nx
 from navix.agents.agent import Agent
 from navix.agents.pqn import PQN, PQNHparams, TrainingState, Buffer
-from navix.agents.models import QNetwork
+from navix.agents.models import QNetwork, QMLPEncoder
 
 
 def _make_pqn(**hparam_overrides) -> PQN:
@@ -44,7 +44,7 @@ def _make_pqn(**hparam_overrides) -> PQN:
     )
     env = nx.make("Navix-Empty-5x5-v0", max_steps=hp.num_steps)
     act_dim = len(env.action_set)
-    network = QNetwork(action_dim=act_dim, hidden_size=hp.hidden_size)
+    network = QNetwork(action_dim=act_dim, encoder=QMLPEncoder(hidden_size=hp.hidden_size))
     return PQN(hparams=hp, network=network, env=env)
 
 
@@ -139,7 +139,7 @@ def test_qnetwork_has_no_output_activation_and_uses_layernorm():
     # buffer) is what keeps online Q-learning stable - assert it's
     # actually there, and that the output head is raw Q-values (no
     # squashing activation that would cap achievable Q-values).
-    net = QNetwork(action_dim=3, hidden_size=8)
+    net = QNetwork(action_dim=3, encoder=QMLPEncoder(hidden_size=8))
     params = net.init(jax.random.PRNGKey(0), jnp.zeros((5,)))
     flat = jax.tree_util.tree_leaves_with_path(params)
     layer_norm_scales = [

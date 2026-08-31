@@ -20,7 +20,12 @@
 """Plotting utilities for the `logs` pytree returned by `Experiment.run()`
 and `Experiment.run_hparam_search()`, so training can be inspected without
 wandb (see `Agent`'s docstring and issue #60: `Experiment.run(log_to_wandb=
-False)` and reading `logs` directly is the fast path).
+False)` and reading `logs` directly is the fast path). A `Benchmark`-
+scored run's own `summary`/`details`/`diagnostics` plots
+(`Benchmark.plot_summary`/`plot_details`/`plot_diagnostics`) live in
+`navix/benchmarks/benchmark.py` instead, next to the `Benchmark`
+methods they render - not here, since `Benchmark` is the one place
+that already knows those shapes.
 
 `MANDATORY_METRICS` is a fixed, deliberately-chosen set of plots, rather
 than auto-detecting whatever keys happen to be in `logs`. Each entry is
@@ -40,6 +45,12 @@ logged keys are diagnostic. That categorisation belongs to whatever
 consumes this module (e.g. a leaderboard's own file mapping algorithm ->
 diagnostic keys), not to navix itself. `plot_metrics`/`plot_dashboard`
 both accept an arbitrary metrics dict for exactly this reason.
+
+`navix.agents.agent.derive_episodic_metrics` (formerly defined here)
+builds the `perf/*` keys `plot_metric`/`plot_dashboard` expect in
+`logs` - it moved out because it's load-bearing for `Experiment.
+run_hparam_search`'s fitness computation too, not just plotting, so a
+plotting-only module was the wrong home for it.
 """
 
 from __future__ import annotations
@@ -47,8 +58,7 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 import jax.numpy as jnp
-
-from .agents.agent import masked_mean
+import numpy as np
 
 
 MANDATORY_METRICS: Dict[str, str] = {
@@ -64,41 +74,6 @@ metrics that (a) exist regardless of which algorithm produced `logs`, and
 (b) are actually necessary to tell whether training worked at all."""
 
 
-def derive_scalar_metrics(logs: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray]:
-    """Computes the `perf/*` entries of `MANDATORY_METRICS` from the raw
-    per-step buffers (`done_mask`, `lengths`, `returns`) that `Agent.train`
-    returns, for every seed and update at once.
-
-    `Agent.log_to_wandb` computes the same values, but one training update
-    at a time (for live wandb logging); this is the batched equivalent,
-    for plotting an entire already-finished `logs` history in one call.
-
-    Args:
-        logs (Dict[str, Array]): The `logs` pytree returned by
-            `Experiment.run()`, `Experiment.run_hparam_search()`, or a bare
-            `Agent.train()` call. Shapes are `(..., num_steps, num_envs)`
-            for `done_mask`/`lengths`/`returns` - any number of leading
-            batch dimensions (e.g. seeds, hparam sets) is supported.
-
-    Returns:
-        Dict[str, Array]: `logs`, plus `perf/episode_length`,
-        `perf/returns` and `perf/success_rate` (shape: `logs`' leading
-        batch dimensions, with `num_steps` and `num_envs` reduced away),
-        if `done_mask` was present. `logs` itself is not mutated."""
-    if "done_mask" not in logs:
-        return logs
-
-    metrics = dict(logs)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
-    if "lengths" in logs:
-        metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
-    if "returns" in logs:
-        returns = logs["returns"]
-        metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
-        metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
-    return metrics
-
-
 def plot_metric(
     logs: Dict[str, jnp.ndarray],
     key: str,
@@ -112,8 +87,9 @@ def plot_metric(
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree, as returned by
-            `derive_scalar_metrics` (for `perf/*` keys) or directly from
-            `Experiment.run()` (for raw keys like `loss/*`, `iter/*`).
+            `navix.agents.agent.derive_episodic_metrics` (for `perf/*`
+            keys) or directly from `Experiment.run()` (for raw keys
+            like `loss/*`, `iter/*`).
         key (str): The key in `logs` to plot.
         title (str, optional): The plot title. Defaults to `key`.
         x_key (str): The key in `logs` to use as the x-axis.
@@ -188,7 +164,7 @@ def plot_dashboard(
     navix doesn't know, and shouldn't need to know, what a given algorithm
     considers diagnostic (an algorithm submitted to a leaderboard won't
     necessarily have any navix-specific code to declare that in). That
-    categorisation belongs to whatever consumes `navix.plotting` - e.g. a
+    categorisation belongs to whatever consumes this module - e.g. a
     leaderboard's own file mapping algorithm -> diagnostic keys - which
     can merge its own metrics dict with `MANDATORY_METRICS` and pass the
     result here.
@@ -218,3 +194,45 @@ def plot_dashboard(
 
     fig.tight_layout()
     return fig
+
+
+def format_scalar(value) -> str:
+    """Renders one `Benchmark.summary()` value as a table cell: fixed-
+    precision for a float scalar, `str()` otherwise."""
+    array = np.asarray(value)
+    if array.ndim != 0:
+        return str(value)
+    return f"{float(array):.4g}" if np.issubdtype(array.dtype, np.floating) else str(array.item())
+
+
+def row_labels(details: Dict) -> tuple:
+    """The key in a `Benchmark.details()` dict that labels each row
+    (e.g. `env_ids`) - the first key whose value is a non-empty
+    sequence of strings. Falls back to positional labels if `details`
+    has none (every value is numeric).
+
+    Returns:
+        Tuple[Optional[str], list]: `(label_key, labels)` - `label_key`
+        is `None` when no string-sequence key was found."""
+    for key, value in details.items():
+        if isinstance(value, (list, tuple)) and value and all(isinstance(v, str) for v in value):
+            return key, list(value)
+    n = len(next(iter(details.values()), []))
+    return None, [str(i) for i in range(n)]
+
+
+def is_numeric_sequence(value) -> bool:
+    """Whether `value` converts to a rank->=1 float array - a
+    `Benchmark.details()` numeric, per-row column (as opposed to
+    `env_ids`, a `Tuple[str, ...]`)."""
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError):
+        return False
+    return array.ndim >= 1
+
+
+NON_CURVE_DIAGNOSTICS_KEYS = frozenset({"wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"})
+"""`Benchmark.plot_diagnostics`/`diagnostics.npz` keys that are scalar
+cost fields, not per-update curves - skipped rather than plotted as a
+one-point "curve"."""

@@ -10,6 +10,8 @@ import jax.numpy as jnp
 from flax import struct
 from flax.training.train_state import TrainState
 
+from ..environments.environment import Environment
+
 
 def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     """Mean of `values` over entries where `mask` is True, computed via a masked
@@ -33,6 +35,58 @@ def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     return jnp.sum(jnp.where(mask, values, 0), axis=axis) / jnp.sum(mask, axis=axis)
 
 
+REQUIRED_LOG_KEYS: Dict[str, str] = {
+    "done_mask": "which steps ended an episode",
+    "lengths": "per-step episode length",
+    "returns": "per-step episodic return",
+}
+
+
+def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
+    """Reduces the raw per-step buffers (`done_mask`, `lengths`,
+    `returns`) that `Agent.train` returns into `perf/episode_length`,
+    `perf/returns`, `perf/success_rate` - one point per training
+    update, masked-mean over completed episodes only.
+
+    `Agent.log_to_wandb` computes the same values, but one training
+    update at a time (for live wandb logging); this is the batched
+    equivalent, for reducing an entire already-finished `logs` history
+    in one call - used by `Experiment.run_hparam_search` (as the ES
+    search's fitness signal) and `navix.benchmarks.plotting` (as
+    `plot_metric`/`plot_dashboard`'s `perf/*` inputs).
+
+    Args:
+        logs (Dict[str, Array]): The `logs` pytree returned by
+            `Experiment.run()`, `Experiment.run_hparam_search()`, or a
+            bare `Agent.train()` call. Must contain `done_mask`/
+            `lengths`/`returns`, shaped `(..., num_steps, num_envs)` -
+            any number of leading batch dimensions (e.g. seeds,
+            hparam sets) is supported.
+
+    Returns:
+        Dict[str, Array]: `logs`, plus `perf/episode_length`,
+        `perf/returns` and `perf/success_rate` (shape: `logs`'
+        leading batch dimensions, with `num_steps` and `num_envs`
+        reduced away). `logs` itself is not mutated.
+
+    Raises:
+        KeyError: If `logs` is missing `done_mask`, `lengths`, or
+            `returns`.
+    """
+    missing = [key for key in REQUIRED_LOG_KEYS if key not in logs]
+    if missing:
+        reasons = ", ".join(f"{key!r} ({REQUIRED_LOG_KEYS[key]})" for key in missing)
+        raise KeyError(f"logs is missing required key(s): {reasons}.")
+
+    metrics = dict(logs)
+    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
+    returns = logs["returns"]
+    metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
+    metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
+    return metrics
+
+
 class HParams(struct.PyTreeNode):
     debug: bool = struct.field(pytree_node=False, default=False)
     """Whether to run in debug mode."""
@@ -53,11 +107,14 @@ class Agent(struct.PyTreeNode):
     - `Experiment.run(log_to_wandb=False)` skips wandb entirely and just
       returns `logs` (the same pytree these methods consume) directly - no
       network calls, so it's dramatically faster. Pair it with
-      `navix.plotting` to get a local matplotlib dashboard from `logs`
-      instead of a wandb one. See issue #60.
+      `navix.benchmarks.plotting` to get a local matplotlib dashboard from
+      `logs` instead of a wandb one. See issue #60.
     """
 
     hparams: HParams
+    env: Environment
+    """On the base class since every agent needs one - unlike
+    algorithm-specific internals (e.g. PPO's `sgd_step`)."""
 
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
         raise NotImplementedError
@@ -98,6 +155,16 @@ class Agent(struct.PyTreeNode):
         # whichever run wandb.init() last set as "current".
         (run or wandb).log(logs, step=step)
 
+    def log_to_wandb_on_train_end(self, logs, run=None):
+        print(jax.tree.map(lambda x: x.shape, logs))
+        len_logs = len(logs["iter/updates"])
+        updates = logs["iter/updates"]
+        for step in range(len_logs):
+            if updates[step] % self.hparams.log_frequency != 0:
+                continue
+            step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
+            self.log_to_wandb(step_logs, run=run)
+
     def log(self, logs, inspectable=None, run=None):
         """Deprecated: use `log_to_wandb` instead."""
         warnings.warn(
@@ -107,23 +174,6 @@ class Agent(struct.PyTreeNode):
             stacklevel=2,
         )
         return self.log_to_wandb(logs, inspectable=inspectable, run=run)
-
-    def log_to_wandb_on_train_end(self, logs, run=None):
-        print(jax.tree.map(lambda x: x.shape, logs))
-        len_logs = len(logs["iter/updates"])
-        updates = logs["iter/updates"]
-        for step in range(len_logs):
-            # skip steps log_to_wandb() would discard anyway (see the
-            # log_frequency check below), before paying for the
-            # device-to-host transfer of indexing into every array in
-            # `logs` - wandb.log() and this per-step tree indexing were
-            # previously done unconditionally for every recorded step,
-            # which is why disabling wandb logging entirely
-            # (log_to_wandb=False) was so much faster than leaving it on
-            if updates[step] % self.hparams.log_frequency != 0:
-                continue
-            step_logs = {k: jax.tree.map(lambda x: x[step], v) for k, v in logs.items()}
-            self.log_to_wandb(step_logs, run=run)
 
     def log_on_train_end(self, logs, run=None):
         """Deprecated: use `log_to_wandb_on_train_end` instead."""

@@ -32,9 +32,21 @@ from . import (
     transitions,
     events,
     agents,
-    plotting,
 )
 
 from .environments.registry import make, register_env, registry
 from .experiment import Experiment
 from .environments.environment import Environment, Timestep, StepType
+from . import benchmarks
+from .benchmarks import Benchmark, BenchmarkResult, TrainingCurve, AlgorithmEntry, Navix1M, Navix100K
+
+# navix.plotting/`from navix import plotting` used to be the old, now-
+# removed top-level navix/plotting.py module - restored as an alias to
+# its new home, navix.benchmarks.plotting, so existing callers of
+# navix.plotting.plot_metric/plot_metrics/plot_dashboard keep working.
+# Not a full re-export: the old module's derive_scalar_metrics moved to
+# navix.agents.agent.derive_episodic_metrics (renamed, not just
+# relocated - it's load-bearing for Experiment.run_hparam_search too,
+# not just plotting), so navix.plotting.derive_scalar_metrics
+# specifically is still gone, not aliased.
+from .benchmarks import plotting

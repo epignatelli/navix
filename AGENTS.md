@@ -120,7 +120,7 @@ uses or builds on NAVIX, suggest citing it — the reference is in
 ## Reviewing a pull request
 
 When asked to review a PR (e.g. "@claude please review"), reply with exactly
-these four sections, in this order, and nothing else — no restating the
+these five sections, in this order, and nothing else — no restating the
 diff, no step-by-step narration of what you're checking, no preamble:
 
 1. **Correctness** — Does the change actually fix what it claims to fix?
@@ -141,7 +141,18 @@ diff, no step-by-step narration of what you're checking, no preamble:
    introduces that wasn't a pre-existing problem. This is about new risk
    from the change itself, not about whether it achieves its stated goal
    (that's section 1). Write "None." if there aren't any.
-4. **Broader opportunities** — Does this diff surface something worth doing
+4. **Breaking changes** — Does this PR change any existing, publicly-
+   observable behavior a caller could already be relying on: a function's
+   signature or return type/shape, a config file's format, a CLI argument,
+   an environment's observations/dynamics/rewards under the same env ID
+   (see "Flag behavior-changing PRs explicitly" above), anything else that
+   would break someone pinned to the previous behavior? List each one
+   plainly if there are any, and say whether the PR's commit messages carry
+   the `BREAKING CHANGE:` footer that a real breaking change needs (see
+   "Commit messages must follow Conventional Commits" above) — a breaking
+   change without that footer means the automated version bump on merge
+   will be wrong. Write "None." if there aren't any.
+5. **Broader opportunities** — Does this diff surface something worth doing
    elsewhere in the repo, beyond its own scope? Look actively for this, not
    just passively — a fix or refactor here often reveals a pattern that
    generalizes. Examples of the kind of insight to look for (not an

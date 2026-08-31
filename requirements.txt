@@ -12,8 +12,11 @@ pillow
 jax
 flax
 rlax
+chex
+distrax
 # experiments
 tyro
+pyyaml
 # logging
 wandb
 # plotting

@@ -1,0 +1,13 @@
+# Pinned dependencies for this entry's own driver code (run.py). For a
+# navix-shipped agent, that's exactly navix's own dependencies (mirrors
+# the repository root requirements.txt) - run.py imports navix.agents
+# and navix.benchmarks directly, no separate algorithm repo involved.
+pillow
+jax
+flax
+rlax
+chex
+distrax
+tyro
+pyyaml
+wandb
