@@ -317,7 +317,7 @@ class Experiment:
         if solver is None:
             solver = optax.sgd(0.1)
 
-        theta, scale, non_negative = probe_hparam_field_stats(
+        theta, scale, lo, hi = probe_hparam_field_stats(
             hparams_distr, n_probe, jax.random.PRNGKey(0)
         )
         opt_state = solver.init(theta)
@@ -360,7 +360,7 @@ class Experiment:
         for generation in range(num_generations):
             gen_key = jax.random.PRNGKey(generation)
             noise, candidates = sample_antithetic_candidates(
-                theta, scale, non_negative, pop_size, sigma, gen_key
+                theta, scale, lo, hi, pop_size, sigma, gen_key
             )
             search_set = _build_search_set(self.agent.hparams, candidates, pop_size)
 
@@ -389,10 +389,9 @@ class Experiment:
             # fitness instead, then apply_updates-style addition (not
             # subtraction) matching optax's own convention.
             updates, opt_state = solver.update({k: -g for k, g in grad.items()}, opt_state, theta)
-            theta = {k: value + scale[k] * updates[k] for k, value in theta.items()}
-            for k, value in theta.items():
-                if non_negative[k]:
-                    theta[k] = jnp.maximum(value, 0.0)
+            theta = {
+                k: jnp.clip(value + scale[k] * updates[k], lo[k], hi[k]) for k, value in theta.items()
+            }
 
             gen_best_idx = int(jnp.argmax(fitness))
             gen_best_fitness = float(fitness[gen_best_idx])

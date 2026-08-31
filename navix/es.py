@@ -35,9 +35,9 @@ import jax.numpy as jnp
 
 def probe_hparam_field_stats(
     hparams_distr: Dict[str, distrax.Distribution], n_probe: int, key: jax.Array
-) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, bool]]:
+) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, jax.Array]]:
     """Empirically estimates each searched field's starting value, scale,
-    and sign from `n_probe` samples of its own distribution - more
+    and valid range from `n_probe` samples of its own distribution - more
     robust than relying on a distribution's `.mean()`/`.stddev()`, which
     silently gets the wrong answer for a distribution like `examples/
     hparam_search.py`'s `CategoricalUniform` (its `.sample()` maps a
@@ -51,27 +51,38 @@ def probe_hparam_field_stats(
         key (jax.Array): PRNG key, split once per field.
 
     Returns:
-        Tuple[Dict, Dict, Dict]: `(theta, scale, non_negative)` - each
+        Tuple[Dict, Dict, Dict, Dict]: `(theta, scale, lo, hi)` - each
         field's probe mean, probe std (floored to avoid a degenerate
-        zero-sigma field), and whether every probe sample was `>= 0`.
+        zero-sigma field), and probe min/max. `lo`/`hi` bound every
+        candidate `sample_antithetic_candidates` produces and every ES
+        update step - without them, nothing stops the search's random
+        walk drifting a field outside the range `hparams_distr` was
+        ever meant to describe (confirmed in practice: an unclipped
+        search drifted `gae_lambda` - only ever valid in `[0, 1]` - to
+        `1.005`, and separately drifted a `learning_rate` down to
+        exactly `0.0` and got stuck there, since a learning rate of
+        zero produces no fitness signal to climb back out with).
     """
     theta: Dict[str, jax.Array] = {}
     scale: Dict[str, jax.Array] = {}
-    non_negative: Dict[str, bool] = {}
+    lo: Dict[str, jax.Array] = {}
+    hi: Dict[str, jax.Array] = {}
     for k, distr in hparams_distr.items():
         key, sample_key = jax.random.split(key)
         raw_samples = distr.sample(seed=sample_key, sample_shape=(n_probe,))
         samples = jnp.asarray(raw_samples, dtype=jnp.float32)
         theta[k] = jnp.mean(samples)
         scale[k] = jnp.maximum(jnp.std(samples), 1e-8)
-        non_negative[k] = bool(jnp.all(samples >= 0))
-    return theta, scale, non_negative
+        lo[k] = jnp.min(samples)
+        hi[k] = jnp.max(samples)
+    return theta, scale, lo, hi
 
 
 def sample_antithetic_candidates(
     theta: Dict[str, jax.Array],
     scale: Dict[str, jax.Array],
-    non_negative: Dict[str, bool],
+    lo: Dict[str, jax.Array],
+    hi: Dict[str, jax.Array],
     pop_size: int,
     sigma: float,
     key: jax.Array,
@@ -79,14 +90,15 @@ def sample_antithetic_candidates(
     """One ES generation's population: `pop_size // 2` i.i.d. standard-
     normal noise vectors per field, mirrored (antithetic sampling) to
     fill the rest of the population, then `theta + sigma * scale *
-    noise` per field (clipped to `>= 0` for fields whose probe was
-    non-negative - see `probe_hparam_field_stats`).
+    noise` per field, clipped to `[lo[k], hi[k]]` (see
+    `probe_hparam_field_stats`).
 
     Args:
         theta (Dict[str, Array]): Current per-field mean.
         scale (Dict[str, Array]): Per-field noise scale (see
             `probe_hparam_field_stats`).
-        non_negative (Dict[str, bool]): Per-field non-negativity flag.
+        lo (Dict[str, Array]): Per-field lower bound.
+        hi (Dict[str, Array]): Per-field upper bound.
         pop_size (int): Population size. Must be even.
         sigma (float): Noise scale, in units of `scale`.
         key (jax.Array): PRNG key, split once per field.
@@ -105,7 +117,5 @@ def sample_antithetic_candidates(
         eps = jax.random.normal(noise_key, (half,))
         noise[k] = jnp.concatenate([eps, -eps])
         values = theta[k] + sigma * scale[k] * noise[k]
-        if non_negative[k]:
-            values = jnp.maximum(values, 0.0)
-        candidates[k] = values
+        candidates[k] = jnp.clip(values, lo[k], hi[k])
     return noise, candidates

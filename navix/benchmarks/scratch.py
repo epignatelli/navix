@@ -110,8 +110,9 @@ class FromScratchBenchmark(Benchmark):
             Dict[str, jax.Array]: Each numeric column of
             `self.details(results)` meaned across its env axis -
             `episodic_returns`' last-percent-mean (bias), variance,
-            and convergence rate, plus `fps`/`flops`/`memory_bytes`/
-            `compile_time_seconds`/`wall_time`'s bias. `length`/
+            convergence rate, and finite fraction (see `self.details`),
+            plus `fps`/`flops`/`memory_bytes`/`compile_time_seconds`/
+            `wall_time`'s bias. `length`/
             `env_ids` (see `NON_NUMERIC_DETAILS`) aren't included -
             still on `self.details(results)`. Non-finite values (e.g.
             `returns_convergence_rate`'s `overall / target` is `0/0` or
@@ -142,19 +143,36 @@ class FromScratchBenchmark(Benchmark):
             Dict[str, Any]: The same last-percent reduction `summary`
             aggregates further, but stopped one step earlier - every
             column keeps its leading env axis. Includes `env_ids`
-            (which row is which - a `Tuple[str, ...]`, not an `Array`)
-            and `length` (not in `summary`, but a useful per-env
-            diagnostic).
+            (which row is which - a `Tuple[str, ...]`, not an `Array`),
+            `length` (not in `summary`, but a useful per-env
+            diagnostic), and `returns_finite_fraction` (fraction of
+            `self.seeds` whose `returns_convergence_rate` was finite -
+            i.e. made *some* real progress in the final 20% of training;
+            a reliability signal `episodic_returns`' bias alone can't
+            distinguish "consistently mediocre" from "mostly zero, one
+            seed got lucky").
         """
         bias = results.curve.last_percent_mean()
         variance = results.curve.last_percent_variance().episodic_returns
         convergence_rate = results.curve.convergence_rate().episodic_returns
+        # convergence_rate is overall/target - only finite when target
+        # (the last-percent-mean) is nonzero, i.e. the seed made *some*
+        # real progress in the final 20% of training. The fraction of
+        # seeds where that's true is itself a real reliability signal
+        # summary()'s finite-value-excluding mean can't surface on its
+        # own - e.g. "0.15 mean return, 4/16 seeds finite" and "0.15
+        # mean return, 16/16 seeds finite" look identical in every other
+        # column, but very different in practice (one is a strong,
+        # consistent policy; the other is one lucky seed dragging up a
+        # near-total-failure average).
+        returns_finite_fraction = jnp.mean(jnp.isfinite(convergence_rate), axis=-1)
         env_ids = self.env_ids or tuple(registry().keys())
         return {
             "env_ids": env_ids,
             "episodic_returns": bias.episodic_returns,
             "returns_variance": variance,
             "returns_convergence_rate": convergence_rate,
+            "returns_finite_fraction": returns_finite_fraction,
             "length": bias.lengths,
             "fps": results.fps,
             "flops": results.cost.flops,

@@ -84,8 +84,15 @@ def search_hparams(
             `Trainable`'s own docstring for the closure convention.
         hparams_distr (Dict[str, distrax.Distribution]): One
             distribution per searched field - seeds that field's
-            starting value/scale (via `navix.es.
+            starting value/scale/valid range (via `navix.es.
             probe_hparam_field_stats`), not resampled every generation.
+            Every candidate and every ES update is clipped to that
+            field's empirical `[min, max]` - without it, nothing stops
+            the search drifting a field outside the range this
+            distribution was ever meant to describe (e.g. a `gae_lambda`
+            distribution meant to express "search within `[0.8, 0.99]`"
+            wouldn't stop the search drifting past `1.0`, an invalid
+            value).
         seeds (Tuple[int, ...]): PRNG seeds `trainable` is vmapped over
             per candidate - must have more than one, so fitness isn't
             just RNG luck for a single rollout.
@@ -117,7 +124,7 @@ def search_hparams(
     if solver is None:
         solver = optax.sgd(0.1)
 
-    theta, scale, non_negative = probe_hparam_field_stats(hparams_distr, n_probe, jax.random.PRNGKey(0))
+    theta, scale, lo, hi = probe_hparam_field_stats(hparams_distr, n_probe, jax.random.PRNGKey(0))
     opt_state = solver.init(theta)
 
     rngs = jnp.asarray([jax.random.PRNGKey(seed) for seed in seeds])
@@ -143,7 +150,7 @@ def search_hparams(
 
     for generation in range(num_generations):
         gen_key = jax.random.PRNGKey(generation)
-        noise, candidates = sample_antithetic_candidates(theta, scale, non_negative, pop_size, sigma, gen_key)
+        noise, candidates = sample_antithetic_candidates(theta, scale, lo, hi, pop_size, sigma, gen_key)
 
         curves = jax.block_until_ready(search_fn(candidates))
         fitness = jnp.mean(curves.last_percent_mean().episodic_returns, axis=-1)  # (pop_size,)
@@ -155,10 +162,7 @@ def search_hparams(
         # fitness instead, then apply_updates-style addition (not
         # subtraction) matching optax's own convention.
         updates, opt_state = solver.update({k: -g for k, g in grad.items()}, opt_state, theta)
-        theta = {k: v + scale[k] * updates[k] for k, v in theta.items()}
-        for k, v in theta.items():
-            if non_negative[k]:
-                theta[k] = jnp.maximum(v, 0.0)
+        theta = {k: jnp.clip(v + scale[k] * updates[k], lo[k], hi[k]) for k, v in theta.items()}
 
         gen_best_idx = int(jnp.argmax(fitness))
         gen_best_fitness = float(fitness[gen_best_idx])

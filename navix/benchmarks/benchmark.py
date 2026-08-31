@@ -147,6 +147,20 @@ class TrainingCurve(struct.PyTreeNode):
         own asymptote for most of training (fast convergence); near 0
         means most of training was spent far from it (slow).
 
+        Not bounded to `[0, 1]` - and shouldn't be clipped to look like
+        it is. That range only holds when the curve improves
+        monotonically toward its own tail. Whenever the tail is *worse*
+        than the training-long average - policy collapse, instability,
+        catastrophic forgetting, all real and fairly common RL failure
+        modes - `overall / target` correctly exceeds 1, in principle
+        arbitrarily far (confirmed in practice: a seed that learned
+        real signal early, then collapsed to near-zero returns by the
+        final 20% of training, produced 77 here - correctly flagging
+        that specific seed as "learned, then collapsed" rather than
+        "steady, healthy convergence", which a clipped value couldn't
+        distinguish). A negative value is similarly meaningful for a
+        negative-reward task, not an error.
+
         Args:
             percent (float): Percentage of the trailing axis that
                 defines the asymptote (see `last_percent_mean`).
