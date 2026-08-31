@@ -61,6 +61,71 @@ _GITHUB_HANDLE_RE = re.compile(r"^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}
 _SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
+def is_commit_url(url: str) -> bool:
+    """Checks whether `url` is a full URL ending in a commit SHA.
+
+    Args:
+        url (str): The URL to validate.
+
+    Returns:
+        bool: True if `url` has an http(s) scheme and its last path
+        segment is a 7-40 character lowercase hex SHA.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    last_segment = parsed.path.rstrip("/").rsplit("/", 1)[-1]
+    return bool(_SHA_RE.match(last_segment))
+
+
+def _curve_diagnostics(result: BenchmarkResult, resample: Optional[Any] = None) -> Dict[str, np.ndarray]:
+    """`result.curve`'s fields flattened into the plain `{name: array}`
+    shape both `Benchmark.submit_entry` (writing `diagnostics.npz`)
+    and `Benchmark.plot_diagnostics` (plotting the same curves
+    in-memory) need: `episodic_returns`/`length` plus one
+    `diagnostics_<key>` entry per `curve.diagnostics` key (npz has no
+    native nesting, so this flattening happens once here rather than
+    separately in each caller).
+
+    Args:
+        result (BenchmarkResult): Already `jax.device_get`'d by the
+            caller.
+        resample (callable, optional): If given, applied to every
+            curve array (e.g. `submit_entry`'s fixed-`max_points`
+            resampling). `None` keeps each curve at its full,
+            native resolution.
+
+    Returns:
+        Dict[str, np.ndarray]: `episodic_returns`, `length`, and one
+        `diagnostics_<key>` entry per `result.curve.diagnostics` key."""
+    identity = lambda value: np.asarray(value)
+    transform = resample or identity
+    curves = {
+        "episodic_returns": transform(result.curve.episodic_returns),
+        "length": transform(result.curve.lengths),
+    }
+    for key, value in result.curve.diagnostics.items():
+        curves[f"diagnostics_{key}"] = transform(value)
+    return curves
+
+
+class CostAnalysis(struct.PyTreeNode):
+    """The cost of one `AlgorithmEntry.train` call, as measured by
+    `AlgorithmEntry.cost_analysis`.
+
+    Attributes:
+        flops (float): FLOPs, from `compiled.cost_analysis()`.
+        memory_bytes (float): Peak memory proxy (argument + temp +
+            output size), from `compiled.memory_analysis()`.
+        compile_time_seconds (float): Wall-clock time to compile.
+            Hardware/XLA-version-sensitive.
+    """
+
+    flops: float
+    memory_bytes: float
+    compile_time_seconds: float
+
+
 class TrainingCurve(struct.PyTreeNode):
     """One `AlgorithmEntry.train` call's measurements - purely what's
     computable from inside a `jax.jit` trace, from the real (state,
@@ -181,40 +246,6 @@ class TrainingCurve(struct.PyTreeNode):
             lengths=reduce(self.lengths),
             diagnostics={key: reduce(value) for key, value in self.diagnostics.items()},
         )
-
-
-def is_commit_url(url: str) -> bool:
-    """Checks whether `url` is a full URL ending in a commit SHA.
-
-    Args:
-        url (str): The URL to validate.
-
-    Returns:
-        bool: True if `url` has an http(s) scheme and its last path
-        segment is a 7-40 character lowercase hex SHA.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return False
-    last_segment = parsed.path.rstrip("/").rsplit("/", 1)[-1]
-    return bool(_SHA_RE.match(last_segment))
-
-
-class CostAnalysis(struct.PyTreeNode):
-    """The cost of one `AlgorithmEntry.train` call, as measured by
-    `AlgorithmEntry.cost_analysis`.
-
-    Attributes:
-        flops (float): FLOPs, from `compiled.cost_analysis()`.
-        memory_bytes (float): Peak memory proxy (argument + temp +
-            output size), from `compiled.memory_analysis()`.
-        compile_time_seconds (float): Wall-clock time to compile.
-            Hardware/XLA-version-sensitive.
-    """
-
-    flops: float
-    memory_bytes: float
-    compile_time_seconds: float
 
 
 @dataclass
@@ -395,37 +426,6 @@ class AlgorithmEntry:
             memory_bytes=memory_bytes,
             compile_time_seconds=compile_time_seconds,
         )
-
-
-def _curve_diagnostics(result: BenchmarkResult, resample: Optional[Any] = None) -> Dict[str, np.ndarray]:
-    """`result.curve`'s fields flattened into the plain `{name: array}`
-    shape both `Benchmark.submit_entry` (writing `diagnostics.npz`)
-    and `Benchmark.plot_diagnostics` (plotting the same curves
-    in-memory) need: `episodic_returns`/`length` plus one
-    `diagnostics_<key>` entry per `curve.diagnostics` key (npz has no
-    native nesting, so this flattening happens once here rather than
-    separately in each caller).
-
-    Args:
-        result (BenchmarkResult): Already `jax.device_get`'d by the
-            caller.
-        resample (callable, optional): If given, applied to every
-            curve array (e.g. `submit_entry`'s fixed-`max_points`
-            resampling). `None` keeps each curve at its full,
-            native resolution.
-
-    Returns:
-        Dict[str, np.ndarray]: `episodic_returns`, `length`, and one
-        `diagnostics_<key>` entry per `result.curve.diagnostics` key."""
-    identity = lambda value: np.asarray(value)
-    transform = resample or identity
-    curves = {
-        "episodic_returns": transform(result.curve.episodic_returns),
-        "length": transform(result.curve.lengths),
-    }
-    for key, value in result.curve.diagnostics.items():
-        curves[f"diagnostics_{key}"] = transform(value)
-    return curves
 
 
 class BenchmarkResult(struct.PyTreeNode):

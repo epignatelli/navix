@@ -70,6 +70,28 @@ num_generations candidates."""
 
 
 def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+    """Trains `rejax.PPO` on `env_id` for `budget` timesteps with
+    `hparams` overriding its own defaults, and reduces the result to a
+    `TrainingCurve`. The shared trainable both `search_hparams` (at a
+    reduced budget) and `RejaxPPOEntry.train` (at the real budget)
+    call - only `budget` and `hparams` differ between the two calls.
+
+    Args:
+        hparams (Dict[str, float]): `rejax.PPO`'s own hyperparameter
+            overrides (see `HPARAMS_DISTR` above) - empty uses
+            `rejax.PPO`'s own defaults.
+        env_id (str): The environment to train on.
+        budget (int): Training budget in timesteps.
+        rng (jax.Array): PRNG key for this single training run (the
+            caller vmaps over seeds, this function never does).
+
+    Returns:
+        TrainingCurve: `episodic_returns`/`lengths`, meaned over
+        `rejax`'s own per-episode axis (rejax's `train` already
+        returns one point per evaluation, unlike navix's masked-mean
+        over a raw per-step stream - no `diagnostics` here, `rejax`'s
+        `train` doesn't expose per-update loss terms the way navix's
+        own agents' `logs` do)."""
     algo = rejax.PPO.create(env=f"navix/{env_id}", total_timesteps=budget, **hparams)
     _, (lengths, returns) = algo.train(rng)
     return TrainingCurve(
@@ -80,12 +102,19 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
 
 @dataclass
 class RejaxPPOEntry(AlgorithmEntry):
+    """`rejax`'s PPO, wired into `Benchmark`'s `AlgorithmEntry`
+    protocol - see this module's docstring for why no vendored code is
+    needed (rejax ships a first-class navix integration) and the
+    per-env hparam search this entry scores under."""
+
     hparams: Dict[str, Dict[str, float]] = field(default_factory=dict)
     """env_id -> per-field hyperparameter overrides (see `run.py`'s
     module docstring) - looked up per env_id in `train`, empty (rejax's
     own defaults) for any env_id not present."""
 
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+        """`AlgorithmEntry.train`, delegating to `train_with_hparams`
+        with this entry's own `hparams`."""
         return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng)
 
 

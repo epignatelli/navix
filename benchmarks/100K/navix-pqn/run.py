@@ -95,6 +95,29 @@ def flatten_obs(env: Environment) -> Environment:
 def train_with_hparams(
     hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array, observation_mode: str
 ) -> TrainingCurve:
+    """Builds `env_id`'s env/network for `observation_mode`, trains PQN
+    on it for `budget` frames with `hparams` overriding `PQNHparams`'
+    defaults, and reduces the result to a `TrainingCurve`. The shared
+    trainable both `search_hparams` (at a reduced budget) and
+    `PQNEntry.train` (at the real budget) call - only `budget` and
+    `hparams` differ between the two calls.
+
+    Args:
+        hparams (Dict[str, float]): `PQNHparams` field overrides (see
+            `HPARAMS_DISTR` above) - empty uses `PQNHparams`' own
+            defaults.
+        env_id (str): The environment to train on.
+        budget (int): Training budget in frames.
+        rng (jax.Array): PRNG key for this single training run (the
+            caller vmaps over seeds, this function never does).
+        observation_mode (str): `"mdp"` or `"pomdp"` (see
+            `OBSERVATION_MODES`).
+
+    Returns:
+        TrainingCurve: `episodic_returns`/`lengths` (masked-mean over
+        completed episodes), plus every `loss/*`/`agent/*` entry PQN's
+        own training loop already computes per update as
+        `diagnostics`."""
     encoder_cls: Type[nn.Module]
     if observation_mode == "mdp":
         env = flatten_obs(make(env_id, observation_fn=observations.symbolic))
@@ -130,6 +153,10 @@ def train_with_hparams(
 
 @dataclass
 class PQNEntry(AlgorithmEntry):
+    """navix's own PQN, wired into `Benchmark`'s `AlgorithmEntry`
+    protocol - see this module's docstring for the two observation
+    modes and per-env hparam search this entry scores under."""
+
     hparams: Dict[str, Dict[str, float]] = field(default_factory=dict)
     """env_id -> per-field hyperparameter overrides (see `run.py`'s
     module docstring) - looked up per env_id in `train`, empty
@@ -139,6 +166,8 @@ class PQNEntry(AlgorithmEntry):
     `hparams`, doesn't vary per env_id)."""
 
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+        """`AlgorithmEntry.train`, delegating to `train_with_hparams`
+        with this entry's own `hparams`/`observation_mode`."""
         return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng, self.observation_mode)
 
 

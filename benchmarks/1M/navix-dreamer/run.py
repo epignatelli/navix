@@ -60,6 +60,28 @@ num_generations candidates."""
 
 
 def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+    """Builds `env_id`'s env/world model/actor/critic, trains Dreamer
+    on it for `budget` frames with `hparams` overriding `DreamerHparams`'
+    defaults, and reduces the result to a `TrainingCurve`. The shared
+    trainable both `search_hparams` (at a reduced budget) and
+    `DreamerEntry.train` (at the real budget) call - only `budget` and
+    `hparams` differ between the two calls.
+
+    Args:
+        hparams (Dict[str, float]): `DreamerHparams` field overrides
+            (see `HPARAMS_DISTR` above) - empty uses `DreamerHparams`'
+            own defaults.
+        env_id (str): The environment to train on.
+        budget (int): Training budget in frames.
+        rng (jax.Array): PRNG key for this single training run (the
+            caller vmaps over seeds, this function never does).
+
+    Returns:
+        TrainingCurve: `episodic_returns`/`lengths` (masked-mean over
+        completed episodes), plus every `loss/*`/`agent/*` entry
+        Dreamer's own training loop already computes per update as
+        `diagnostics` (world-model KL/reconstruction losses, actor/
+        critic losses, imagined-rollout statistics)."""
     env = make(env_id)
     hp = DreamerHparams(budget=budget).replace(**hparams)
     # Unlike PPO's ActorCritic (which needs a pre-flattened observation),
@@ -82,20 +104,33 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
     )
     _, logs = agent.train(rng)
     mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    # Dreamer's own training loop already reduces every loss/*/agent/*
+    # entry to one scalar per training update - already the exact
+    # per-update-curve shape TrainingCurve.diagnostics wants, no
+    # further reduction needed (same reasoning as navix-ppo/navix-pqn's
+    # run.py).
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("loss/") or key.startswith("agent/")}
     return TrainingCurve(
         episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
         lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        diagnostics=diagnostics,
     )
 
 
 @dataclass
 class DreamerEntry(AlgorithmEntry):
+    """navix's own Dreamer, wired into `Benchmark`'s `AlgorithmEntry`
+    protocol - see this module's docstring for the per-env hparam
+    search this entry scores under."""
+
     hparams: Dict[str, Dict[str, float]] = field(default_factory=dict)
     """env_id -> per-field hyperparameter overrides (see `run.py`'s
     module docstring) - looked up per env_id in `train`, empty
     (DreamerHparams' own defaults) for any env_id not present."""
 
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+        """`AlgorithmEntry.train`, delegating to `train_with_hparams`
+        with this entry's own `hparams`."""
         return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng)
 
 
