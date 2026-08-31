@@ -71,13 +71,28 @@ Gaussian noise). Shared across both observation modes - it's the same
 PQNHparams either way, only the network/env wiring differs."""
 
 SEARCH_SEEDS = (0, 1, 2, 3)
-SEARCH_POP_SIZE = 8
-SEARCH_NUM_GENERATIONS = 10
-SEARCH_BUDGET_FRACTION = 0.1
+SEARCH_POP_SIZE = {"mdp": 8, "pomdp": 4}
+SEARCH_NUM_GENERATIONS = {"mdp": 10, "pomdp": 5}
+SEARCH_BUDGET_FRACTION = {"mdp": 0.1, "pomdp": 0.05}
 """Search trains at this fraction of the real scoring budget per
 candidate - enough to differentiate good from bad hyperparameters
 without paying full training cost for every one of pop_size *
-num_generations candidates."""
+num_generations candidates. Lower for `pomdp` than `mdp`: `QConvEncoder`
+plus PQNHparams' own `num_minibatches=32`/`num_epochs=8` (empirically
+justified, not arbitrary - see `navix.agents.pqn`'s module docstring on
+why PQN needs more SGD passes per rollout than CleanRL's CartPole-tuned
+reference; verified against rejax's own even-higher `num_minibatches=
+128` tuned config) makes one PQN pomdp candidate roughly 32x more
+per-update compute than one PPO candidate under the same search shape -
+confirmed in practice: a `pomdp`-mode search at `mdp`'s pop_size/
+generations/budget ran 2+ hours on one environment's first generation
+without finishing, while `navix-ppo`'s entire pomdp run (all 6
+environments, search + scoring) completed in ~35 minutes. This isn't a
+PQNHparams problem to fix - those values are what make PQN actually
+solve these environments - so the search itself pays less per
+candidate instead: smaller population, fewer generations, shorter
+per-candidate training, for `pomdp` only. `mdp` mode already completes
+in reasonable time at the original settings, so it keeps them."""
 
 
 def flatten_obs(env: Environment) -> Environment:
@@ -185,7 +200,6 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown observation_mode {m!r} on the command line, expected one of {OBSERVATION_MODES}.")
 
     benchmark = Navix100K()
-    search_budget = max(1, int(benchmark.budget * SEARCH_BUDGET_FRACTION))
 
     for observation_mode in modes_to_run:
         print(f"\n{'=' * 20} observation_mode={observation_mode} {'=' * 20}")
@@ -198,17 +212,21 @@ if __name__ == "__main__":
             observation_mode=observation_mode,
         )
 
+        search_budget = max(1, int(benchmark.budget * SEARCH_BUDGET_FRACTION[observation_mode]))
+        pop_size = SEARCH_POP_SIZE[observation_mode]
+        num_generations = SEARCH_NUM_GENERATIONS[observation_mode]
+
         tuned_hparams = {}
         for env_id in benchmark.env_ids:
-            print(f"Searching hyperparameters for {env_id} (budget={search_budget})...")
+            print(f"Searching hyperparameters for {env_id} (budget={search_budget}, pop_size={pop_size}, num_generations={num_generations})...")
             best_hparams, best_fitness = search_hparams(
                 trainable=lambda hp, rng, env_id=env_id: train_with_hparams(
                     hp, env_id, search_budget, rng, observation_mode
                 ),
                 hparams_distr=HPARAMS_DISTR,
                 seeds=SEARCH_SEEDS,
-                pop_size=SEARCH_POP_SIZE,
-                num_generations=SEARCH_NUM_GENERATIONS,
+                pop_size=pop_size,
+                num_generations=num_generations,
             )
             print(f"{env_id}: best hparams {best_hparams} (fitness {best_fitness})")
             tuned_hparams[env_id] = best_hparams
