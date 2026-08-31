@@ -1048,11 +1048,11 @@ class Dreamer(Agent):
             + term_loss
         )
         logs = {
-            "agent/model/dyn_kl": dyn_loss,
-            "agent/model/rep_kl": rep_loss,
-            "agent/model/obs_loss": obs_loss,
-            "agent/model/rew_loss": rew_loss,
-            "agent/model/term_loss": term_loss,
+            "diagnostics/model/dyn_kl": dyn_loss,
+            "diagnostics/model/rep_kl": rep_loss,
+            "diagnostics/model/obs_loss": obs_loss,
+            "diagnostics/model/rew_loss": rew_loss,
+            "diagnostics/model/term_loss": term_loss,
         }
         return loss, (feats, logs)
 
@@ -1162,17 +1162,17 @@ class Dreamer(Agent):
         )
         loss = policy_loss.mean()
         logs = {
-            "agent/actor/loss": loss,
-            "agent/actor/entropy": entropy.mean(),
-            "agent/actor/adv": adv.mean(),
+            "diagnostics/actor/loss": loss,
+            "diagnostics/actor/entropy": entropy.mean(),
+            "diagnostics/actor/adv": adv.mean(),
             # Imagination health: if the world model is any good, imagined
             # reward should be on the same scale as the real collected
             # reward rate, and targets should track true policy value -
             # divergence between these and reality is the signature of the
             # actor optimizing against model error instead of the task.
-            "agent/imag/rew": rews.mean(),
-            "agent/imag/continues": continues.mean(),
-            "agent/imag/target": targets.mean(),
+            "diagnostics/imag/rew": rews.mean(),
+            "diagnostics/imag/continues": continues.mean(),
+            "diagnostics/imag/target": targets.mean(),
         }
         return loss, logs
 
@@ -1220,10 +1220,10 @@ class Dreamer(Agent):
 
         loss = regress_loss + hp.slow_critic_reg * slow_reg_loss
         logs = {
-            "agent/critic/loss": loss,
-            "agent/critic/regress_loss": regress_loss,
-            "agent/critic/slow_reg_loss": slow_reg_loss,
-            "agent/critic/value": jax.vmap(head.mean)(pred_logits).mean(),
+            "diagnostics/critic/loss": loss,
+            "diagnostics/critic/regress_loss": regress_loss,
+            "diagnostics/critic/slow_reg_loss": slow_reg_loss,
+            "diagnostics/critic/value": jax.vmap(head.mean)(pred_logits).mean(),
         }
         return loss, logs
 
@@ -1255,7 +1255,7 @@ class Dreamer(Agent):
                 lambda g: jnp.nan_to_num(g, nan=0.0, posinf=0.0, neginf=0.0), grads
             )
             model = model.apply_gradients(grads=grads)
-            return (model, rng), {"loss/model": loss, **mlogs}
+            return (model, rng), {"diagnostics/model": loss, **mlogs}
 
         (model, rng), mlogs = jax.lax.scan(
             model_step, (ts.model, ts.rng), None, length=hp.num_model_updates
@@ -1323,7 +1323,7 @@ class Dreamer(Agent):
                 lambda g: jnp.nan_to_num(g, nan=0.0, posinf=0.0, neginf=0.0), grads
             )
             actor = actor.apply_gradients(grads=grads)
-            return (actor, rng), {"loss/actor": loss, **alogs}
+            return (actor, rng), {"diagnostics/actor": loss, **alogs}
 
         (actor, rng), alogs = jax.lax.scan(
             actor_step, (ts.actor, rng), None, length=hp.num_actor_updates
@@ -1364,7 +1364,7 @@ class Dreamer(Agent):
                 slow_critic_params,
                 critic.params,
             )
-            return (critic, slow_critic_params, rng), {"loss/critic": loss, **clogs}
+            return (critic, slow_critic_params, rng), {"diagnostics/critic": loss, **clogs}
 
         (critic, slow_critic_params, rng), clogs = jax.lax.scan(
             critic_step,
@@ -1397,7 +1397,7 @@ class Dreamer(Agent):
         logs["iter/model_lr"] = self.hparams.model_lr
         logs["iter/actor_lr"] = self.hparams.actor_lr
         logs["iter/critic_lr"] = self.hparams.critic_lr
-        logs["agent/return_norm_scale"] = return_norm_scale
+        logs["diagnostics/return_norm_scale"] = return_norm_scale
 
         if self.hparams.log_render:
             from ..observations import rgb

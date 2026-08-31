@@ -211,8 +211,8 @@ def test_dreamer_kl_balance_has_two_distinct_terms():
     # both show up as separate, independently-computed log entries.
     dreamer = _make_dreamer(budget=8 * 4)
     ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
-    assert "agent/model/dyn_kl" in logs
-    assert "agent/model/rep_kl" in logs
+    assert "diagnostics/model/dyn_kl" in logs
+    assert "diagnostics/model/rep_kl" in logs
 
 
 def test_dreamer_slow_critic_tracks_online_critic_via_ema():
@@ -306,7 +306,7 @@ def test_dreamer_actor_entropy_never_reaches_exactly_zero():
     # not just the world model's.
     dreamer = _make_dreamer(num_actor_updates=8)
     ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
-    entropy = np.asarray(logs["agent/actor/entropy"])
+    entropy = np.asarray(logs["diagnostics/actor/entropy"])
     assert np.all(entropy > 0), (
         f"expected actor entropy to never reach exactly 0 with "
         f"actor_unimix={dreamer.hparams.actor_unimix} > 0, got a minimum "

@@ -89,7 +89,7 @@ def plot_metric(
         logs (Dict[str, Array]): The `logs` pytree, as returned by
             `navix.agents.agent.derive_episodic_metrics` (for `perf/*`
             keys) or directly from `Experiment.run()` (for raw keys
-            like `loss/*`, `iter/*`).
+            like `diagnostics/*`, `iter/*`).
         key (str): The key in `logs` to plot.
         title (str, optional): The plot title. Defaults to `key`.
         x_key (str): The key in `logs` to use as the x-axis.

@@ -104,12 +104,12 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
     )
     _, logs = agent.train(rng)
     mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
-    # Dreamer's own training loop already reduces every loss/*/agent/*
+    # Dreamer's own training loop already reduces every diagnostics/*
     # entry to one scalar per training update - already the exact
     # per-update-curve shape TrainingCurve.diagnostics wants, no
     # further reduction needed (same reasoning as navix-ppo/navix-pqn's
     # run.py).
-    diagnostics = {key: value for key, value in logs.items() if key.startswith("loss/") or key.startswith("agent/")}
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("diagnostics/")}
     return TrainingCurve(
         episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
         lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),

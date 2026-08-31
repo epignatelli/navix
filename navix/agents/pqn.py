@@ -281,9 +281,9 @@ class PQN(Agent):
         # constant rescaling of the gradient `lr` already absorbs.
         loss = jnp.mean(rlax.l2_loss(q_taken, targets))
         logs = {
-            "loss/q_loss": loss,
-            "agent/q_value": q_taken.mean(),
-            "agent/target": targets.mean(),
+            "diagnostics/q_loss": loss,
+            "diagnostics/q_value": q_taken.mean(),
+            "diagnostics/target": targets.mean(),
         }
         return loss, logs
 
@@ -351,7 +351,7 @@ class PQN(Agent):
         logs["iter/epochs"] = train_state.epoch
         logs["iter/updates"] = train_state.step
         logs["iter/learning_rate"] = learning_rate
-        logs["agent/epsilon"] = self.epsilon(train_state.frames)
+        logs["diagnostics/epsilon"] = self.epsilon(train_state.frames)
 
         if self.hparams.log_render:
             b = jax.random.randint(rng, (), 0, self.hparams.num_envs)

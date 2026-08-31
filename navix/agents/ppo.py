@@ -199,12 +199,12 @@ class PPO(Agent):
         approx_kl = ((ratio - 1) - logratio).mean()
         clipfrac = jnp.mean(jnp.abs(ratio - 1.0) > self.hparams.clip_eps)
         logs = {
-            "loss/total_loss": total_loss,
-            "loss/value_loss": value_loss,
-            "loss/actor_loss": loss_actor,
-            "loss/entropy": entropy,
-            "loss/approx_kl": approx_kl,
-            "loss/clipfrac": clipfrac,
+            "diagnostics/total_loss": total_loss,
+            "diagnostics/value_loss": value_loss,
+            "diagnostics/actor_loss": loss_actor,
+            "diagnostics/entropy": entropy,
+            "diagnostics/approx_kl": approx_kl,
+            "diagnostics/clipfrac": clipfrac,
         }
         return total_loss, logs
 

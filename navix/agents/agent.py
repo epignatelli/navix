@@ -117,6 +117,47 @@ class Agent(struct.PyTreeNode):
     algorithm-specific internals (e.g. PPO's `sgd_step`)."""
 
     def train(self, rng: jax.Array) -> Tuple[TrainState, Dict[str, jax.Array]]:
+        """Trains this agent from scratch and returns `logs`: the
+        training history every downstream consumer (`log_to_wandb`,
+        `Experiment`, `navix.benchmarks`) reads.
+
+        `logs`' keys split into what's structurally guaranteed to
+        exist (because it comes from the shared collect/derive path
+        every concrete agent already goes through, not something each
+        implementation writes by hand) and what's genuinely bespoke -
+        verified directly against every navix agent's own `update`/
+        `train`, not assumed:
+
+        - **Guaranteed**: `done_mask`/`returns`/`lengths` (the raw,
+          per-step interaction stream - required by
+          `derive_episodic_metrics`, which raises `KeyError` if any is
+          missing) and `iter/frames`/`iter/updates` (identical across
+          every navix agent). `perf/returns`/`perf/success_rate`/
+          `perf/episode_length` are then always derivable from the raw
+          stream via `derive_episodic_metrics` - the one comparison
+          every algorithm supports regardless of internals.
+        - **Not guaranteed, even within `iter/*`**: `iter/epochs`
+          (PPO/PQN only - Dreamer has no epoch concept) and
+          `iter/learning_rate` (PPO/PQN's single optimizer - Dreamer
+          has three instead: `iter/model_lr`/`iter/actor_lr`/
+          `iter/critic_lr`). Structural, not an oversight - an agent's
+          own optimizer/loop shape decides these.
+        - **Bespoke, `diagnostics/*`**: everything algorithm-specific
+          (PPO's `diagnostics/entropy`/`diagnostics/value_loss`/...;
+          PQN's `diagnostics/q_loss`/`diagnostics/epsilon`; Dreamer's
+          `diagnostics/model/*`/`diagnostics/actor/*`/`diagnostics/
+          critic/*`). One shared prefix, no shared key names - a
+          caller (e.g. `benchmarks/*/*/run.py`'s `TrainingCurve.
+          diagnostics` construction) can always filter on
+          `key.startswith("diagnostics/")` without needing to know
+          which specific keys a given agent happens to log.
+
+        Args:
+            rng (jax.Array): PRNG key for the whole training run.
+
+        Returns:
+            Tuple[TrainState, Dict[str, Array]]: The final train
+            state, and `logs` as described above."""
         raise NotImplementedError
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
