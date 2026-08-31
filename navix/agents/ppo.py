@@ -199,12 +199,12 @@ class PPO(Agent):
         approx_kl = ((ratio - 1) - logratio).mean()
         clipfrac = jnp.mean(jnp.abs(ratio - 1.0) > self.hparams.clip_eps)
         logs = {
-            "loss/total_loss": total_loss,
-            "loss/value_loss": value_loss,
-            "loss/actor_loss": loss_actor,
-            "loss/entropy": entropy,
-            "loss/approx_kl": approx_kl,
-            "loss/clipfrac": clipfrac,
+            "agent/diagnostics/total_loss": total_loss,
+            "agent/diagnostics/value_loss": value_loss,
+            "agent/diagnostics/actor_loss": loss_actor,
+            "agent/diagnostics/entropy": entropy,
+            "agent/diagnostics/approx_kl": approx_kl,
+            "agent/diagnostics/clipfrac": clipfrac,
         }
         return total_loss, logs
 
@@ -274,14 +274,18 @@ class PPO(Agent):
         learning_rate = train_state.opt_state[1].hyperparams["learning_rate"]  # type: ignore
 
         # update logs with returns
-        logs["done_mask"] = experience.done
-        logs["returns"] = experience.info["return"]
-        logs["lengths"] = experience.t
+        logs["agent/train/done_mask"] = experience.done
+        logs["agent/train/returns"] = experience.info["return"]
+        logs["agent/train/lengths"] = experience.t
 
-        logs["iter/frames"] = train_state.frames
-        logs["iter/epochs"] = train_state.epoch
-        logs["iter/updates"] = train_state.step
-        logs["iter/learning_rate"] = learning_rate
+        logs["agent/train/frames"] = train_state.frames
+        logs["agent/train/updates"] = train_state.step
+        # Not guaranteed uniform across every navix agent (Dreamer has
+        # no epoch concept, and three learning rates instead of one) -
+        # see Agent.train's docstring - so these live under
+        # agent/diagnostics/*, not agent/train/*.
+        logs["agent/diagnostics/epochs"] = train_state.epoch
+        logs["agent/diagnostics/learning_rate"] = learning_rate
 
         if self.hparams.log_render:
             b = jax.random.randint(rng, (), 0, self.hparams.num_envs)
@@ -347,10 +351,11 @@ class PPO(Agent):
                 partial(self.network.apply, method="value"), in_axes=(None, 0)
             ),
         )
-        # iter/fps and iter/wall_time are NOT set here - train() runs inside
-        # a jax.jit trace (see Experiment.run), where time.time() only ever
-        # fires once, at trace-build time. Experiment.run fills both in
-        # itself, from real wall-clock timing measured outside any trace.
+        # experiment/costs/fps and experiment/costs/wall_time are NOT set
+        # here - train() runs inside a jax.jit trace (see Experiment.run),
+        # where time.time() only ever fires once, at trace-build time.
+        # Experiment.run fills both in itself, from real wall-clock timing
+        # measured outside any trace.
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
 
         return train_state, logs

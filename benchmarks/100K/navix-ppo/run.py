@@ -95,7 +95,7 @@ def flatten_obs(env: Environment) -> Environment:
 
 
 def train_with_hparams(
-    hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array, observation_mode: str
+    hparams: Dict[str, jax.Array], env_id: str, budget: int, rng: jax.Array, observation_mode: str
 ) -> TrainingCurve:
     """Builds `env_id`'s env/network for `observation_mode`, trains PPO
     on it for `budget` frames with `hparams` overriding `PPOHparams`'
@@ -105,7 +105,7 @@ def train_with_hparams(
     `hparams` differ between the two calls.
 
     Args:
-        hparams (Dict[str, float]): `PPOHparams` field overrides (see
+        hparams (Dict[str, jax.Array]): `PPOHparams` field overrides (see
             `HPARAMS_DISTR` above) - empty uses `PPOHparams`' own
             defaults.
         env_id (str): The environment to train on.
@@ -133,18 +133,18 @@ def train_with_hparams(
     network = ActorCritic(action_dim=len(env.action_set), actor_encoder=encoder_cls(), critic_encoder=encoder_cls())
     agent = PPO(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
-    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
-    # PPO.update already reduces every loss/* entry to one scalar per
-    # training update (see PPO.sgd_step/update in navix/agents/ppo.py) -
+    mask = jnp.asarray(logs["agent/train/done_mask"], dtype=jnp.bool_)
+    # PPO.update already reduces every agent/diagnostics/* entry to one scalar
+    # per training update (see PPO.sgd_step/update in navix/agents/ppo.py) -
     # already the exact per-update-curve shape TrainingCurve.diagnostics
     # wants, no further reduction needed. Surfacing these (entropy, value/
     # actor loss, approx KL, clip fraction) is what makes
     # Benchmark.plot_diagnostics/`diagnostics.npz` show more than just
     # episodic_returns/length for this entry.
-    diagnostics = {key: value for key, value in logs.items() if key.startswith("loss/")}
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("agent/diagnostics/")}
     return TrainingCurve(
-        episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-        lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        episodic_returns=masked_mean(logs["agent/train/returns"], mask, axis=(-2, -1)),
+        lengths=masked_mean(logs["agent/train/lengths"], mask, axis=(-2, -1)),
         diagnostics=diagnostics,
     )
 
@@ -166,7 +166,9 @@ class PPOEntry(AlgorithmEntry):
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
         """`AlgorithmEntry.train`, delegating to `train_with_hparams`
         with this entry's own `hparams`/`observation_mode`."""
-        return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng, self.observation_mode)
+        return train_with_hparams(
+            jax.tree.map(jnp.asarray, self.hparams.get(env_id, {})), env_id, budget, rng, self.observation_mode
+        )
 
 
 if __name__ == "__main__":
@@ -200,7 +202,7 @@ if __name__ == "__main__":
         for env_id in benchmark.env_ids:
             print(f"Searching hyperparameters for {env_id} (budget={search_budget})...")
             best_hparams, best_fitness = search_hparams(
-                trainable=lambda hp, rng, env_id=env_id: train_with_hparams(
+                trainable=lambda hp, rng: train_with_hparams(
                     hp, env_id, search_budget, rng, observation_mode
                 ),
                 hparams_distr=HPARAMS_DISTR,
@@ -218,13 +220,13 @@ if __name__ == "__main__":
         details = benchmark.details(raw)
         benchmark.submit_entry(entry, raw, subdir=observation_mode)
         print(f"{type(benchmark).__name__} / {entry.name} [{observation_mode}] summary:")
-        print(f"  episodic_returns:     {summary['episodic_returns']}")
-        print(f"  flops:                {summary['flops']}")
-        print(f"  memory_bytes:         {summary['memory_bytes']}")
-        print(f"  compile_time_seconds: {summary['compile_time_seconds']}")
-        print(f"  fps:                  {summary['fps']}")
-        print(f"  wall_time:            {summary['wall_time']}")
-        print(f"  returns_variance:            {summary['returns_variance']}")
-        print(f"  returns_convergence_rate:    {summary['returns_convergence_rate']}")
+        print(f"  returns:               {summary['benchmark/episode/returns']}")
+        print(f"  flops:                {summary['benchmark/costs/flops']}")
+        print(f"  memory_bytes:         {summary['benchmark/costs/memory_bytes']}")
+        print(f"  compile_time_seconds: {summary['benchmark/costs/compile_time_seconds']}")
+        print(f"  fps:                  {summary['benchmark/costs/fps']}")
+        print(f"  wall_time:            {summary['benchmark/costs/wall_time']}")
+        print(f"  variance:              {summary['benchmark/episode/variance']}")
+        print(f"  convergence_rate:      {summary['benchmark/episode/convergence_rate']}")
         for i, env_id in enumerate(details["env_ids"]):
-            print(f"  {env_id}: episodic_returns={details['episodic_returns'][i]} length={details['length'][i]}")
+            print(f"  {env_id}: returns={details['benchmark/episode/returns'][i]} length={details['benchmark/episode/length'][i]}")

@@ -32,8 +32,9 @@ than auto-detecting whatever keys happen to be in `logs`. Each entry is
 derivable purely from the (state, action, reward, done) interaction
 stream plus wall-clock time - the one interface every RL algorithm
 shares, regardless of its internals - so the set stays meaningful for any
-future agent, not just the ones navix ships: `perf/returns`,
-`perf/success_rate`, `perf/episode_length`, `iter/fps`, `iter/wall_time`.
+future agent, not just the ones navix ships: `agent/episode/returns`,
+`agent/episode/success_rate`, `agent/episode/length`,
+`experiment/costs/fps`, `experiment/costs/wall_time`.
 Identical across every navix agent so results are visually comparable
 across algorithms - this is the set the navix leaderboard (#130) is
 expected to standardise on.
@@ -47,7 +48,7 @@ diagnostic keys), not to navix itself. `plot_metrics`/`plot_dashboard`
 both accept an arbitrary metrics dict for exactly this reason.
 
 `navix.agents.agent.derive_episodic_metrics` (formerly defined here)
-builds the `perf/*` keys `plot_metric`/`plot_dashboard` expect in
+builds the `agent/episode/*` keys `plot_metric`/`plot_dashboard` expect in
 `logs` - it moved out because it's load-bearing for `Experiment.
 run_hparam_search`'s fitness computation too, not just plotting, so a
 plotting-only module was the wrong home for it.
@@ -58,15 +59,16 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 
 
 MANDATORY_METRICS: Dict[str, str] = {
-    "perf/returns": "Episodic Return",
-    "perf/success_rate": "Success Rate",
-    "perf/episode_length": "Episode Length",
-    "iter/fps": "Training Throughput (steps/s)",
-    "iter/wall_time": "Wall-clock Training Time (s)",
+    "agent/episode/returns": "Episodic Return",
+    "agent/episode/success_rate": "Success Rate",
+    "agent/episode/length": "Episode Length",
+    "experiment/costs/fps": "Training Throughput (steps/s)",
+    "experiment/costs/wall_time": "Wall-clock Training Time (s)",
 }
 """The plots every navix agent's `logs` should support, so results are
 directly comparable across algorithms. Kept intentionally small: only
@@ -78,7 +80,7 @@ def plot_metric(
     logs: Dict[str, jnp.ndarray],
     key: str,
     title: Optional[str] = None,
-    x_key: str = "iter/frames",
+    x_key: str = "agent/train/frames",
     xlabel: str = "Frames",
     ax=None,
 ):
@@ -87,9 +89,10 @@ def plot_metric(
 
     Args:
         logs (Dict[str, Array]): The `logs` pytree, as returned by
-            `navix.agents.agent.derive_episodic_metrics` (for `perf/*`
-            keys) or directly from `Experiment.run()` (for raw keys
-            like `loss/*`, `iter/*`).
+            `navix.agents.agent.derive_episodic_metrics` (for
+            `agent/episode/*` keys) or directly from `Experiment.run()`
+            (for raw keys like `agent/train/*`, `agent/diagnostics/*`,
+            `experiment/costs/*`).
         key (str): The key in `logs` to plot.
         title (str, optional): The plot title. Defaults to `key`.
         x_key (str): The key in `logs` to use as the x-axis.
@@ -99,8 +102,6 @@ def plot_metric(
 
     Returns:
         matplotlib.figure.Figure: The figure `ax` belongs to."""
-    import matplotlib.pyplot as plt
-
     if ax is None:
         fig, ax = plt.subplots(figsize=(6, 4))
     else:
@@ -128,9 +129,9 @@ def plot_metric(
 def plot_metrics(
     logs: Dict[str, jnp.ndarray],
     metrics: Dict[str, str],
-    x_key: str = "iter/frames",
+    x_key: str = "agent/train/frames",
     xlabel: str = "Frames",
-) -> Dict[str, "plt.Figure"]:
+) -> Dict[str, plt.Figure]:
     """Plots each metric in `metrics` as its own standalone figure.
 
     Args:
@@ -154,7 +155,7 @@ def plot_metrics(
 def plot_dashboard(
     logs: Dict[str, jnp.ndarray],
     metrics: Optional[Dict[str, str]] = None,
-    x_key: str = "iter/frames",
+    x_key: str = "agent/train/frames",
     xlabel: str = "Frames",
 ):
     """Plots `metrics` (`MANDATORY_METRICS` by default) as a single combined
@@ -179,8 +180,6 @@ def plot_dashboard(
 
     Returns:
         matplotlib.figure.Figure: The combined dashboard figure."""
-    import matplotlib.pyplot as plt
-
     present = [(k, t) for k, t in (metrics or MANDATORY_METRICS).items() if k in logs]
     n_cols = max(len(present), 1)
     fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
@@ -232,7 +231,18 @@ def is_numeric_sequence(value) -> bool:
     return array.ndim >= 1
 
 
-NON_CURVE_DIAGNOSTICS_KEYS = frozenset({"wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"})
-"""`Benchmark.plot_diagnostics`/`diagnostics.npz` keys that are scalar
-cost fields, not per-update curves - skipped rather than plotted as a
-one-point "curve"."""
+NON_CURVE_DIAGNOSTICS_KEYS = frozenset(
+    {
+        "benchmark/costs/wall_time",
+        "benchmark/costs/fps",
+        "benchmark/costs/flops",
+        "benchmark/costs/memory_bytes",
+        "benchmark/costs/compile_time_seconds",
+    }
+)
+"""`diagnostics.npz`'s scalar cost fields, not per-update curves - only
+`submit_entry` (`navix/benchmarks/benchmark.py`) ever adds these, to
+the npz-only `curves` dict, never to what `curve_diagnostics()` itself
+returns (what `Benchmark.plot_diagnostics` plots) - so this documents
+`diagnostics.npz`'s real shape for any future direct consumer of that
+file, rather than filtering anything `plot_diagnostics` itself sees."""

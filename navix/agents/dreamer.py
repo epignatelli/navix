@@ -1048,11 +1048,11 @@ class Dreamer(Agent):
             + term_loss
         )
         logs = {
-            "agent/model/dyn_kl": dyn_loss,
-            "agent/model/rep_kl": rep_loss,
-            "agent/model/obs_loss": obs_loss,
-            "agent/model/rew_loss": rew_loss,
-            "agent/model/term_loss": term_loss,
+            "agent/diagnostics/model/dyn_kl": dyn_loss,
+            "agent/diagnostics/model/rep_kl": rep_loss,
+            "agent/diagnostics/model/obs_loss": obs_loss,
+            "agent/diagnostics/model/rew_loss": rew_loss,
+            "agent/diagnostics/model/term_loss": term_loss,
         }
         return loss, (feats, logs)
 
@@ -1162,17 +1162,17 @@ class Dreamer(Agent):
         )
         loss = policy_loss.mean()
         logs = {
-            "agent/actor/loss": loss,
-            "agent/actor/entropy": entropy.mean(),
-            "agent/actor/adv": adv.mean(),
+            "agent/diagnostics/actor/loss": loss,
+            "agent/diagnostics/actor/entropy": entropy.mean(),
+            "agent/diagnostics/actor/adv": adv.mean(),
             # Imagination health: if the world model is any good, imagined
             # reward should be on the same scale as the real collected
             # reward rate, and targets should track true policy value -
             # divergence between these and reality is the signature of the
             # actor optimizing against model error instead of the task.
-            "agent/imag/rew": rews.mean(),
-            "agent/imag/continues": continues.mean(),
-            "agent/imag/target": targets.mean(),
+            "agent/diagnostics/imag/rew": rews.mean(),
+            "agent/diagnostics/imag/continues": continues.mean(),
+            "agent/diagnostics/imag/target": targets.mean(),
         }
         return loss, logs
 
@@ -1220,10 +1220,10 @@ class Dreamer(Agent):
 
         loss = regress_loss + hp.slow_critic_reg * slow_reg_loss
         logs = {
-            "agent/critic/loss": loss,
-            "agent/critic/regress_loss": regress_loss,
-            "agent/critic/slow_reg_loss": slow_reg_loss,
-            "agent/critic/value": jax.vmap(head.mean)(pred_logits).mean(),
+            "agent/diagnostics/critic/loss": loss,
+            "agent/diagnostics/critic/regress_loss": regress_loss,
+            "agent/diagnostics/critic/slow_reg_loss": slow_reg_loss,
+            "agent/diagnostics/critic/value": jax.vmap(head.mean)(pred_logits).mean(),
         }
         return loss, logs
 
@@ -1255,7 +1255,7 @@ class Dreamer(Agent):
                 lambda g: jnp.nan_to_num(g, nan=0.0, posinf=0.0, neginf=0.0), grads
             )
             model = model.apply_gradients(grads=grads)
-            return (model, rng), {"loss/model": loss, **mlogs}
+            return (model, rng), {"agent/diagnostics/model": loss, **mlogs}
 
         (model, rng), mlogs = jax.lax.scan(
             model_step, (ts.model, ts.rng), None, length=hp.num_model_updates
@@ -1323,7 +1323,7 @@ class Dreamer(Agent):
                 lambda g: jnp.nan_to_num(g, nan=0.0, posinf=0.0, neginf=0.0), grads
             )
             actor = actor.apply_gradients(grads=grads)
-            return (actor, rng), {"loss/actor": loss, **alogs}
+            return (actor, rng), {"agent/diagnostics/actor": loss, **alogs}
 
         (actor, rng), alogs = jax.lax.scan(
             actor_step, (ts.actor, rng), None, length=hp.num_actor_updates
@@ -1364,7 +1364,7 @@ class Dreamer(Agent):
                 slow_critic_params,
                 critic.params,
             )
-            return (critic, slow_critic_params, rng), {"loss/critic": loss, **clogs}
+            return (critic, slow_critic_params, rng), {"agent/diagnostics/critic": loss, **clogs}
 
         (critic, slow_critic_params, rng), clogs = jax.lax.scan(
             critic_step,
@@ -1389,15 +1389,18 @@ class Dreamer(Agent):
         logs.update(mlogs)
         logs.update(alogs)
         logs.update(clogs)
-        logs["done_mask"] = experience.done
-        logs["returns"] = experience.info["return"]
-        logs["lengths"] = experience.t
-        logs["iter/frames"] = ts.frames
-        logs["iter/updates"] = ts.updates
-        logs["iter/model_lr"] = self.hparams.model_lr
-        logs["iter/actor_lr"] = self.hparams.actor_lr
-        logs["iter/critic_lr"] = self.hparams.critic_lr
-        logs["agent/return_norm_scale"] = return_norm_scale
+        logs["agent/train/done_mask"] = experience.done
+        logs["agent/train/returns"] = experience.info["return"]
+        logs["agent/train/lengths"] = experience.t
+        logs["agent/train/frames"] = ts.frames
+        logs["agent/train/updates"] = ts.updates
+        # Not guaranteed uniform across every navix agent (PPO/PQN
+        # have one learning rate, not three - see Agent.train's
+        # docstring) - agent/diagnostics/*, not agent/train/*.
+        logs["agent/diagnostics/model_lr"] = self.hparams.model_lr
+        logs["agent/diagnostics/actor_lr"] = self.hparams.actor_lr
+        logs["agent/diagnostics/critic_lr"] = self.hparams.critic_lr
+        logs["agent/diagnostics/return_norm_scale"] = return_norm_scale
 
         if self.hparams.log_render:
             from ..observations import rgb
@@ -1431,10 +1434,11 @@ class Dreamer(Agent):
         )
         num_updates = hp.budget // (hp.num_steps * hp.num_envs)
 
-        # iter/fps and iter/wall_time are NOT set here - train() runs inside
-        # a jax.jit trace (see Experiment.run), where time.time() only ever
-        # fires once, at trace-build time. Experiment.run fills both in
-        # itself, from real wall-clock timing measured outside any trace.
+        # experiment/costs/fps and experiment/costs/wall_time are NOT set
+        # here - train() runs inside a jax.jit trace (see Experiment.run),
+        # where time.time() only ever fires once, at trace-build time.
+        # Experiment.run fills both in itself, from real wall-clock timing
+        # measured outside any trace.
         ts, logs = jax.lax.scan(self.update, ts, None, length=num_updates)
 
         return ts, logs

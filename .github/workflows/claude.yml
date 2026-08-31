@@ -23,7 +23,14 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      # write (not just read) because actions/cache@v4's save step needs
+      # it - read-only is enough to restore a cache but not to create one,
+      # so with only `read` here every run's cache-save step failed with
+      # "Cache reservation failed: cache write denied: token has no
+      # writable scopes", meaning no run had ever actually populated the
+      # cache for a later run to hit. Also still what lets Claude read CI
+      # results on PRs (see additional_permissions below).
+      actions: write
     env:
       # anthropics/claude-code-action@v1 installs this exact Claude Code CLI
       # version internally (see its src/entrypoints/run.ts's

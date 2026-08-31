@@ -93,11 +93,11 @@ def test_dreamer_trains_one_update_without_nans():
 
     assert int(ts.updates) == 1, "expected exactly one Dreamer.update() call"
 
-    for key in ("iter/frames", "iter/updates", "done_mask", "returns", "lengths"):
+    for key in ("agent/train/frames", "agent/train/updates", "agent/train/done_mask", "agent/train/returns", "agent/train/lengths"):
         assert key in logs, f"missing expected log key {key!r}"
 
     for key, value in logs.items():
-        if key in ("done_mask",):
+        if key in ("agent/train/done_mask",):
             continue
         arr = np.asarray(value)
         assert np.all(np.isfinite(arr)), f"logs[{key!r}] contains non-finite values"
@@ -135,8 +135,9 @@ def test_dreamer_networks_have_independent_optimizers_and_step_counters():
 
 def test_dreamer_logs_flow_through_agent_log_to_wandb():
     # smoke test that Dreamer's logs dict is shaped the way the base
-    # Agent's wandb-logging methods expect (done_mask/returns/lengths ->
-    # perf/* via masked_mean), the same contract PPO relies on.
+    # Agent's wandb-logging methods expect (agent/train/done_mask/
+    # agent/train/returns/agent/train/lengths -> agent/episode/* via
+    # masked_mean), the same contract PPO relies on.
     dreamer = _make_dreamer(budget=8 * 4)
     ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
     logs = jax.tree.map(lambda x: x[0] if hasattr(x, "shape") and x.shape else x, logs)
@@ -146,9 +147,9 @@ def test_dreamer_logs_flow_through_agent_log_to_wandb():
 
     assert mock_log.call_count == 1
     logged = mock_log.call_args.args[0]
-    assert "perf/returns" in logged
-    assert "perf/episode_length" in logged
-    assert "perf/success_rate" in logged
+    assert "agent/episode/returns" in logged
+    assert "agent/episode/length" in logged
+    assert "agent/episode/success_rate" in logged
 
 
 def test_unimix_floors_every_class_probability():
@@ -211,8 +212,8 @@ def test_dreamer_kl_balance_has_two_distinct_terms():
     # both show up as separate, independently-computed log entries.
     dreamer = _make_dreamer(budget=8 * 4)
     ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
-    assert "agent/model/dyn_kl" in logs
-    assert "agent/model/rep_kl" in logs
+    assert "agent/diagnostics/model/dyn_kl" in logs
+    assert "agent/diagnostics/model/rep_kl" in logs
 
 
 def test_dreamer_slow_critic_tracks_online_critic_via_ema():
@@ -306,7 +307,7 @@ def test_dreamer_actor_entropy_never_reaches_exactly_zero():
     # not just the world model's.
     dreamer = _make_dreamer(num_actor_updates=8)
     ts, logs = jax.jit(dreamer.train)(jax.random.PRNGKey(0))
-    entropy = np.asarray(logs["agent/actor/entropy"])
+    entropy = np.asarray(logs["agent/diagnostics/actor/entropy"])
     assert np.all(entropy > 0), (
         f"expected actor entropy to never reach exactly 0 with "
         f"actor_unimix={dreamer.hparams.actor_unimix} > 0, got a minimum "

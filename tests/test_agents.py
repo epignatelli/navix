@@ -40,9 +40,9 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
     lengths = rng.integers(1, 50, size=shape).astype(np.float32)
     returns = rng.choice([0.0, 1.0], size=shape)
     return {
-        "done_mask": jnp.asarray(mask),
-        "lengths": jnp.asarray(lengths),
-        "returns": jnp.asarray(returns),
+        "agent/train/done_mask": jnp.asarray(mask),
+        "agent/train/lengths": jnp.asarray(lengths),
+        "agent/train/returns": jnp.asarray(returns),
     }, mask, lengths, returns
 
 
@@ -58,16 +58,16 @@ def test_derive_episodic_metrics_matches_manual_masked_mean():
             expected_length = np.mean(lengths[s, u][m])
             expected_returns = np.mean(returns[s, u][m])
             expected_success = np.mean(returns[s, u][m] == 1.0)
-            assert np.allclose(derived["perf/episode_length"][s, u], expected_length)
-            assert np.allclose(derived["perf/returns"][s, u], expected_returns)
-            assert np.allclose(derived["perf/success_rate"][s, u], expected_success)
+            assert np.allclose(derived["agent/episode/length"][s, u], expected_length)
+            assert np.allclose(derived["agent/episode/returns"][s, u], expected_returns)
+            assert np.allclose(derived["agent/episode/success_rate"][s, u], expected_success)
 
     # original logs dict must not be mutated
-    assert "perf/returns" not in logs
+    assert "agent/episode/returns" not in logs
 
 
 def test_derive_episodic_metrics_raises_on_missing_keys():
-    logs = {"done_mask": jnp.ones((2,), dtype=bool)}
+    logs = {"agent/train/done_mask": jnp.ones((2,), dtype=bool)}
     with pytest.raises(KeyError, match="lengths.*returns"):
         derive_episodic_metrics(logs)
 
@@ -81,12 +81,12 @@ def test_log_to_wandb_on_train_end_respects_log_frequency():
     # called for the kept steps, but the expensive tree indexing happened
     # regardless. This asserts the *set of steps actually logged* is
     # unchanged by hoisting that check earlier: still exactly the steps
-    # where iter/updates % log_frequency == 0.
+    # where agent/train/updates % log_frequency == 0.
     n_steps = 10
     log_frequency = 3
     logs = {
-        "iter/updates": jnp.arange(n_steps),
-        "iter/frames": jnp.arange(n_steps) * 100,
+        "agent/train/updates": jnp.arange(n_steps),
+        "agent/train/frames": jnp.arange(n_steps) * 100,
     }
     agent = Agent(hparams=HParams(log_frequency=log_frequency), env=_DUMMY_ENV)
 
@@ -107,8 +107,8 @@ def test_log_on_train_end_is_deprecated_but_still_works():
     # rename, just warned.
     n_steps = 4
     logs = {
-        "iter/updates": jnp.arange(n_steps),
-        "iter/frames": jnp.arange(n_steps) * 100,
+        "agent/train/updates": jnp.arange(n_steps),
+        "agent/train/frames": jnp.arange(n_steps) * 100,
     }
     agent = Agent(hparams=HParams(log_frequency=1), env=_DUMMY_ENV)
 
@@ -146,11 +146,11 @@ def test_log_to_wandb_masked_mean_matches_boolean_indexing():
     expected_success_rate = np.mean(returns[mask] == 1.0)
 
     logs = {
-        "iter/updates": jnp.asarray(0),
-        "iter/frames": jnp.asarray(0),
-        "done_mask": jnp.asarray(mask),
-        "lengths": jnp.asarray(lengths),
-        "returns": jnp.asarray(returns),
+        "agent/train/updates": jnp.asarray(0),
+        "agent/train/frames": jnp.asarray(0),
+        "agent/train/done_mask": jnp.asarray(mask),
+        "agent/train/lengths": jnp.asarray(lengths),
+        "agent/train/returns": jnp.asarray(returns),
     }
     agent = Agent(hparams=HParams(), env=_DUMMY_ENV)
 
@@ -158,17 +158,17 @@ def test_log_to_wandb_masked_mean_matches_boolean_indexing():
         agent.log_to_wandb(dict(logs))
 
     logged = mock_log.call_args.args[0]
-    assert np.allclose(logged["perf/episode_length"], expected_length)
-    assert np.allclose(logged["perf/returns"], expected_returns)
-    assert np.allclose(logged["perf/success_rate"], expected_success_rate)
+    assert np.allclose(logged["agent/episode/length"], expected_length)
+    assert np.allclose(logged["agent/episode/returns"], expected_returns)
+    assert np.allclose(logged["agent/episode/success_rate"], expected_success_rate)
 
 
 def test_log_is_deprecated_but_still_works():
     # the pre-rename name must keep working (delegating to log_to_wandb)
     # so existing callers aren't broken by the rename, just warned.
     logs = {
-        "iter/updates": jnp.asarray(0),
-        "iter/frames": jnp.asarray(0),
+        "agent/train/updates": jnp.asarray(0),
+        "agent/train/frames": jnp.asarray(0),
     }
     agent = Agent(hparams=HParams(), env=_DUMMY_ENV)
 

@@ -109,24 +109,25 @@ class FromScratchBenchmark(Benchmark):
         Returns:
             Dict[str, jax.Array]: Each numeric column of
             `self.details(results)` meaned across its env axis -
-            `episodic_returns`' last-percent-mean (bias), variance,
-            convergence rate, and finite fraction (see `self.details`),
-            plus `fps`/`flops`/`memory_bytes`/`compile_time_seconds`/
-            `wall_time`'s bias. `length`/
-            `env_ids` (see `NON_NUMERIC_DETAILS`) aren't included -
-            still on `self.details(results)`. Non-finite values (e.g.
-            `returns_convergence_rate`'s `overall / target` is `0/0` or
-            `x/0` when an environment's episodic_returns never leaves
-            zero - a real algorithm never solving that environment, not
-            a bug) are excluded from the mean rather than propagated -
-            one degenerate environment/seed shouldn't blank out every
+            `benchmark/episode/returns`' last-percent-mean (bias),
+            variance, convergence rate, and finite fraction (see
+            `self.details`), plus `benchmark/costs/*`'s bias.
+            `benchmark/episode/length`/`env_ids` (see
+            `NON_NUMERIC_DETAILS`) aren't included - still on
+            `self.details(results)`. Non-finite values (e.g.
+            `benchmark/episode/convergence_rate`'s `overall / target`
+            is `0/0` or `x/0` when an environment's
+            `benchmark/episode/returns` never leaves zero - a real
+            algorithm never solving that environment, not a bug) are
+            excluded from the mean rather than propagated - one
+            degenerate environment/seed shouldn't blank out every
             other one's otherwise-valid signal. `self.details(results)`
             keeps the raw, un-filtered per-environment values (a NaN
             there is itself informative), only this aggregate step
             filters them.
         """
         details = self.details(results)
-        skip = self.NON_NUMERIC_DETAILS + ("length",)
+        skip = self.NON_NUMERIC_DETAILS + ("benchmark/episode/length",)
 
         def finite_mean(value: jax.Array) -> jax.Array:
             return jnp.nanmean(jnp.where(jnp.isfinite(value), value, jnp.nan))
@@ -144,13 +145,14 @@ class FromScratchBenchmark(Benchmark):
             aggregates further, but stopped one step earlier - every
             column keeps its leading env axis. Includes `env_ids`
             (which row is which - a `Tuple[str, ...]`, not an `Array`),
-            `length` (not in `summary`, but a useful per-env
-            diagnostic), and `returns_finite_fraction` (fraction of
-            `self.seeds` whose `returns_convergence_rate` was finite -
-            i.e. made *some* real progress in the final 20% of training;
-            a reliability signal `episodic_returns`' bias alone can't
-            distinguish "consistently mediocre" from "mostly zero, one
-            seed got lucky").
+            `benchmark/episode/length` (not in `summary`, but a useful
+            per-env diagnostic), and `benchmark/episode/finite_fraction`
+            (fraction of `self.seeds` whose
+            `benchmark/episode/convergence_rate` was finite - i.e. made
+            *some* real progress in the final 20% of training; a
+            reliability signal `benchmark/episode/returns`' bias alone
+            can't distinguish "consistently mediocre" from "mostly
+            zero, one seed got lucky").
         """
         bias = results.curve.last_percent_mean()
         variance = results.curve.last_percent_variance().episodic_returns
@@ -165,20 +167,20 @@ class FromScratchBenchmark(Benchmark):
         # column, but very different in practice (one is a strong,
         # consistent policy; the other is one lucky seed dragging up a
         # near-total-failure average).
-        returns_finite_fraction = jnp.mean(jnp.isfinite(convergence_rate), axis=-1)
+        finite_fraction = jnp.mean(jnp.isfinite(convergence_rate), axis=-1)
         env_ids = self.env_ids or tuple(registry().keys())
         return {
             "env_ids": env_ids,
-            "episodic_returns": bias.episodic_returns,
-            "returns_variance": variance,
-            "returns_convergence_rate": convergence_rate,
-            "returns_finite_fraction": returns_finite_fraction,
-            "length": bias.lengths,
-            "fps": results.fps,
-            "flops": results.cost.flops,
-            "memory_bytes": results.cost.memory_bytes,
-            "compile_time_seconds": results.cost.compile_time_seconds,
-            "wall_time": results.wall_time,
+            "benchmark/episode/returns": bias.episodic_returns,
+            "benchmark/episode/variance": variance,
+            "benchmark/episode/convergence_rate": convergence_rate,
+            "benchmark/episode/finite_fraction": finite_fraction,
+            "benchmark/episode/length": bias.lengths,
+            "benchmark/costs/fps": results.fps,
+            "benchmark/costs/flops": results.cost.flops,
+            "benchmark/costs/memory_bytes": results.cost.memory_bytes,
+            "benchmark/costs/compile_time_seconds": results.cost.compile_time_seconds,
+            "benchmark/costs/wall_time": results.wall_time,
         }
 
 

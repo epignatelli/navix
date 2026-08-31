@@ -66,10 +66,10 @@ class _TinyPPOEntry(AlgorithmEntry):
         env = env.replace(max_steps=hp.num_steps)
         agent = PPO(hparams=hp, network=ActorCritic(action_dim=len(env.action_set)), env=env)
         _, logs = agent.train(rng)
-        mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+        mask = jnp.asarray(logs["agent/train/done_mask"], dtype=jnp.bool_)
         return TrainingCurve(
-            episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
-            lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+            episodic_returns=masked_mean(logs["agent/train/returns"], mask, axis=(-2, -1)),
+            lengths=masked_mean(logs["agent/train/lengths"], mask, axis=(-2, -1)),
         )
 
 
@@ -294,18 +294,18 @@ def test_from_scratch_benchmark_summary_excludes_non_numeric_and_length():
     details = benchmark.details(raw)
 
     assert "env_ids" not in summary
-    assert "length" not in summary
-    assert set(details.keys()) - set(summary.keys()) == {"env_ids", "length"}
+    assert "benchmark/episode/length" not in summary
+    assert set(details.keys()) - set(summary.keys()) == {"env_ids", "benchmark/episode/length"}
     assert details["env_ids"] == _TINY_ENV_IDS
     for key, value in summary.items():
-        # returns_convergence_rate excluded: it's overall/target (see
-        # TrainingCurve.convergence_rate), so a still-near-untrained tiny
-        # entry (budget=32) can legitimately produce 0/0 = NaN for every
-        # env/seed here - there's no valid signal to average, so NaN is
-        # the correct output, not a bug (see the test below for the
+        # benchmark/episode/convergence_rate excluded: it's overall/target
+        # (see TrainingCurve.convergence_rate), so a still-near-untrained
+        # tiny entry (budget=32) can legitimately produce 0/0 = NaN for
+        # every env/seed here - there's no valid signal to average, so NaN
+        # is the correct output, not a bug (see the test below for the
         # actual non-finite-robustness behavior, on hand-built data where
         # only *some* values are degenerate).
-        if key != "returns_convergence_rate":
+        if key != "benchmark/episode/convergence_rate":
             assert np.all(np.isfinite(np.asarray(value))), f"summary[{key!r}] is not finite"
         # summary is each numeric detail column meaned across envs,
         # ignoring non-finite entries (see Benchmark.summary's docstring).
@@ -340,13 +340,13 @@ def test_summary_ignores_non_finite_values_details_keeps_them():
     details = benchmark.details(raw)
     summary = benchmark.summary(raw)
 
-    conv_rate = np.asarray(details["returns_convergence_rate"])
+    conv_rate = np.asarray(details["benchmark/episode/convergence_rate"])
     assert np.all(np.isnan(conv_rate[1])), "env 1 (all-zero returns) should keep its NaN in details"
     assert np.all(np.isfinite(conv_rate[0])), "env 0 (real curve) should be finite in details"
 
-    assert np.isfinite(np.asarray(summary["returns_convergence_rate"])), "summary should not be NaN"
+    assert np.isfinite(np.asarray(summary["benchmark/episode/convergence_rate"])), "summary should not be NaN"
     np.testing.assert_allclose(
-        np.asarray(summary["returns_convergence_rate"]), np.mean(conv_rate[0]), rtol=1e-5
+        np.asarray(summary["benchmark/episode/convergence_rate"]), np.mean(conv_rate[0]), rtol=1e-5
     )
 
 
@@ -392,13 +392,21 @@ def test_submit_entry_writes_three_files(tmp_path):
 
     summary_payload = json.loads((tmp_path / "summary.json").read_text())
     assert summary_payload["entry"]["name"] == entry.name
-    assert "episodic_returns" in summary_payload["summary"]
+    assert "benchmark/episode/returns" in summary_payload["summary"]
 
     details_payload = json.loads((tmp_path / "details.json").read_text())
     assert details_payload["details"]["env_ids"] == list(_TINY_ENV_IDS)
 
     npz = np.load(tmp_path / "diagnostics.npz")
-    for key in ("episodic_returns", "length", "wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"):
+    for key in (
+        "benchmark/episode/returns",
+        "benchmark/episode/length",
+        "benchmark/costs/wall_time",
+        "benchmark/costs/fps",
+        "benchmark/costs/flops",
+        "benchmark/costs/memory_bytes",
+        "benchmark/costs/compile_time_seconds",
+    ):
         assert key in npz.files
 
 
@@ -476,8 +484,9 @@ def test_plot_diagnostics_has_one_panel_per_curve_including_custom_diagnostics()
     benchmark, raw = _make_two_env_raw()
     fig = benchmark.plot_diagnostics(raw)
     assert isinstance(fig, plt.Figure)
-    # episodic_returns, length, diagnostics_loss
+    # benchmark/episode/returns, benchmark/episode/length, and curve.
+    # diagnostics's own "loss" key, unchanged (see curve_diagnostics).
     assert len(fig.axes) == 3
     titles = {ax.get_title() for ax in fig.axes}
-    assert titles == {"episodic_returns", "length", "diagnostics_loss"}
+    assert titles == {"benchmark/episode/returns", "benchmark/episode/length", "loss"}
     plt.close(fig)

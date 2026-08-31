@@ -34,8 +34,8 @@ class _FakeAgent(Agent):
     def train(self, rng):
         n_updates = 3
         logs = {
-            "iter/updates": jnp.arange(n_updates),
-            "iter/frames": jnp.arange(n_updates) * 100,
+            "agent/train/updates": jnp.arange(n_updates),
+            "agent/train/frames": jnp.arange(n_updates) * 100,
         }
         return None, logs
 
@@ -45,7 +45,7 @@ class _QuadraticFitnessHParams(HParams):
 
 
 class _QuadraticFitnessAgent(Agent):
-    """A minimal Agent whose fitness (perf/returns, via
+    """A minimal Agent whose fitness (agent/episode/returns, via
     derive_episodic_metrics) is a known, smooth function of its own
     hparams.x - peaks at x=2.0 - so run_hparam_search's ES loop can be
     tested against a known optimum without any real training."""
@@ -54,11 +54,11 @@ class _QuadraticFitnessAgent(Agent):
         n_updates, num_steps, num_envs = 2, 4, 2
         fitness = -jnp.square(self.hparams.x - 2.0)
         logs = {
-            "iter/updates": jnp.arange(n_updates),
-            "iter/frames": jnp.arange(n_updates) * 100,
-            "done_mask": jnp.ones((n_updates, num_steps, num_envs), dtype=bool),
-            "returns": jnp.full((n_updates, num_steps, num_envs), fitness),
-            "lengths": jnp.ones((n_updates, num_steps, num_envs)),
+            "agent/train/updates": jnp.arange(n_updates),
+            "agent/train/frames": jnp.arange(n_updates) * 100,
+            "agent/train/done_mask": jnp.ones((n_updates, num_steps, num_envs), dtype=bool),
+            "agent/train/returns": jnp.full((n_updates, num_steps, num_envs), fitness),
+            "agent/train/lengths": jnp.ones((n_updates, num_steps, num_envs)),
         }
         return None, logs
 
