@@ -1364,6 +1364,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.agent.REQUIRED_LOG_KEYS" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;REQUIRED_LOG_KEYS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.agent.Agent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1402,6 +1413,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;log_on_train_end
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent.train" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;train
       
     </span>
   </a>
@@ -2535,6 +2557,31 @@
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.agents.agent.REQUIRED_LOG_KEYS" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">REQUIRED_LOG_KEYS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'agent/train/done_mask'</span><span class="p">:</span> <span class="s1">'which steps ended an episode'</span><span class="p">,</span> <span class="s1">'agent/train/lengths'</span><span class="p">:</span> <span class="s1">'per-step episode length'</span><span class="p">,</span> <span class="s1">'agent/train/returns'</span><span class="p">:</span> <span class="s1">'per-step episodic return'</span><span class="p">}</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>agent/train/*</code> is <code>Agent.train</code>'s own guaranteed-floor namespace -
+see its docstring for exactly what's verified common across every
+navix agent and why (as opposed to <code>agent/diagnostics/*</code>, algorithm-
+specific and never guaranteed).</p>
+
+    </div>
+
+</div>
+
 
 
 <div class="doc doc-object doc-class">
@@ -2643,6 +2690,139 @@ algorithm-specific internals (e.g. PPO's <code>sgd_step</code>).</p>
     <div class="doc doc-contents ">
 
         <p>Deprecated: use <code>log_to_wandb_on_train_end</code> instead.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.agents.agent.Agent.train" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">train</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Trains this agent from scratch and returns <code>logs</code>: the
+training history every downstream consumer (<code>log_to_wandb</code>,
+<code>Experiment</code>, <code>navix.benchmarks</code>) reads.</p>
+<p>Every navix namespace that ends up in a <code>logs</code>-shaped dict is
+prefixed by <em>who produced it</em>, not just what kind of thing it
+is - <code>agent/*</code> here, <code>experiment/*</code> for what <code>Experiment</code> adds
+after <code>train()</code> already returned, <code>benchmark/*</code> for what
+<code>Benchmark.summary</code>/<code>details</code>/<code>diagnostics.npz</code> add on top of
+that (see those modules' own docstrings). Within <code>agent/*</code>,
+<code>logs</code>' keys split into exactly two namespaces - what's
+structurally guaranteed (<code>agent/train/*</code>, from the shared
+collect/derive path every concrete agent already goes through,
+not something each implementation writes by hand) and what's
+genuinely bespoke (<code>agent/diagnostics/*</code>) - verified directly
+against every navix agent's own <code>update</code>/<code>train</code>, not assumed:</p>
+<ul>
+<li><strong><code>agent/train/*</code>, guaranteed</strong>: <code>agent/train/done_mask</code>/
+  <code>agent/train/returns</code>/<code>agent/train/lengths</code> (the raw,
+  per-step interaction stream - required by
+  <code>derive_episodic_metrics</code>, which raises <code>KeyError</code> if any is
+  missing) and <code>agent/train/frames</code>/<code>agent/train/updates</code>
+  (identical across every navix agent). None of these are
+  themselves per-episode values - <code>returns</code>/<code>lengths</code> are
+  dense running sums reset on episode boundary, only
+  meaningful where <code>done_mask</code> is true (see <code>navix.
+  environments.environment.Environment.step</code>'s
+  <code>info["return"]</code> accumulation).</li>
+<li><strong><code>agent/diagnostics/*</code>, bespoke</strong>: everything else,
+  including things that look like they should be structural
+  but aren't actually uniform - e.g. an epoch count or
+  learning-rate schedule state exists for PPO/PQN but not in
+  the same shape for Dreamer (three optimizers, not one) -
+  alongside the obviously algorithm-specific values (PPO's
+  <code>agent/diagnostics/entropy</code>/<code>agent/diagnostics/value_loss</code>/
+  ...; PQN's <code>agent/diagnostics/q_loss</code>/<code>agent/diagnostics/
+  epsilon</code>; Dreamer's <code>agent/diagnostics/model/*</code>/<code>agent/
+  diagnostics/actor/*</code>/<code>agent/diagnostics/critic/*</code>). One
+  shared prefix, no shared key names - a caller (e.g.
+  <code>benchmarks/*/*/run.py</code>'s <code>TrainingCurve.diagnostics</code>
+  construction) can always filter on
+  <code>key.startswith("agent/diagnostics/")</code> without needing to
+  know which specific keys a given agent happens to log.</li>
+</ul>
+<p>Neither of <code>train()</code>'s own two namespaces has anything called
+<code>agent/episode/*</code> or <code>experiment/costs/*</code>. <code>agent/episode/*</code> is
+<code>derive_episodic_metrics</code>'s own output, computed downstream
+from <code>agent/train/*</code>'s raw stream. <code>experiment/costs/wall_time</code>/
+<code>experiment/costs/fps</code> are added by <code>Experiment.run</code>/
+<code>run_hparam_search</code> after <code>train()</code> already returned - real
+wall-clock timing can't be measured from inside the <code>jax.jit</code>
+trace <code>train()</code> runs in. A bare <code>agent.train(rng)</code> call, not
+wrapped by <code>Experiment</code>, returns <code>logs</code> with neither.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>rng</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>PRNG key for the whole training run.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="flax.training.train_state.TrainState">TrainState</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tuple[TrainState, Dict[str, Array]]: The final train</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>state, and <code>logs</code> as described above.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2761,16 +2941,20 @@ algorithm-specific internals (e.g. PPO's <code>sgd_step</code>).</p>
 
     <div class="doc doc-contents ">
 
-        <p>Reduces the raw per-step buffers (<code>done_mask</code>, <code>lengths</code>,
-<code>returns</code>) that <code>Agent.train</code> returns into <code>perf/episode_length</code>,
-<code>perf/returns</code>, <code>perf/success_rate</code> - one point per training
-update, masked-mean over completed episodes only.</p>
+        <p>Reduces the raw per-step buffers (<code>agent/train/done_mask</code>,
+<code>agent/train/lengths</code>, <code>agent/train/returns</code>) that <code>Agent.train</code>
+returns into <code>agent/episode/length</code>, <code>agent/episode/returns</code>,
+<code>agent/episode/success_rate</code> - one point per training update,
+masked-mean over completed episodes only. Not itself a per-episode
+log (nothing in <code>logs</code> is - see <code>Agent.train</code>'s docstring): a
+single aggregate statistic over however many episodes happened to
+complete that update.</p>
 <p><code>Agent.log_to_wandb</code> computes the same values, but one training
 update at a time (for live wandb logging); this is the batched
 equivalent, for reducing an entire already-finished <code>logs</code> history
 in one call - used by <code>Experiment.run_hparam_search</code> (as the ES
 search's fitness signal) and <code>navix.benchmarks.plotting</code> (as
-<code>plot_metric</code>/<code>plot_dashboard</code>'s <code>perf/*</code> inputs).</p>
+<code>plot_metric</code>/<code>plot_dashboard</code>'s <code>agent/episode/*</code> inputs).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2795,9 +2979,10 @@ search's fitness signal) and <code>navix.benchmarks.plotting</code> (as
               <div class="doc-md-description">
                 <p>The <code>logs</code> pytree returned by
 <code>Experiment.run()</code>, <code>Experiment.run_hparam_search()</code>, or a
-bare <code>Agent.train()</code> call. Must contain <code>done_mask</code>/
-<code>lengths</code>/<code>returns</code>, shaped <code>(..., num_steps, num_envs)</code> -
-any number of leading batch dimensions (e.g. seeds,
+bare <code>Agent.train()</code> call. Must contain
+<code>agent/train/done_mask</code>/<code>agent/train/lengths</code>/
+<code>agent/train/returns</code>, shaped <code>(..., num_steps, num_envs)</code>
+- any number of leading batch dimensions (e.g. seeds,
 hparam sets) is supported.</p>
               </div>
             </td>
@@ -2824,7 +3009,7 @@ hparam sets) is supported.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Dict[str, Array]: <code>logs</code>, plus <code>perf/episode_length</code>,</p>
+                <p>Dict[str, Array]: <code>logs</code>, plus <code>agent/episode/length</code>,</p>
               </div>
             </td>
           </tr>
@@ -2834,7 +3019,7 @@ hparam sets) is supported.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>perf/returns</code> and <code>perf/success_rate</code> (shape: <code>logs</code>'</p>
+                <p><code>agent/episode/returns</code> and <code>agent/episode/success_rate</code></p>
               </div>
             </td>
           </tr>
@@ -2844,7 +3029,7 @@ hparam sets) is supported.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>leading batch dimensions, with <code>num_steps</code> and <code>num_envs</code></p>
+                <p>(shape: <code>logs</code>' leading batch dimensions, with <code>num_steps</code> and</p>
               </div>
             </td>
           </tr>
@@ -2854,7 +3039,7 @@ hparam sets) is supported.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>reduced away). <code>logs</code> itself is not mutated.</p>
+                <p><code>num_envs</code> reduced away). <code>logs</code> itself is not mutated.</p>
               </div>
             </td>
           </tr>
@@ -2877,8 +3062,8 @@ hparam sets) is supported.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>logs</code> is missing <code>done_mask</code>, <code>lengths</code>, or
-<code>returns</code>.</p>
+                <p>If <code>logs</code> is missing <code>agent/train/done_mask</code>,
+<code>agent/train/lengths</code>, or <code>agent/train/returns</code>.</p>
               </div>
             </td>
           </tr>

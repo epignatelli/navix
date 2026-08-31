@@ -3955,14 +3955,15 @@ up right alongside them.</p>
 <li><code>details.json</code>: <code>self.details(results)</code> - per-row
   diagnostics about this run.</li>
 <li><code>diagnostics.npz</code>: <code>results</code> itself. <code>curve.episodic_returns</code>/
-  <code>curve.lengths</code>/<code>curve.diagnostics</code>' values are resampled to
-  exactly <code>max_points</code> evenly-spaced points along their
-  trailing axis, so every submission's curve fields end up the
-  same fixed shape regardless of how many updates actually
-  ran; <code>wall_time</code>/<code>fps</code>/<code>cost.*</code> are already scalars and are
-  written as-is. <code>curve.diagnostics</code>' entries are flattened to
-  top-level <code>diagnostics_&lt;key&gt;</code> npz entries (npz has no native
-  nesting).</li>
+  <code>curve.lengths</code>/<code>curve.diagnostics</code>' values (written as
+  <code>benchmark/episode/returns</code>/<code>benchmark/episode/length</code>, plus
+  <code>curve.diagnostics</code>' own keys unchanged - see
+  <code>curve_diagnostics</code>) are resampled to exactly <code>max_points</code>
+  evenly-spaced points along their trailing axis, so every
+  submission's curve fields end up the same fixed shape
+  regardless of how many updates actually ran;
+  <code>benchmark/costs/*</code> (wall_time/fps/cost.*) are already
+  scalars and are written as-is.</li>
 </ul>
 
 
@@ -4805,10 +4806,14 @@ compute the variance over.</p>
         <p><code>result.curve</code>'s fields flattened into the plain <code>{name: array}</code>
 shape both <code>Benchmark.submit_entry</code> (writing <code>diagnostics.npz</code>)
 and <code>Benchmark.plot_diagnostics</code> (plotting the same curves
-in-memory) need: <code>episodic_returns</code>/<code>length</code> plus one
-<code>diagnostics_&lt;key&gt;</code> entry per <code>curve.diagnostics</code> key (npz has no
-native nesting, so this flattening happens once here rather than
-separately in each caller).</p>
+in-memory) need: <code>benchmark/episode/returns</code>/<code>benchmark/episode/
+length</code> plus <code>curve.diagnostics</code>'s own keys, unchanged - <code>curve.
+diagnostics</code> is free-form (see <code>TrainingCurve</code>'s docstring), so
+this doesn't impose or assume any prefix on it. navix's own agents
+happen to already key it <code>agent/diagnostics/&lt;name&gt;</code> (<code>Agent.
+train</code>'s own contract, preserved end to end through <code>benchmarks/
+*/*/run.py</code>'s <code>TrainingCurve.diagnostics</code> construction), but a
+submitted entry that isn't a navix agent owes no such convention.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4877,7 +4882,7 @@ native resolution.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Dict[str, np.ndarray]: <code>episodic_returns</code>, <code>length</code>, and one</p>
+                <p>Dict[str, np.ndarray]: <code>benchmark/episode/returns</code>,</p>
               </div>
             </td>
           </tr>
@@ -4887,7 +4892,17 @@ native resolution.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>diagnostics_&lt;key&gt;</code> entry per <code>result.curve.diagnostics</code> key.</p>
+                <p><code>benchmark/episode/length</code>, and <code>result.curve.diagnostics</code>'</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="numpy.ndarray">ndarray</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>own keys, unchanged.</p>
               </div>
             </td>
           </tr>

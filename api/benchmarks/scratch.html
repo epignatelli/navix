@@ -2769,7 +2769,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>length</code> (not in <code>summary</code>, but a useful per-env</p>
+                <p><code>benchmark/episode/length</code> (not in <code>summary</code>, but a useful</p>
               </div>
             </td>
           </tr>
@@ -2779,7 +2779,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>diagnostic), and <code>returns_finite_fraction</code> (fraction of</p>
+                <p>per-env diagnostic), and <code>benchmark/episode/finite_fraction</code></p>
               </div>
             </td>
           </tr>
@@ -2789,7 +2789,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>self.seeds</code> whose <code>returns_convergence_rate</code> was finite -</p>
+                <p>(fraction of <code>self.seeds</code> whose</p>
               </div>
             </td>
           </tr>
@@ -2799,7 +2799,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>i.e. made <em>some</em> real progress in the final 20% of training;</p>
+                <p><code>benchmark/episode/convergence_rate</code> was finite - i.e. made</p>
               </div>
             </td>
           </tr>
@@ -2809,7 +2809,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a reliability signal <code>episodic_returns</code>' bias alone can't</p>
+                <p><em>some</em> real progress in the final 20% of training; a</p>
               </div>
             </td>
           </tr>
@@ -2819,7 +2819,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>distinguish "consistently mediocre" from "mostly zero, one</p>
+                <p>reliability signal <code>benchmark/episode/returns</code>' bias alone</p>
               </div>
             </td>
           </tr>
@@ -2829,7 +2829,17 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>seed got lucky").</p>
+                <p>can't distinguish "consistently mediocre" from "mostly</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>zero, one seed got lucky").</p>
               </div>
             </td>
           </tr>
@@ -3029,7 +3039,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>episodic_returns</code>' last-percent-mean (bias), variance,</p>
+                <p><code>benchmark/episode/returns</code>' last-percent-mean (bias),</p>
               </div>
             </td>
           </tr>
@@ -3039,7 +3049,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>convergence rate, and finite fraction (see <code>self.details</code>),</p>
+                <p>variance, convergence rate, and finite fraction (see</p>
               </div>
             </td>
           </tr>
@@ -3049,7 +3059,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>plus <code>fps</code>/<code>flops</code>/<code>memory_bytes</code>/<code>compile_time_seconds</code>/</p>
+                <p><code>self.details</code>), plus <code>benchmark/costs/*</code>'s bias.</p>
               </div>
             </td>
           </tr>
@@ -3059,7 +3069,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>wall_time</code>'s bias. <code>length</code>/</p>
+                <p><code>benchmark/episode/length</code>/<code>env_ids</code> (see</p>
               </div>
             </td>
           </tr>
@@ -3069,7 +3079,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>env_ids</code> (see <code>NON_NUMERIC_DETAILS</code>) aren't included -</p>
+                <p><code>NON_NUMERIC_DETAILS</code>) aren't included - still on</p>
               </div>
             </td>
           </tr>
@@ -3079,7 +3089,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>still on <code>self.details(results)</code>. Non-finite values (e.g.</p>
+                <p><code>self.details(results)</code>. Non-finite values (e.g.</p>
               </div>
             </td>
           </tr>
@@ -3089,7 +3099,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>returns_convergence_rate</code>'s <code>overall / target</code> is <code>0/0</code> or</p>
+                <p><code>benchmark/episode/convergence_rate</code>'s <code>overall / target</code></p>
               </div>
             </td>
           </tr>
@@ -3099,7 +3109,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>x/0</code> when an environment's episodic_returns never leaves</p>
+                <p>is <code>0/0</code> or <code>x/0</code> when an environment's</p>
               </div>
             </td>
           </tr>
@@ -3109,7 +3119,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>zero - a real algorithm never solving that environment, not</p>
+                <p><code>benchmark/episode/returns</code> never leaves zero - a real</p>
               </div>
             </td>
           </tr>
@@ -3119,7 +3129,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a bug) are excluded from the mean rather than propagated -</p>
+                <p>algorithm never solving that environment, not a bug) are</p>
               </div>
             </td>
           </tr>
@@ -3129,7 +3139,17 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>one degenerate environment/seed shouldn't blank out every</p>
+                <p>excluded from the mean rather than propagated - one</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>degenerate environment/seed shouldn't blank out every</p>
               </div>
             </td>
           </tr>

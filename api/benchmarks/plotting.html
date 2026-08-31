@@ -2509,8 +2509,9 @@ than auto-detecting whatever keys happen to be in <code>logs</code>. Each entry 
 derivable purely from the (state, action, reward, done) interaction
 stream plus wall-clock time - the one interface every RL algorithm
 shares, regardless of its internals - so the set stays meaningful for any
-future agent, not just the ones navix ships: <code>perf/returns</code>,
-<code>perf/success_rate</code>, <code>perf/episode_length</code>, <code>iter/fps</code>, <code>iter/wall_time</code>.
+future agent, not just the ones navix ships: <code>agent/episode/returns</code>,
+<code>agent/episode/success_rate</code>, <code>agent/episode/length</code>,
+<code>experiment/costs/fps</code>, <code>experiment/costs/wall_time</code>.
 Identical across every navix agent so results are visually comparable
 across algorithms - this is the set the navix leaderboard (#130) is
 expected to standardise on.</p>
@@ -2522,7 +2523,7 @@ consumes this module (e.g. a leaderboard's own file mapping algorithm -&gt;
 diagnostic keys), not to navix itself. <code>plot_metrics</code>/<code>plot_dashboard</code>
 both accept an arbitrary metrics dict for exactly this reason.</p>
 <p><code>navix.agents.agent.derive_episodic_metrics</code> (formerly defined here)
-builds the <code>perf/*</code> keys <code>plot_metric</code>/<code>plot_dashboard</code> expect in
+builds the <code>agent/episode/*</code> keys <code>plot_metric</code>/<code>plot_dashboard</code> expect in
 <code>logs</code> - it moved out because it's load-bearing for <code>Experiment.
 run_hparam_search</code>'s fitness computation too, not just plotting, so a
 plotting-only module was the wrong home for it.</p>
@@ -2549,7 +2550,7 @@ plotting-only module was the wrong home for it.</p>
 
 
 <h3 id="navix.benchmarks.plotting.MANDATORY_METRICS" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'perf/returns'</span><span class="p">:</span> <span class="s1">'Episodic Return'</span><span class="p">,</span> <span class="s1">'perf/success_rate'</span><span class="p">:</span> <span class="s1">'Success Rate'</span><span class="p">,</span> <span class="s1">'perf/episode_length'</span><span class="p">:</span> <span class="s1">'Episode Length'</span><span class="p">,</span> <span class="s1">'iter/fps'</span><span class="p">:</span> <span class="s1">'Training Throughput (steps/s)'</span><span class="p">,</span> <span class="s1">'iter/wall_time'</span><span class="p">:</span> <span class="s1">'Wall-clock Training Time (s)'</span><span class="p">}</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'agent/episode/returns'</span><span class="p">:</span> <span class="s1">'Episodic Return'</span><span class="p">,</span> <span class="s1">'agent/episode/success_rate'</span><span class="p">:</span> <span class="s1">'Success Rate'</span><span class="p">,</span> <span class="s1">'agent/episode/length'</span><span class="p">:</span> <span class="s1">'Episode Length'</span><span class="p">,</span> <span class="s1">'experiment/costs/fps'</span><span class="p">:</span> <span class="s1">'Training Throughput (steps/s)'</span><span class="p">,</span> <span class="s1">'experiment/costs/wall_time'</span><span class="p">:</span> <span class="s1">'Wall-clock Training Time (s)'</span><span class="p">}</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -2574,7 +2575,7 @@ metrics that (a) exist regardless of which algorithm produced <code>logs</code>,
 
 
 <h3 id="navix.benchmarks.plotting.NON_CURVE_DIAGNOSTICS_KEYS" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">NON_CURVE_DIAGNOSTICS_KEYS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s1">'wall_time'</span><span class="p">,</span> <span class="s1">'fps'</span><span class="p">,</span> <span class="s1">'flops'</span><span class="p">,</span> <span class="s1">'memory_bytes'</span><span class="p">,</span> <span class="s1">'compile_time_seconds'</span><span class="p">})</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">NON_CURVE_DIAGNOSTICS_KEYS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s1">'benchmark/costs/wall_time'</span><span class="p">,</span> <span class="s1">'benchmark/costs/fps'</span><span class="p">,</span> <span class="s1">'benchmark/costs/flops'</span><span class="p">,</span> <span class="s1">'benchmark/costs/memory_bytes'</span><span class="p">,</span> <span class="s1">'benchmark/costs/compile_time_seconds'</span><span class="p">})</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -2585,9 +2586,12 @@ metrics that (a) exist regardless of which algorithm produced <code>logs</code>,
 
     <div class="doc doc-contents ">
 
-        <p><code>Benchmark.plot_diagnostics</code>/<code>diagnostics.npz</code> keys that are scalar
-cost fields, not per-update curves - skipped rather than plotted as a
-one-point "curve".</p>
+        <p><code>diagnostics.npz</code>'s scalar cost fields, not per-update curves - only
+<code>submit_entry</code> (<code>navix/benchmarks/benchmark.py</code>) ever adds these, to
+the npz-only <code>curves</code> dict, never to what <code>curve_diagnostics()</code> itself
+returns (what <code>Benchmark.plot_diagnostics</code> plots) - so this documents
+<code>diagnostics.npz</code>'s real shape for any future direct consumer of that
+file, rather than filtering anything <code>plot_diagnostics</code> itself sees.</p>
 
     </div>
 
@@ -2639,7 +2643,7 @@ precision for a float scalar, <code>str()</code> otherwise.</p>
 
 
 <h3 id="navix.benchmarks.plotting.plot_dashboard" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2716,7 +2720,7 @@ from <code>logs</code> are silently skipped.</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2769,7 +2773,7 @@ from <code>logs</code> are silently skipped.</p>
 
 
 <h3 id="navix.benchmarks.plotting.plot_metric" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2801,9 +2805,10 @@ a min-max shaded band over any leading batch dimensions (e.g. seeds).</p>
             <td>
               <div class="doc-md-description">
                 <p>The <code>logs</code> pytree, as returned by
-<code>navix.agents.agent.derive_episodic_metrics</code> (for <code>perf/*</code>
-keys) or directly from <code>Experiment.run()</code> (for raw keys
-like <code>loss/*</code>, <code>iter/*</code>).</p>
+<code>navix.agents.agent.derive_episodic_metrics</code> (for
+<code>agent/episode/*</code> keys) or directly from <code>Experiment.run()</code>
+(for raw keys like <code>agent/train/*</code>, <code>agent/diagnostics/*</code>,
+<code>experiment/costs/*</code>).</p>
               </div>
             </td>
             <td>
@@ -2855,7 +2860,7 @@ like <code>loss/*</code>, <code>iter/*</code>).</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2925,7 +2930,7 @@ into. If <code>None</code>, a new standalone figure and axes are created.</p>
 
 
 <h3 id="navix.benchmarks.plotting.plot_metrics" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2993,7 +2998,7 @@ algorithm -&gt; diagnostic keys.</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3027,7 +3032,7 @@ algorithm -&gt; diagnostic keys.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, &#39;plt.Figure&#39;]</code>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="matplotlib.pyplot.Figure">Figure</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3037,7 +3042,7 @@ algorithm -&gt; diagnostic keys.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, &#39;plt.Figure&#39;]</code>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="matplotlib.pyplot.Figure">Figure</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">

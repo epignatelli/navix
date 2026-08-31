@@ -2796,7 +2796,7 @@ hyperparameter vector instead.</p>
 <code>pop_size</code> hyperparameter sets around the current mean, train all
 of them in one fused <code>jax.jit(jax.vmap(...))</code> call (the same shape
 <code>Experiment.run</code> itself uses), score each by its last-20%-mean
-<code>perf/returns</code> (<code>navix.agents.agent.derive_episodic_metrics</code>,
+<code>agent/episode/returns</code> (<code>navix.agents.agent.derive_episodic_metrics</code>,
 averaged over <code>self.seeds</code>), then take an ES step: z-score the
 fitnesses, estimate a gradient from fitness-weighted noise, and
 update the mean via <code>solver</code>. The best-scoring hyperparameter set
@@ -2992,7 +2992,7 @@ wandb.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>(last-20%-mean <code>perf/returns</code>, averaged over <code>self.seeds</code>).</p>
+                <p>(last-20%-mean <code>agent/episode/returns</code>, averaged over <code>self.seeds</code>).</p>
               </div>
             </td>
           </tr>
@@ -3159,7 +3159,7 @@ candidate values, each shaped <code>(pop_size,)</code> (see
 
         <p>One scalar fitness per population member, from <code>logs</code> (as
 returned by a <code>run_hparam_search</code> generation's <code>search_fn</code> call):
-last-20%-mean <code>perf/returns</code> (<code>navix.agents.agent.
+last-20%-mean <code>agent/episode/returns</code> (<code>navix.agents.agent.
 derive_episodic_metrics</code>), averaged over the seed axis.</p>
 
 
@@ -3184,8 +3184,8 @@ derive_episodic_metrics</code>), averaged over the seed axis.</p>
             <td>
               <div class="doc-md-description">
                 <p>Shape <code>(pop_size, num_seeds,
-num_updates, num_steps, num_envs)</code> for <code>done_mask</code>/
-<code>returns</code>/<code>lengths</code>.</p>
+num_updates, num_steps, num_envs)</code> for <code>agent/train/done_mask</code>/
+<code>agent/train/returns</code>/<code>agent/train/lengths</code>.</p>
               </div>
             </td>
             <td>

@@ -2899,7 +2899,7 @@ benchmark.submit_entry(entry, results)
 
 
 <h3 id="navix.benchmarks.MANDATORY_METRICS" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'perf/returns'</span><span class="p">:</span> <span class="s1">'Episodic Return'</span><span class="p">,</span> <span class="s1">'perf/success_rate'</span><span class="p">:</span> <span class="s1">'Success Rate'</span><span class="p">,</span> <span class="s1">'perf/episode_length'</span><span class="p">:</span> <span class="s1">'Episode Length'</span><span class="p">,</span> <span class="s1">'iter/fps'</span><span class="p">:</span> <span class="s1">'Training Throughput (steps/s)'</span><span class="p">,</span> <span class="s1">'iter/wall_time'</span><span class="p">:</span> <span class="s1">'Wall-clock Training Time (s)'</span><span class="p">}</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MANDATORY_METRICS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'agent/episode/returns'</span><span class="p">:</span> <span class="s1">'Episodic Return'</span><span class="p">,</span> <span class="s1">'agent/episode/success_rate'</span><span class="p">:</span> <span class="s1">'Success Rate'</span><span class="p">,</span> <span class="s1">'agent/episode/length'</span><span class="p">:</span> <span class="s1">'Episode Length'</span><span class="p">,</span> <span class="s1">'experiment/costs/fps'</span><span class="p">:</span> <span class="s1">'Training Throughput (steps/s)'</span><span class="p">,</span> <span class="s1">'experiment/costs/wall_time'</span><span class="p">:</span> <span class="s1">'Wall-clock Training Time (s)'</span><span class="p">}</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -4190,14 +4190,15 @@ up right alongside them.</p>
 <li><code>details.json</code>: <code>self.details(results)</code> - per-row
   diagnostics about this run.</li>
 <li><code>diagnostics.npz</code>: <code>results</code> itself. <code>curve.episodic_returns</code>/
-  <code>curve.lengths</code>/<code>curve.diagnostics</code>' values are resampled to
-  exactly <code>max_points</code> evenly-spaced points along their
-  trailing axis, so every submission's curve fields end up the
-  same fixed shape regardless of how many updates actually
-  ran; <code>wall_time</code>/<code>fps</code>/<code>cost.*</code> are already scalars and are
-  written as-is. <code>curve.diagnostics</code>' entries are flattened to
-  top-level <code>diagnostics_&lt;key&gt;</code> npz entries (npz has no native
-  nesting).</li>
+  <code>curve.lengths</code>/<code>curve.diagnostics</code>' values (written as
+  <code>benchmark/episode/returns</code>/<code>benchmark/episode/length</code>, plus
+  <code>curve.diagnostics</code>' own keys unchanged - see
+  <code>curve_diagnostics</code>) are resampled to exactly <code>max_points</code>
+  evenly-spaced points along their trailing axis, so every
+  submission's curve fields end up the same fixed shape
+  regardless of how many updates actually ran;
+  <code>benchmark/costs/*</code> (wall_time/fps/cost.*) are already
+  scalars and are written as-is.</li>
 </ul>
 
 
@@ -4853,7 +4854,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>length</code> (not in <code>summary</code>, but a useful per-env</p>
+                <p><code>benchmark/episode/length</code> (not in <code>summary</code>, but a useful</p>
               </div>
             </td>
           </tr>
@@ -4863,7 +4864,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>diagnostic), and <code>returns_finite_fraction</code> (fraction of</p>
+                <p>per-env diagnostic), and <code>benchmark/episode/finite_fraction</code></p>
               </div>
             </td>
           </tr>
@@ -4873,7 +4874,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>self.seeds</code> whose <code>returns_convergence_rate</code> was finite -</p>
+                <p>(fraction of <code>self.seeds</code> whose</p>
               </div>
             </td>
           </tr>
@@ -4883,7 +4884,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>i.e. made <em>some</em> real progress in the final 20% of training;</p>
+                <p><code>benchmark/episode/convergence_rate</code> was finite - i.e. made</p>
               </div>
             </td>
           </tr>
@@ -4893,7 +4894,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a reliability signal <code>episodic_returns</code>' bias alone can't</p>
+                <p><em>some</em> real progress in the final 20% of training; a</p>
               </div>
             </td>
           </tr>
@@ -4903,7 +4904,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>distinguish "consistently mediocre" from "mostly zero, one</p>
+                <p>reliability signal <code>benchmark/episode/returns</code>' bias alone</p>
               </div>
             </td>
           </tr>
@@ -4913,7 +4914,17 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>seed got lucky").</p>
+                <p>can't distinguish "consistently mediocre" from "mostly</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>zero, one seed got lucky").</p>
               </div>
             </td>
           </tr>
@@ -5113,7 +5124,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>episodic_returns</code>' last-percent-mean (bias), variance,</p>
+                <p><code>benchmark/episode/returns</code>' last-percent-mean (bias),</p>
               </div>
             </td>
           </tr>
@@ -5123,7 +5134,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>convergence rate, and finite fraction (see <code>self.details</code>),</p>
+                <p>variance, convergence rate, and finite fraction (see</p>
               </div>
             </td>
           </tr>
@@ -5133,7 +5144,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>plus <code>fps</code>/<code>flops</code>/<code>memory_bytes</code>/<code>compile_time_seconds</code>/</p>
+                <p><code>self.details</code>), plus <code>benchmark/costs/*</code>'s bias.</p>
               </div>
             </td>
           </tr>
@@ -5143,7 +5154,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>wall_time</code>'s bias. <code>length</code>/</p>
+                <p><code>benchmark/episode/length</code>/<code>env_ids</code> (see</p>
               </div>
             </td>
           </tr>
@@ -5153,7 +5164,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>env_ids</code> (see <code>NON_NUMERIC_DETAILS</code>) aren't included -</p>
+                <p><code>NON_NUMERIC_DETAILS</code>) aren't included - still on</p>
               </div>
             </td>
           </tr>
@@ -5163,7 +5174,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>still on <code>self.details(results)</code>. Non-finite values (e.g.</p>
+                <p><code>self.details(results)</code>. Non-finite values (e.g.</p>
               </div>
             </td>
           </tr>
@@ -5173,7 +5184,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>returns_convergence_rate</code>'s <code>overall / target</code> is <code>0/0</code> or</p>
+                <p><code>benchmark/episode/convergence_rate</code>'s <code>overall / target</code></p>
               </div>
             </td>
           </tr>
@@ -5183,7 +5194,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>x/0</code> when an environment's episodic_returns never leaves</p>
+                <p>is <code>0/0</code> or <code>x/0</code> when an environment's</p>
               </div>
             </td>
           </tr>
@@ -5193,7 +5204,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>zero - a real algorithm never solving that environment, not</p>
+                <p><code>benchmark/episode/returns</code> never leaves zero - a real</p>
               </div>
             </td>
           </tr>
@@ -5203,7 +5214,7 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a bug) are excluded from the mean rather than propagated -</p>
+                <p>algorithm never solving that environment, not a bug) are</p>
               </div>
             </td>
           </tr>
@@ -5213,7 +5224,17 @@ labels, not metrics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>one degenerate environment/seed shouldn't blank out every</p>
+                <p>excluded from the mean rather than propagated - one</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>degenerate environment/seed shouldn't blank out every</p>
               </div>
             </td>
           </tr>
@@ -6114,7 +6135,7 @@ compute the variance over.</p>
 
 
 <h3 id="navix.benchmarks.plot_dashboard" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_dashboard</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
@@ -6191,7 +6212,7 @@ from <code>logs</code> are silently skipped.</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -6244,7 +6265,7 @@ from <code>logs</code> are silently skipped.</p>
 
 
 <h3 id="navix.benchmarks.plot_metric" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metric</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -6276,9 +6297,10 @@ a min-max shaded band over any leading batch dimensions (e.g. seeds).</p>
             <td>
               <div class="doc-md-description">
                 <p>The <code>logs</code> pytree, as returned by
-<code>navix.agents.agent.derive_episodic_metrics</code> (for <code>perf/*</code>
-keys) or directly from <code>Experiment.run()</code> (for raw keys
-like <code>loss/*</code>, <code>iter/*</code>).</p>
+<code>navix.agents.agent.derive_episodic_metrics</code> (for
+<code>agent/episode/*</code> keys) or directly from <code>Experiment.run()</code>
+(for raw keys like <code>agent/train/*</code>, <code>agent/diagnostics/*</code>,
+<code>experiment/costs/*</code>).</p>
               </div>
             </td>
             <td>
@@ -6330,7 +6352,7 @@ like <code>loss/*</code>, <code>iter/*</code>).</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -6400,7 +6422,7 @@ into. If <code>None</code>, a new standalone figure and axes are created.</p>
 
 
 <h3 id="navix.benchmarks.plot_metrics" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'iter/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">plot_metrics</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">x_key</span><span class="o">=</span><span class="s1">'agent/train/frames'</span><span class="p">,</span> <span class="n">xlabel</span><span class="o">=</span><span class="s1">'Frames'</span><span class="p">)</span></code>
 
 </h3>
 
@@ -6468,7 +6490,7 @@ algorithm -&gt; diagnostic keys.</p>
               </div>
             </td>
             <td>
-                  <code>&#39;iter/frames&#39;</code>
+                  <code>&#39;agent/train/frames&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -6502,7 +6524,7 @@ algorithm -&gt; diagnostic keys.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, &#39;plt.Figure&#39;]</code>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="matplotlib.pyplot.Figure">Figure</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -6512,7 +6534,7 @@ algorithm -&gt; diagnostic keys.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, &#39;plt.Figure&#39;]</code>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="matplotlib.pyplot.Figure">Figure</span>]</code>
             </td>
             <td>
               <div class="doc-md-description">
