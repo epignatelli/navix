@@ -40,11 +40,12 @@ from navix.agents.models import QNetwork
 from navix.benchmarks import AlgorithmEntry, Navix100K, TrainingCurve
 from navix.benchmarks.search import search_hparams
 from navix.environments.registry import make
+from navix.es import LogUniform
 
 HERE = Path(__file__).resolve().parent
 
 HPARAMS_DISTR = {
-    "lr": distrax.Uniform(low=1e-5, high=1e-2),
+    "lr": LogUniform(low=1e-5, high=1e-2),
     "max_grad_norm": distrax.Uniform(low=0.5, high=20.0),
     "q_lambda": distrax.Uniform(low=0.5, high=0.99),
     "start_e": distrax.Uniform(low=0.5, high=1.0),

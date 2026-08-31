@@ -28,12 +28,13 @@ scoring run - see `HPARAMS_DISTR`/`SEARCH_*` below."""
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Type
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 import distrax
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -47,13 +48,14 @@ from navix.benchmarks import AlgorithmEntry, Navix100K, TrainingCurve
 from navix.benchmarks.search import search_hparams
 from navix.environments.environment import Environment
 from navix.environments.registry import make
+from navix.es import LogUniform
 
 HERE = Path(__file__).resolve().parent
 
 OBSERVATION_MODES = ("mdp", "pomdp")
 
 HPARAMS_DISTR = {
-    "lr": distrax.Uniform(low=1e-5, high=1e-2),
+    "lr": LogUniform(low=1e-5, high=1e-2),
     "gae_lambda": distrax.Uniform(low=0.8, high=0.99),
     "clip_eps": distrax.Uniform(low=0.1, high=0.3),
     "vf_coef": distrax.Uniform(low=0.1, high=1.0),
@@ -93,6 +95,7 @@ def flatten_obs(env: Environment) -> Environment:
 def train_with_hparams(
     hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array, observation_mode: str
 ) -> TrainingCurve:
+    encoder_cls: Type[nn.Module]
     if observation_mode == "mdp":
         env = flatten_obs(make(env_id, observation_fn=observations.symbolic))
         encoder_cls = MLPEncoder

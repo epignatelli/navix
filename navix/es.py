@@ -33,6 +33,30 @@ import jax
 import jax.numpy as jnp
 
 
+class LogUniform(distrax.Uniform):
+    """Log-uniform over `[low, high]` (both `> 0`): `log(sample)` is
+    uniform in `[log(low), log(high))`, so every order of magnitude in
+    the range gets equal sampling weight - the right choice for a field
+    like a learning rate, where the right order of magnitude matters
+    far more than the right value within one. A plain `distrax.
+    Uniform(low, high)` over several orders of magnitude does not do
+    this: `Uniform(1e-5, 1e-2)` puts ~90% of its mass above `1e-3`,
+    starving the smaller end where a value like PPO's own `2.5e-4`
+    default typically lives - confirmed in practice, searching navix's
+    own PPO with a plain `Uniform(1e-5, 1e-2)` for `lr` found values
+    clustered at `1e-3`-`1e-2` across every environment, nowhere near
+    the known-good region."""
+
+    def __init__(self, low: float, high: float):
+        super().__init__(low=jnp.log(low), high=jnp.log(high))
+
+    def sample(self, *, seed, sample_shape=()):
+        return jnp.exp(super().sample(seed=seed, sample_shape=sample_shape))
+
+    def sample_n(self, rng, n):
+        return jnp.exp(super().sample_n(rng, n))
+
+
 def probe_hparam_field_stats(
     hparams_distr: Dict[str, distrax.Distribution], n_probe: int, key: jax.Array
 ) -> Tuple[Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, jax.Array], Dict[str, jax.Array]]:

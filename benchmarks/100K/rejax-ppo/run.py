@@ -42,11 +42,12 @@ import yaml
 
 from navix.benchmarks import AlgorithmEntry, Navix100K, TrainingCurve
 from navix.benchmarks.search import search_hparams
+from navix.es import LogUniform
 
 HERE = Path(__file__).resolve().parent
 
 HPARAMS_DISTR = {
-    "learning_rate": distrax.Uniform(low=1e-5, high=1e-2),
+    "learning_rate": LogUniform(low=1e-5, high=1e-2),
     "gae_lambda": distrax.Uniform(low=0.8, high=0.99),
     "clip_eps": distrax.Uniform(low=0.1, high=0.3),
     "vf_coef": distrax.Uniform(low=0.1, high=1.0),
