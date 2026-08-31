@@ -25,11 +25,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
 
-import pytest
-
+from navix.agents.agent import derive_episodic_metrics
 from navix.benchmarks.plotting import (
     MANDATORY_METRICS,
-    derive_episodic_metrics,
     plot_metric,
     plot_metrics,
     plot_dashboard,
@@ -53,32 +51,6 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
         "returns": jnp.asarray(returns),
         "loss/total_loss": jnp.asarray(rng.random((n_seeds, n_updates))),
     }, mask, lengths, returns
-
-
-def test_derive_episodic_metrics_matches_manual_masked_mean():
-    logs, mask, lengths, returns = _make_logs()
-    n_seeds, n_updates = mask.shape[:2]
-
-    derived = derive_episodic_metrics(logs)
-
-    for s in range(n_seeds):
-        for u in range(n_updates):
-            m = mask[s, u]
-            expected_length = np.mean(lengths[s, u][m])
-            expected_returns = np.mean(returns[s, u][m])
-            expected_success = np.mean(returns[s, u][m] == 1.0)
-            assert np.allclose(derived["perf/episode_length"][s, u], expected_length)
-            assert np.allclose(derived["perf/returns"][s, u], expected_returns)
-            assert np.allclose(derived["perf/success_rate"][s, u], expected_success)
-
-    # original logs dict must not be mutated
-    assert "perf/returns" not in logs
-
-
-def test_derive_episodic_metrics_raises_on_missing_keys():
-    logs = {"iter/frames": jnp.arange(5)}
-    with pytest.raises(KeyError, match="done_mask.*lengths.*returns"):
-        derive_episodic_metrics(logs)
 
 
 def test_plot_metric_returns_figure_with_data():

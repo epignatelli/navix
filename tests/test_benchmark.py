@@ -400,3 +400,84 @@ def test_submit_entry_writes_three_files(tmp_path):
     npz = np.load(tmp_path / "diagnostics.npz")
     for key in ("episodic_returns", "length", "wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"):
         assert key in npz.files
+
+
+# ----------------------------------------------------------------------
+# Benchmark.plot_summary / plot_details / plot_diagnostics
+# ----------------------------------------------------------------------
+
+
+def _make_two_env_raw() -> Tuple["_TinyBenchmark", BenchmarkResult]:
+    # Same synthetic shape as test_summary_ignores_non_finite_values_
+    # details_keeps_them: one env with a real, varying curve, one with
+    # an all-zero (never solved) curve - real enough to exercise the
+    # non-finite-value paths a hand-picked "everything is 1.0" fixture
+    # wouldn't.
+    num_seeds, num_updates = 2, 10
+    env0_returns = jnp.tile(jnp.linspace(0.1, 1.0, num_updates), (num_seeds, 1))
+    env1_returns = jnp.zeros((num_seeds, num_updates))
+    returns = jnp.stack([env0_returns, env1_returns])  # (2 envs, 2 seeds, 10 updates)
+
+    curve = TrainingCurve(
+        episodic_returns=returns,
+        lengths=jnp.ones_like(returns),
+        diagnostics={"loss": jnp.abs(returns - 1.0)},
+    )
+    cost = CostAnalysis(
+        flops=jnp.asarray([1.0, 1.0]),
+        memory_bytes=jnp.asarray([1.0, 1.0]),
+        compile_time_seconds=jnp.asarray([1.0, 1.0]),
+    )
+    raw = BenchmarkResult(curve=curve, wall_time=jnp.asarray([1.0, 1.0]), fps=jnp.asarray([1.0, 1.0]), cost=cost)
+    benchmark = _TinyBenchmark(seeds=(0, 1))
+    return benchmark, raw
+
+
+def test_plot_summary_returns_a_table_figure():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    benchmark, raw = _make_two_env_raw()
+    fig = benchmark.plot_summary(raw)
+    assert isinstance(fig, plt.Figure)
+    assert len(fig.axes[0].tables) == 1
+    plt.close(fig)
+
+
+def test_plot_details_has_one_panel_per_numeric_metric_with_env_id_labels():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    benchmark, raw = _make_two_env_raw()
+    details = benchmark.details(raw)
+    numeric_keys = [k for k, v in details.items() if k != "env_ids"]
+
+    fig = benchmark.plot_details(raw)
+    assert isinstance(fig, plt.Figure)
+    assert len(fig.axes) == len(numeric_keys)
+    # one bar per environment, labelled with the real env_ids
+    ax = fig.axes[0]
+    assert len(ax.patches) == len(details["env_ids"])
+    xticklabels = [t.get_text() for t in ax.get_xticklabels()]
+    assert xticklabels == list(details["env_ids"])
+    plt.close(fig)
+
+
+def test_plot_diagnostics_has_one_panel_per_curve_including_custom_diagnostics():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    benchmark, raw = _make_two_env_raw()
+    fig = benchmark.plot_diagnostics(raw)
+    assert isinstance(fig, plt.Figure)
+    # episodic_returns, length, diagnostics_loss
+    assert len(fig.axes) == 3
+    titles = {ax.get_title() for ax in fig.axes}
+    assert titles == {"episodic_returns", "length", "diagnostics_loss"}
+    plt.close(fig)

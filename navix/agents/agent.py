@@ -35,6 +35,58 @@ def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     return jnp.sum(jnp.where(mask, values, 0), axis=axis) / jnp.sum(mask, axis=axis)
 
 
+_REQUIRED_LOG_KEYS: Dict[str, str] = {
+    "done_mask": "which steps ended an episode",
+    "lengths": "per-step episode length",
+    "returns": "per-step episodic return",
+}
+
+
+def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
+    """Reduces the raw per-step buffers (`done_mask`, `lengths`,
+    `returns`) that `Agent.train` returns into `perf/episode_length`,
+    `perf/returns`, `perf/success_rate` - one point per training
+    update, masked-mean over completed episodes only.
+
+    `Agent.log_to_wandb` computes the same values, but one training
+    update at a time (for live wandb logging); this is the batched
+    equivalent, for reducing an entire already-finished `logs` history
+    in one call - used by `Experiment.run_hparam_search` (as the ES
+    search's fitness signal) and `navix.benchmarks.plotting` (as
+    `plot_metric`/`plot_dashboard`'s `perf/*` inputs).
+
+    Args:
+        logs (Dict[str, Array]): The `logs` pytree returned by
+            `Experiment.run()`, `Experiment.run_hparam_search()`, or a
+            bare `Agent.train()` call. Must contain `done_mask`/
+            `lengths`/`returns`, shaped `(..., num_steps, num_envs)` -
+            any number of leading batch dimensions (e.g. seeds,
+            hparam sets) is supported.
+
+    Returns:
+        Dict[str, Array]: `logs`, plus `perf/episode_length`,
+        `perf/returns` and `perf/success_rate` (shape: `logs`'
+        leading batch dimensions, with `num_steps` and `num_envs`
+        reduced away). `logs` itself is not mutated.
+
+    Raises:
+        KeyError: If `logs` is missing `done_mask`, `lengths`, or
+            `returns`.
+    """
+    missing = [key for key in _REQUIRED_LOG_KEYS if key not in logs]
+    if missing:
+        reasons = ", ".join(f"{key!r} ({_REQUIRED_LOG_KEYS[key]})" for key in missing)
+        raise KeyError(f"logs is missing required key(s): {reasons}.")
+
+    metrics = dict(logs)
+    mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    metrics["perf/episode_length"] = masked_mean(logs["lengths"], mask, axis=(-2, -1))
+    returns = logs["returns"]
+    metrics["perf/returns"] = masked_mean(returns, mask, axis=(-2, -1))
+    metrics["perf/success_rate"] = masked_mean(returns == 1.0, mask, axis=(-2, -1))
+    return metrics
+
+
 class HParams(struct.PyTreeNode):
     debug: bool = struct.field(pytree_node=False, default=False)
     """Whether to run in debug mode."""

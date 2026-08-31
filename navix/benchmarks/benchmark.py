@@ -397,6 +397,37 @@ class AlgorithmEntry:
         )
 
 
+def _curve_diagnostics(result: BenchmarkResult, resample: Optional[Any] = None) -> Dict[str, np.ndarray]:
+    """`result.curve`'s fields flattened into the plain `{name: array}`
+    shape both `Benchmark.submit_entry` (writing `diagnostics.npz`)
+    and `Benchmark.plot_diagnostics` (plotting the same curves
+    in-memory) need: `episodic_returns`/`length` plus one
+    `diagnostics_<key>` entry per `curve.diagnostics` key (npz has no
+    native nesting, so this flattening happens once here rather than
+    separately in each caller).
+
+    Args:
+        result (BenchmarkResult): Already `jax.device_get`'d by the
+            caller.
+        resample (callable, optional): If given, applied to every
+            curve array (e.g. `submit_entry`'s fixed-`max_points`
+            resampling). `None` keeps each curve at its full,
+            native resolution.
+
+    Returns:
+        Dict[str, np.ndarray]: `episodic_returns`, `length`, and one
+        `diagnostics_<key>` entry per `result.curve.diagnostics` key."""
+    identity = lambda value: np.asarray(value)
+    transform = resample or identity
+    curves = {
+        "episodic_returns": transform(result.curve.episodic_returns),
+        "length": transform(result.curve.lengths),
+    }
+    for key, value in result.curve.diagnostics.items():
+        curves[f"diagnostics_{key}"] = transform(value)
+    return curves
+
+
 class BenchmarkResult(struct.PyTreeNode):
     """One `AlgorithmEntry`'s scored run under a `Benchmark` protocol -
     a `TrainingCurve` plus everything only an external, un-jitted
@@ -608,15 +639,58 @@ class Benchmark(struct.PyTreeNode):
             index = np.linspace(0, array.shape[-1] - 1, max_points).astype(int)
             return array[..., index]
 
-        curves = {
-            "episodic_returns": resample(result.curve.episodic_returns),
-            "length": resample(result.curve.lengths),
-            "wall_time": np.asarray(result.wall_time),
-            "fps": np.asarray(result.fps),
-            "flops": np.asarray(result.cost.flops),
-            "memory_bytes": np.asarray(result.cost.memory_bytes),
-            "compile_time_seconds": np.asarray(result.cost.compile_time_seconds),
-        }
-        for key, value in result.curve.diagnostics.items():
-            curves[f"diagnostics_{key}"] = resample(value)
+        curves = _curve_diagnostics(result, resample=resample)
+        curves["wall_time"] = np.asarray(result.wall_time)
+        curves["fps"] = np.asarray(result.fps)
+        curves["flops"] = np.asarray(result.cost.flops)
+        curves["memory_bytes"] = np.asarray(result.cost.memory_bytes)
+        curves["compile_time_seconds"] = np.asarray(result.cost.compile_time_seconds)
         np.savez_compressed(path / "diagnostics.npz", **curves)
+
+    def plot_summary(self, results: BenchmarkResult) -> "plt.Figure":  # type: ignore[name-defined]
+        """`self.summary(results)` as a local, offline metric/value
+        table figure - see `navix.benchmarks.plotting.
+        plot_benchmark_summary`. Independent of whatever charts the
+        online leaderboard renders from the same `summary.json`.
+
+        Args:
+            results (BenchmarkResult): This protocol's `run` output.
+
+        Returns:
+            matplotlib.figure.Figure: The table figure."""
+        from .plotting import plot_benchmark_summary
+
+        return plot_benchmark_summary(jax.device_get(self.summary(results)), title=type(self).__name__)
+
+    def plot_details(self, results: BenchmarkResult) -> "plt.Figure":  # type: ignore[name-defined]
+        """`self.details(results)` as a local, offline bar-chart
+        figure, one panel per numeric metric, one bar per row (e.g.
+        one bar per environment for `FromScratchBenchmark`) - see
+        `navix.benchmarks.plotting.plot_benchmark_details`.
+
+        Args:
+            results (BenchmarkResult): This protocol's `run` output.
+
+        Returns:
+            matplotlib.figure.Figure: One panel per numeric metric."""
+        from .plotting import plot_benchmark_details
+
+        return plot_benchmark_details(jax.device_get(self.details(results)))
+
+    def plot_diagnostics(self, results: BenchmarkResult) -> "plt.Figure":  # type: ignore[name-defined]
+        """`results.curve`'s raw training curves as a local, offline
+        figure, one panel per curve (`episodic_returns`, `length`, any
+        `curve.diagnostics` entries) - mean line plus a min-max band
+        over `self.seeds` - see `navix.benchmarks.plotting.
+        plot_benchmark_diagnostics`. Same curves `submit_entry` writes
+        (resampled) into `diagnostics.npz`, but at full resolution and
+        without needing a file round-trip.
+
+        Args:
+            results (BenchmarkResult): This protocol's `run` output.
+
+        Returns:
+            matplotlib.figure.Figure: One panel per curve."""
+        from .plotting import plot_benchmark_diagnostics
+
+        return plot_benchmark_diagnostics(_curve_diagnostics(jax.device_get(results)))

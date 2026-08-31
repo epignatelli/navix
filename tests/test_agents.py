@@ -23,7 +23,53 @@ import pytest
 import numpy as np
 import jax.numpy as jnp
 
-from navix.agents.agent import Agent, HParams
+import navix as nx
+from navix.agents.agent import Agent, HParams, derive_episodic_metrics
+
+# None of the tests below exercise anything env-specific (they only call
+# log_to_wandb/log_to_wandb_on_train_end, which never touch self.env) -
+# any real, registered env satisfies Agent's required `env` field.
+_DUMMY_ENV = nx.make("Navix-Empty-5x5-v0")
+
+
+def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
+    rng = np.random.default_rng(seed)
+    shape = (n_seeds, n_updates, n_steps, n_envs)
+    mask = rng.random(shape) > 0.5
+    mask[:, :, 0, 0] = True  # avoid an all-False mask (division by zero)
+    lengths = rng.integers(1, 50, size=shape).astype(np.float32)
+    returns = rng.choice([0.0, 1.0], size=shape)
+    return {
+        "done_mask": jnp.asarray(mask),
+        "lengths": jnp.asarray(lengths),
+        "returns": jnp.asarray(returns),
+    }, mask, lengths, returns
+
+
+def test_derive_episodic_metrics_matches_manual_masked_mean():
+    logs, mask, lengths, returns = _make_logs()
+    n_seeds, n_updates = mask.shape[:2]
+
+    derived = derive_episodic_metrics(logs)
+
+    for s in range(n_seeds):
+        for u in range(n_updates):
+            m = mask[s, u]
+            expected_length = np.mean(lengths[s, u][m])
+            expected_returns = np.mean(returns[s, u][m])
+            expected_success = np.mean(returns[s, u][m] == 1.0)
+            assert np.allclose(derived["perf/episode_length"][s, u], expected_length)
+            assert np.allclose(derived["perf/returns"][s, u], expected_returns)
+            assert np.allclose(derived["perf/success_rate"][s, u], expected_success)
+
+    # original logs dict must not be mutated
+    assert "perf/returns" not in logs
+
+
+def test_derive_episodic_metrics_raises_on_missing_keys():
+    logs = {"done_mask": jnp.ones((2,), dtype=bool)}
+    with pytest.raises(KeyError, match="lengths.*returns"):
+        derive_episodic_metrics(logs)
 
 
 def test_log_to_wandb_on_train_end_respects_log_frequency():
@@ -42,7 +88,7 @@ def test_log_to_wandb_on_train_end_respects_log_frequency():
         "iter/updates": jnp.arange(n_steps),
         "iter/frames": jnp.arange(n_steps) * 100,
     }
-    agent = Agent(hparams=HParams(log_frequency=log_frequency))
+    agent = Agent(hparams=HParams(log_frequency=log_frequency), env=_DUMMY_ENV)
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
         agent.log_to_wandb_on_train_end(logs)
@@ -64,7 +110,7 @@ def test_log_on_train_end_is_deprecated_but_still_works():
         "iter/updates": jnp.arange(n_steps),
         "iter/frames": jnp.arange(n_steps) * 100,
     }
-    agent = Agent(hparams=HParams(log_frequency=1))
+    agent = Agent(hparams=HParams(log_frequency=1), env=_DUMMY_ENV)
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
         with pytest.warns(DeprecationWarning, match="log_to_wandb_on_train_end"):
@@ -106,7 +152,7 @@ def test_log_to_wandb_masked_mean_matches_boolean_indexing():
         "lengths": jnp.asarray(lengths),
         "returns": jnp.asarray(returns),
     }
-    agent = Agent(hparams=HParams())
+    agent = Agent(hparams=HParams(), env=_DUMMY_ENV)
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
         agent.log_to_wandb(dict(logs))
@@ -124,7 +170,7 @@ def test_log_is_deprecated_but_still_works():
         "iter/updates": jnp.asarray(0),
         "iter/frames": jnp.asarray(0),
     }
-    agent = Agent(hparams=HParams())
+    agent = Agent(hparams=HParams(), env=_DUMMY_ENV)
 
     with patch("navix.agents.agent.wandb.log") as mock_log:
         with pytest.warns(DeprecationWarning, match="log_to_wandb"):

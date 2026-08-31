@@ -12,8 +12,7 @@ import jax.numpy as jnp
 import optax
 import wandb
 import wandb.util
-from navix.agents.agent import Agent, HParams
-from navix.benchmarks.plotting import derive_episodic_metrics
+from navix.agents.agent import Agent, HParams, derive_episodic_metrics
 from navix.environments.environment import Environment
 from navix.es import probe_hparam_field_stats, sample_antithetic_candidates
 
@@ -74,7 +73,7 @@ def _build_search_set(
 def _hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
     """One scalar fitness per population member, from `logs` (as
     returned by a `run_hparam_search` generation's `search_fn` call):
-    last-20%-mean `perf/returns` (`navix.benchmarks.plotting.
+    last-20%-mean `perf/returns` (`navix.agents.agent.
     derive_episodic_metrics`), averaged over the seed axis.
 
     Args:
@@ -244,7 +243,7 @@ class Experiment:
         `pop_size` hyperparameter sets around the current mean, train all
         of them in one fused `jax.jit(jax.vmap(...))` call (the same shape
         `Experiment.run` itself uses), score each by its last-20%-mean
-        `perf/returns` (`navix.benchmarks.plotting.derive_episodic_metrics`,
+        `perf/returns` (`navix.agents.agent.derive_episodic_metrics`,
         averaged over `self.seeds`), then take an ES step: z-score the
         fitnesses, estimate a gradient from fitness-weighted noise, and
         update the mean via `solver`. The best-scoring hyperparameter set

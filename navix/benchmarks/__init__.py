@@ -34,10 +34,12 @@ concrete protocol so far), `search.py` (`search_hparams` - an optional,
 `run.py` can use to tune its hyperparameters before scoring; not part
 of `Benchmark`/`AlgorithmEntry` itself, since what's searchable is
 inherently entry-specific), and `plotting.py` (a local no-wandb
-dashboard for `logs` - see `Agent`'s docstring and issue #60, unrelated
-to scoring). A future protocol (curriculum learning, continual
-learning, open-ended learning) gets its own file alongside
-`scratch.py`, subclassing `Benchmark` directly.
+dashboard for `logs` - see `Agent`'s docstring and issue #60 - plus
+`Benchmark.plot_summary`/`plot_details`/`plot_diagnostics` for locally
+inspecting a scored run's `summary`/`details`/`diagnostics.npz`
+without the online leaderboard). A future protocol (curriculum
+learning, continual learning, open-ended learning) gets its own file
+alongside `scratch.py`, subclassing `Benchmark` directly.
 
 Typical usage:
 
@@ -58,10 +60,12 @@ from .search import search_hparams
 from . import plotting
 from .plotting import (
     MANDATORY_METRICS,
-    derive_episodic_metrics,
     plot_metric,
     plot_metrics,
     plot_dashboard,
+    plot_benchmark_summary,
+    plot_benchmark_details,
+    plot_benchmark_diagnostics,
 )
 
 __all__ = [
@@ -82,8 +86,10 @@ __all__ = [
     "search_hparams",
     "plotting",
     "MANDATORY_METRICS",
-    "derive_episodic_metrics",
     "plot_metric",
     "plot_metrics",
     "plot_dashboard",
+    "plot_benchmark_summary",
+    "plot_benchmark_details",
+    "plot_benchmark_diagnostics",
 ]
