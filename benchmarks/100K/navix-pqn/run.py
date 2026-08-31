@@ -16,7 +16,9 @@ a pluggable encoder to swap - every rejax network always flattens
 internally, no CNN option at all, so this two-observation-mode setup is
 specific to navix's own agents, not a general `Benchmark` capability).
 
-Reproduction: `python run.py` from any directory, no arguments - this
+Reproduction: `python run.py` from any directory runs both modes
+sequentially; `python run.py mdp` or `python run.py pomdp` runs just
+one (lets each mode be put on its own GPU as a separate process) - this
 entry's static metadata lives in the sibling `config.yml`, its pinned
 dependencies in the sibling `requirements.txt`.
 
@@ -134,10 +136,20 @@ class PQNEntry(AlgorithmEntry):
 if __name__ == "__main__":
     config = yaml.safe_load((HERE / "config.yml").read_text())
 
+    # `python run.py` (no arguments) runs every mode in `OBSERVATION_MODES`
+    # sequentially in one process, as documented above. `python run.py
+    # <mode> [<mode> ...]` runs only the given mode(s) - lets a caller (e.g.
+    # a GPU-queue script) put each mode on its own GPU as a separate
+    # process instead, without changing what a bare `python run.py` does.
+    modes_to_run = sys.argv[1:] or list(OBSERVATION_MODES)
+    for m in modes_to_run:
+        if m not in OBSERVATION_MODES:
+            raise ValueError(f"Unknown observation_mode {m!r} on the command line, expected one of {OBSERVATION_MODES}.")
+
     benchmark = Navix100K()
     search_budget = max(1, int(benchmark.budget * SEARCH_BUDGET_FRACTION))
 
-    for observation_mode in OBSERVATION_MODES:
+    for observation_mode in modes_to_run:
         print(f"\n{'=' * 20} observation_mode={observation_mode} {'=' * 20}")
         entry = PQNEntry(
             name=config["name"],
