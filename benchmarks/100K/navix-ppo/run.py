@@ -95,7 +95,7 @@ def flatten_obs(env: Environment) -> Environment:
 
 
 def train_with_hparams(
-    hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array, observation_mode: str
+    hparams: Dict[str, jax.Array], env_id: str, budget: int, rng: jax.Array, observation_mode: str
 ) -> TrainingCurve:
     """Builds `env_id`'s env/network for `observation_mode`, trains PPO
     on it for `budget` frames with `hparams` overriding `PPOHparams`'
@@ -105,7 +105,7 @@ def train_with_hparams(
     `hparams` differ between the two calls.
 
     Args:
-        hparams (Dict[str, float]): `PPOHparams` field overrides (see
+        hparams (Dict[str, jax.Array]): `PPOHparams` field overrides (see
             `HPARAMS_DISTR` above) - empty uses `PPOHparams`' own
             defaults.
         env_id (str): The environment to train on.
@@ -166,7 +166,9 @@ class PPOEntry(AlgorithmEntry):
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
         """`AlgorithmEntry.train`, delegating to `train_with_hparams`
         with this entry's own `hparams`/`observation_mode`."""
-        return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng, self.observation_mode)
+        return train_with_hparams(
+            jax.tree.map(jnp.asarray, self.hparams.get(env_id, {})), env_id, budget, rng, self.observation_mode
+        )
 
 
 if __name__ == "__main__":
@@ -200,7 +202,7 @@ if __name__ == "__main__":
         for env_id in benchmark.env_ids:
             print(f"Searching hyperparameters for {env_id} (budget={search_budget})...")
             best_hparams, best_fitness = search_hparams(
-                trainable=lambda hp, rng, env_id=env_id: train_with_hparams(
+                trainable=lambda hp, rng: train_with_hparams(
                     hp, env_id, search_budget, rng, observation_mode
                 ),
                 hparams_distr=HPARAMS_DISTR,

@@ -73,7 +73,7 @@ without paying full training cost for every one of pop_size *
 num_generations candidates."""
 
 
-def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
+def train_with_hparams(hparams: Dict[str, jax.Array], env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
     """Trains `rejax.PQN` on `env_id` for `budget` timesteps with
     `hparams` overriding its own defaults, and reduces the result to a
     `TrainingCurve`. The shared trainable both `search_hparams` (at a
@@ -81,7 +81,7 @@ def train_with_hparams(hparams: Dict[str, float], env_id: str, budget: int, rng:
     call - only `budget` and `hparams` differ between the two calls.
 
     Args:
-        hparams (Dict[str, float]): `rejax.PQN`'s own hyperparameter
+        hparams (Dict[str, jax.Array]): `rejax.PQN`'s own hyperparameter
             overrides (see `HPARAMS_DISTR` above) - empty uses
             `rejax.PQN`'s own defaults.
         env_id (str): The environment to train on.
@@ -119,7 +119,9 @@ class RejaxPQNEntry(AlgorithmEntry):
     def train(self, env_id: str, budget: int, rng: jax.Array) -> TrainingCurve:
         """`AlgorithmEntry.train`, delegating to `train_with_hparams`
         with this entry's own `hparams`."""
-        return train_with_hparams(self.hparams.get(env_id, {}), env_id, budget, rng)
+        return train_with_hparams(
+            jax.tree.map(jnp.asarray, self.hparams.get(env_id, {})), env_id, budget, rng
+        )
 
 
 if __name__ == "__main__":
@@ -140,7 +142,7 @@ if __name__ == "__main__":
     for env_id in benchmark.env_ids:
         print(f"Searching hyperparameters for {env_id} (budget={search_budget})...")
         best_hparams, best_fitness = search_hparams(
-            trainable=lambda hp, rng, env_id=env_id: train_with_hparams(hp, env_id, search_budget, rng),
+            trainable=lambda hp, rng: train_with_hparams(hp, env_id, search_budget, rng),
             hparams_distr=HPARAMS_DISTR,
             seeds=SEARCH_SEEDS,
             pop_size=SEARCH_POP_SIZE,

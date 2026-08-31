@@ -59,6 +59,7 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -101,8 +102,6 @@ def plot_metric(
 
     Returns:
         matplotlib.figure.Figure: The figure `ax` belongs to."""
-    import matplotlib.pyplot as plt
-
     if ax is None:
         fig, ax = plt.subplots(figsize=(6, 4))
     else:
@@ -132,7 +131,7 @@ def plot_metrics(
     metrics: Dict[str, str],
     x_key: str = "agent/train/frames",
     xlabel: str = "Frames",
-) -> Dict[str, "plt.Figure"]:
+) -> Dict[str, plt.Figure]:
     """Plots each metric in `metrics` as its own standalone figure.
 
     Args:
@@ -181,8 +180,6 @@ def plot_dashboard(
 
     Returns:
         matplotlib.figure.Figure: The combined dashboard figure."""
-    import matplotlib.pyplot as plt
-
     present = [(k, t) for k, t in (metrics or MANDATORY_METRICS).items() if k in logs]
     n_cols = max(len(present), 1)
     fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
