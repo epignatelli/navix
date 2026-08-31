@@ -194,3 +194,55 @@ def plot_dashboard(
 
     fig.tight_layout()
     return fig
+
+
+# -------------------------
+# Small, generic formatting/detection helpers `Benchmark.plot_summary`/
+# `plot_details`/`plot_diagnostics` (navix/benchmarks/benchmark.py)
+# build their figures from - kept here rather than in benchmark.py
+# since they're generic (not `Benchmark`-shaped data specifically) and
+# this module is where every other "turn data into something plottable"
+# helper already lives.
+# -------------------------
+
+
+def format_scalar(value) -> str:
+    """Renders one `Benchmark.summary()` value as a table cell: fixed-
+    precision for a float scalar, `str()` otherwise."""
+    array = np.asarray(value)
+    if array.ndim != 0:
+        return str(value)
+    return f"{float(array):.4g}" if np.issubdtype(array.dtype, np.floating) else str(array.item())
+
+
+def row_labels(details: Dict) -> tuple:
+    """The key in a `Benchmark.details()` dict that labels each row
+    (e.g. `env_ids`) - the first key whose value is a non-empty
+    sequence of strings. Falls back to positional labels if `details`
+    has none (every value is numeric).
+
+    Returns:
+        Tuple[Optional[str], list]: `(label_key, labels)` - `label_key`
+        is `None` when no string-sequence key was found."""
+    for key, value in details.items():
+        if isinstance(value, (list, tuple)) and value and all(isinstance(v, str) for v in value):
+            return key, list(value)
+    n = len(next(iter(details.values()), []))
+    return None, [str(i) for i in range(n)]
+
+
+def is_numeric_sequence(value) -> bool:
+    """Whether `value` converts to a rank->=1 float array - a
+    `Benchmark.details()` numeric, per-row column (as opposed to
+    `env_ids`, a `Tuple[str, ...]`)."""
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError):
+        return False
+    return array.ndim >= 1
+
+
+NON_CURVE_DIAGNOSTICS_KEYS = frozenset({"wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"})
+"""`Benchmark.plot_diagnostics`/`diagnostics.npz` keys that are scalar
+cost fields, not per-update curves - skipped rather than plotted as a
+one-point "curve"."""

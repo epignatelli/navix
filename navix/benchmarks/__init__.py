@@ -36,12 +36,15 @@ of `Benchmark`/`AlgorithmEntry` itself, since what's searchable is
 inherently entry-specific - `benchmark.py` also has `Benchmark.
 plot_summary`/`plot_details`/`plot_diagnostics` for locally inspecting
 a scored run's `summary`/`details`/`diagnostics.npz` without the
-online leaderboard, next to the `Benchmark` methods they render), and
-`plotting.py` (a local no-wandb dashboard for `logs` - see `Agent`'s
-docstring and issue #60, unrelated to `Benchmark` scoring). A future
-protocol (curriculum learning, continual learning, open-ended
-learning) gets its own file alongside `scratch.py`, subclassing
-`Benchmark` directly.
+online leaderboard, implemented directly on `Benchmark` itself rather
+than delegating to standalone functions, since that data is specific
+to `Benchmark`'s own shapes), and `plotting.py` (a local no-wandb
+dashboard for `logs` - see `Agent`'s docstring and issue #60, unrelated
+to `Benchmark` scoring - plus the small generic formatting/detection
+helpers `Benchmark.plot_summary`/`plot_details`/`plot_diagnostics`
+build their figures from). A future protocol (curriculum learning,
+continual learning, open-ended learning) gets its own file alongside
+`scratch.py`, subclassing `Benchmark` directly.
 
 Typical usage:
 
@@ -55,17 +58,7 @@ Typical usage:
     benchmark.submit_entry(entry, results)
 
 See `benchmarks/README.md` for the full submission workflow."""
-from .benchmark import (
-    AlgorithmEntry,
-    Benchmark,
-    BenchmarkResult,
-    CostAnalysis,
-    TrainingCurve,
-    is_commit_url,
-    plot_benchmark_summary,
-    plot_benchmark_details,
-    plot_benchmark_diagnostics,
-)
+from .benchmark import AlgorithmEntry, Benchmark, BenchmarkResult, CostAnalysis, TrainingCurve, is_commit_url
 from .hardware import cpu_type, cuda_version, cudnn_version, gpu_type, ram_bytes
 from .scratch import FromScratchBenchmark, Navix1M, Navix100K
 from .search import search_hparams
@@ -93,7 +86,4 @@ __all__ = [
     "plot_metric",
     "plot_metrics",
     "plot_dashboard",
-    "plot_benchmark_summary",
-    "plot_benchmark_details",
-    "plot_benchmark_diagnostics",
 ]

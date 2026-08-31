@@ -455,177 +455,6 @@ class BenchmarkResult(struct.PyTreeNode):
     cost: CostAnalysis
 
 
-# -------------------------
-# Benchmark.plot_summary/plot_details/plot_diagnostics - local, offline
-# inspection of a submission's summary/details/diagnostics.npz,
-# independent of the online leaderboard's own charts. Plain functions
-# (not methods) so they also work on a summary.json/details.json/
-# diagnostics.npz already loaded back from disk, not just a fresh
-# BenchmarkResult - Benchmark.plot_summary/plot_details/plot_diagnostics
-# below are thin wrappers over these.
-# -------------------------
-
-
-def format_scalar(value: Any) -> str:
-    """Renders one `Benchmark.summary()` value as a table cell: fixed-
-    precision for a float scalar, `str()` otherwise."""
-    array = np.asarray(value)
-    if array.ndim != 0:
-        return str(value)
-    return f"{float(array):.4g}" if np.issubdtype(array.dtype, np.floating) else str(array.item())
-
-
-def plot_benchmark_summary(summary: Dict[str, Any], title: str = "Summary"):
-    """A `Benchmark.summary()` dict as a metric/value table.
-
-    A bar chart would be misleading here: `summary`'s metrics live on
-    wildly different scales in the same dict (episodic returns in
-    `[0, 1]` next to `flops` in the hundreds of millions), so a table
-    keeps every value legible without implying they're comparable.
-
-    Args:
-        summary (Dict[str, Any]): `Benchmark.summary(results)`'s
-            output (or the `"summary"` entry of a `summary.json`
-            already loaded from disk).
-        title (str): The figure title.
-
-    Returns:
-        matplotlib.figure.Figure: The table figure."""
-    import matplotlib.pyplot as plt
-
-    rows = [(key, format_scalar(value)) for key, value in summary.items()]
-    fig, ax = plt.subplots(figsize=(6, 0.4 * max(len(rows), 1) + 1))
-    ax.axis("off")
-    table = ax.table(cellText=rows or [["", ""]], colLabels=["metric", "value"], loc="center", cellLoc="left")
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 1.4)
-    ax.set_title(title)
-    fig.tight_layout()
-    return fig
-
-
-def row_labels(details: Dict[str, Any]) -> Tuple[Optional[str], list]:
-    """The key in `details` that labels each row (e.g. `env_ids`) - the
-    first key whose value is a non-empty sequence of strings. Falls
-    back to positional labels if `details` has none (every value is
-    numeric)."""
-    for key, value in details.items():
-        if isinstance(value, (list, tuple)) and value and all(isinstance(v, str) for v in value):
-            return key, list(value)
-    n = len(next(iter(details.values()), []))
-    return None, [str(i) for i in range(n)]
-
-
-def is_numeric_sequence(value: Any) -> bool:
-    """Whether `value` converts to a rank->=1 float array - `Benchmark.
-    details()`'s numeric, per-row columns (as opposed to `env_ids`,
-    a `Tuple[str, ...]`)."""
-    try:
-        array = np.asarray(value, dtype=float)
-    except (TypeError, ValueError):
-        return False
-    return array.ndim >= 1
-
-
-def plot_benchmark_details(details: Dict[str, Any]):
-    """A `Benchmark.details()` dict as one bar chart per numeric
-    metric, one bar per row (e.g. one bar per environment for
-    `FromScratchBenchmark`) - mean plus a std-dev error bar over
-    whatever trailing axis `details` keeps raw (e.g.
-    `FromScratchBenchmark` keeps every seed's own value, unlike
-    `summary`'s already-averaged numbers - see
-    `FromScratchBenchmark.details`'s docstring).
-
-    Args:
-        details (Dict[str, Any]): `Benchmark.details(results)`'s
-            output (or the `"details"` entry of a `details.json`
-            already loaded from disk).
-
-    Returns:
-        matplotlib.figure.Figure: One panel per numeric metric."""
-    import matplotlib.pyplot as plt
-
-    label_key, labels = row_labels(details)
-    numeric = {key: value for key, value in details.items() if key != label_key and is_numeric_sequence(value)}
-    n_cols = max(len(numeric), 1)
-    fig, axes = plt.subplots(1, n_cols, figsize=(max(4.0, len(labels) * 0.6) * n_cols, 4), squeeze=False)
-
-    for i, (key, value) in enumerate(numeric.items()):
-        ax = axes[0, i]
-        array = np.asarray(value, dtype=float)
-        if array.ndim > 1:
-            array = array.reshape(array.shape[0], -1)
-            means, stds = np.mean(array, axis=-1), np.std(array, axis=-1)
-        else:
-            means, stds = array, None
-        x = np.arange(len(labels))
-        ax.bar(x, means, yerr=stds, color="C0", capsize=3)
-        ax.set_xticks(x)
-        ax.set_xticklabels(labels, rotation=45, ha="right")
-        ax.set_title(key)
-        ax.grid(axis="y", alpha=0.3)
-
-    fig.tight_layout()
-    return fig
-
-
-NON_CURVE_DIAGNOSTICS_KEYS = frozenset({"wall_time", "fps", "flops", "memory_bytes", "compile_time_seconds"})
-"""`curve_diagnostics`/`diagnostics.npz` keys that are scalar cost
-fields, not per-update curves - `plot_benchmark_diagnostics` skips
-these rather than trying to plot a training curve out of a single
-number."""
-
-
-def plot_benchmark_diagnostics(diagnostics: Dict[str, Any], xlabel: str = "Training progress (%)"):
-    """A `curve_diagnostics`-shaped dict (`episodic_returns`, `length`,
-    any `diagnostics_<key>` free-form curves - the same keys
-    `Benchmark.submit_entry` writes into `diagnostics.npz`, so this
-    also plots one already loaded back with `np.load`) as one curve
-    panel per key: mean line plus a min-max band over any leading
-    batch dimension (e.g. seeds) - same convention as `navix.
-    benchmarks.plotting.plot_metric`.
-
-    A `TrainingCurve` doesn't carry absolute frame counts (unlike the
-    raw `logs` pytree `plot_metric` plots), so the x-axis is training
-    progress as a 0-100% fraction of however many points the curve
-    has, not a frame count.
-
-    Args:
-        diagnostics (Dict[str, Any]): Curve arrays keyed by name, plus
-            optionally the scalar cost fields `Benchmark.submit_entry`
-            also writes (see `NON_CURVE_DIAGNOSTICS_KEYS`) - these are
-            skipped, they aren't curves.
-        xlabel (str): The x-axis label.
-
-    Returns:
-        matplotlib.figure.Figure: One panel per curve."""
-    import matplotlib.pyplot as plt
-
-    curve_keys = [
-        key
-        for key, value in diagnostics.items()
-        if key not in NON_CURVE_DIAGNOSTICS_KEYS and np.asarray(value).ndim >= 1
-    ]
-    n_cols = max(len(curve_keys), 1)
-    fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
-
-    for i, key in enumerate(curve_keys):
-        ax = axes[0, i]
-        y = np.asarray(diagnostics[key], dtype=float)
-        y = y.reshape(-1, y.shape[-1])
-        x = np.linspace(0, 100, y.shape[-1])
-        ax.plot(x, np.mean(y, axis=0), color="C0")
-        if y.shape[0] > 1:
-            ax.fill_between(x, np.min(y, axis=0), np.max(y, axis=0), color="C0", alpha=0.2)
-        ax.set_title(key)
-        ax.set_xlabel(xlabel)
-        ax.grid(alpha=0.3)
-
-    fig.tight_layout()
-    return fig
-
-
 class Benchmark(struct.PyTreeNode):
     """A benchmark protocol - not tied to any one algorithm.
 
@@ -820,42 +649,121 @@ class Benchmark(struct.PyTreeNode):
 
     def plot_summary(self, results: BenchmarkResult):
         """`self.summary(results)` as a local, offline metric/value
-        table figure - see `plot_benchmark_summary` below.
-        Independent of whatever charts the online leaderboard renders
-        from the same `summary.json`.
+        table figure. Independent of whatever charts the online
+        leaderboard renders from the same `summary.json`.
+
+        A bar chart would be misleading here: `summary`'s metrics live
+        on wildly different scales in the same dict (episodic returns
+        in `[0, 1]` next to `flops` in the hundreds of millions), so a
+        table keeps every value legible without implying they're
+        comparable.
 
         Args:
             results (BenchmarkResult): This protocol's `run` output.
 
         Returns:
             matplotlib.figure.Figure: The table figure."""
-        return plot_benchmark_summary(jax.device_get(self.summary(results)), title=type(self).__name__)
+        import matplotlib.pyplot as plt
+
+        from .plotting import format_scalar
+
+        summary = jax.device_get(self.summary(results))
+        rows = [(key, format_scalar(value)) for key, value in summary.items()]
+        fig, ax = plt.subplots(figsize=(6, 0.4 * max(len(rows), 1) + 1))
+        ax.axis("off")
+        table = ax.table(cellText=rows or [("", "")], colLabels=["metric", "value"], loc="center", cellLoc="left")
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 1.4)
+        ax.set_title(type(self).__name__)
+        fig.tight_layout()
+        return fig
 
     def plot_details(self, results: BenchmarkResult):
         """`self.details(results)` as a local, offline bar-chart
         figure, one panel per numeric metric, one bar per row (e.g.
-        one bar per environment for `FromScratchBenchmark`) - see
-        `plot_benchmark_details` below.
+        one bar per environment for `FromScratchBenchmark`) - mean
+        plus a std-dev error bar over whatever trailing axis `details`
+        keeps raw (e.g. `FromScratchBenchmark` keeps every seed's own
+        value, unlike `summary`'s already-averaged numbers - see
+        `FromScratchBenchmark.details`'s docstring).
 
         Args:
             results (BenchmarkResult): This protocol's `run` output.
 
         Returns:
             matplotlib.figure.Figure: One panel per numeric metric."""
-        return plot_benchmark_details(jax.device_get(self.details(results)))
+        import matplotlib.pyplot as plt
+
+        from .plotting import is_numeric_sequence, row_labels
+
+        details = jax.device_get(self.details(results))
+        label_key, labels = row_labels(details)
+        numeric = {key: value for key, value in details.items() if key != label_key and is_numeric_sequence(value)}
+        n_cols = max(len(numeric), 1)
+        fig, axes = plt.subplots(1, n_cols, figsize=(max(4.0, len(labels) * 0.6) * n_cols, 4), squeeze=False)
+
+        for i, (key, value) in enumerate(numeric.items()):
+            ax = axes[0, i]
+            array = np.asarray(value, dtype=float)
+            if array.ndim > 1:
+                array = array.reshape(array.shape[0], -1)
+                means, stds = np.mean(array, axis=-1), np.std(array, axis=-1)
+            else:
+                means, stds = array, None
+            x = np.arange(len(labels))
+            ax.bar(x, means, yerr=stds, color="C0", capsize=3)
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels, rotation=45, ha="right")
+            ax.set_title(key)
+            ax.grid(axis="y", alpha=0.3)
+
+        fig.tight_layout()
+        return fig
 
     def plot_diagnostics(self, results: BenchmarkResult):
         """`results.curve`'s raw training curves as a local, offline
         figure, one panel per curve (`episodic_returns`, `length`, any
         `curve.diagnostics` entries) - mean line plus a min-max band
-        over `self.seeds` - see `plot_benchmark_diagnostics` below.
-        Same curves `submit_entry` writes (resampled) into
-        `diagnostics.npz`, but at full resolution and without needing
-        a file round-trip.
+        over `self.seeds`, same convention as `navix.benchmarks.
+        plotting.plot_metric`. Same curves `submit_entry` writes
+        (resampled) into `diagnostics.npz`, but at full resolution and
+        without needing a file round-trip.
+
+        A `TrainingCurve` doesn't carry absolute frame counts (unlike
+        the raw `logs` pytree `plot_metric` plots), so the x-axis is
+        training progress as a 0-100% fraction of however many points
+        the curve has, not a frame count.
 
         Args:
             results (BenchmarkResult): This protocol's `run` output.
 
         Returns:
             matplotlib.figure.Figure: One panel per curve."""
-        return plot_benchmark_diagnostics(curve_diagnostics(jax.device_get(results)))
+        import matplotlib.pyplot as plt
+
+        from .plotting import NON_CURVE_DIAGNOSTICS_KEYS
+
+        diagnostics = curve_diagnostics(jax.device_get(results))
+        curve_keys = [
+            key
+            for key, value in diagnostics.items()
+            if key not in NON_CURVE_DIAGNOSTICS_KEYS and np.asarray(value).ndim >= 1
+        ]
+        n_cols = max(len(curve_keys), 1)
+        fig, axes = plt.subplots(1, n_cols, figsize=(4 * n_cols, 4), squeeze=False)
+
+        for i, key in enumerate(curve_keys):
+            ax = axes[0, i]
+            y = np.asarray(diagnostics[key], dtype=float)
+            y = y.reshape(-1, y.shape[-1])
+            x = np.linspace(0, 100, y.shape[-1])
+            ax.plot(x, np.mean(y, axis=0), color="C0")
+            if y.shape[0] > 1:
+                ax.fill_between(x, np.min(y, axis=0), np.max(y, axis=0), color="C0", alpha=0.2)
+            ax.set_title(key)
+            ax.set_xlabel("Training progress (%)")
+            ax.grid(alpha=0.3)
+
+        fig.tight_layout()
+        return fig
