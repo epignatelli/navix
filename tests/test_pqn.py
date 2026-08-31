@@ -94,11 +94,11 @@ def test_pqn_trains_one_update_without_nans():
 
     assert int(ts.step) == pqn.hparams.num_minibatches * pqn.hparams.num_epochs
 
-    for key in ("train/frames", "train/updates", "train/done_mask", "train/returns", "train/lengths"):
+    for key in ("agent/train/frames", "agent/train/updates", "agent/train/done_mask", "agent/train/returns", "agent/train/lengths"):
         assert key in logs, f"missing expected log key {key!r}"
 
     for key, value in logs.items():
-        if key in ("train/done_mask",):
+        if key in ("agent/train/done_mask",):
             continue
         arr = np.asarray(value)
         assert np.all(np.isfinite(arr)), f"logs[{key!r}] contains non-finite values"
@@ -106,9 +106,9 @@ def test_pqn_trains_one_update_without_nans():
 
 def test_pqn_logs_flow_through_agent_log_to_wandb():
     # smoke test that PQN's logs dict is shaped the way the base Agent's
-    # wandb-logging methods expect (train/done_mask/train/returns/
-    # train/lengths -> episode/* via masked_mean), the same contract
-    # PPO/Dreamer rely on.
+    # wandb-logging methods expect (agent/train/done_mask/agent/train/
+    # returns/agent/train/lengths -> agent/episode/* via masked_mean),
+    # the same contract PPO/Dreamer rely on.
     pqn = _make_pqn(budget=8 * 4)
     ts, logs = jax.jit(pqn.train)(jax.random.PRNGKey(0))
     logs = jax.tree.map(lambda x: x[0] if hasattr(x, "shape") and x.shape else x, logs)
@@ -118,9 +118,9 @@ def test_pqn_logs_flow_through_agent_log_to_wandb():
 
     assert mock_log.call_count == 1
     logged = mock_log.call_args.args[0]
-    assert "episode/returns" in logged
-    assert "episode/length" in logged
-    assert "episode/success_rate" in logged
+    assert "agent/episode/returns" in logged
+    assert "agent/episode/length" in logged
+    assert "agent/episode/success_rate" in logged
 
 
 def test_epsilon_schedule_starts_high_anneals_linearly_and_floors():

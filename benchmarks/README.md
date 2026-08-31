@@ -36,14 +36,17 @@ no per-seed timing breakdown), then stacks one `BenchmarkResult` per
 environment along a leading axis.
 
 `benchmark.summary(raw)` reduces that down to one leaderboard table
-row: `episodic_returns`' bias (mean over the last 20% of training),
-`returns_variance` and `returns_convergence_rate` (how much it still
-fluctuates, how fast it got there), plus `flops`/`memory_bytes`/
-`compile_time_seconds`/`fps`/`wall_time`'s bias - all meaned across
-every environment. `benchmark.details(raw)` gives you the same
-columns one step earlier - one row per environment, plus `env_ids` so
-you know which row is which and `lengths` (not on `summary`, since a
-leaderboard doesn't rank on it, but a useful per-env diagnostic).
+row: `benchmark/episode/returns`' bias (mean over the last 20% of
+training), `benchmark/episode/variance` and `benchmark/episode/
+convergence_rate` (how much it still fluctuates, how fast it got
+there), plus `benchmark/costs/flops`/`benchmark/costs/memory_bytes`/
+`benchmark/costs/compile_time_seconds`/`benchmark/costs/fps`/
+`benchmark/costs/wall_time`'s bias - all meaned across every
+environment. `benchmark.details(raw)` gives you the same columns one
+step earlier - one row per environment, plus `env_ids` so you know
+which row is which and `benchmark/episode/length` (not on `summary`,
+since a leaderboard doesn't rank on it, but a useful per-env
+diagnostic).
 
 `benchmark.submit_entry(entry, raw)` writes three files - cheapest and
 coarsest first, so a reader only pays for what they open:

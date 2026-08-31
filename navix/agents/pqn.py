@@ -281,9 +281,9 @@ class PQN(Agent):
         # constant rescaling of the gradient `lr` already absorbs.
         loss = jnp.mean(rlax.l2_loss(q_taken, targets))
         logs = {
-            "diagnostics/q_loss": loss,
-            "diagnostics/q_value": q_taken.mean(),
-            "diagnostics/target": targets.mean(),
+            "agent/diagnostics/q_loss": loss,
+            "agent/diagnostics/q_value": q_taken.mean(),
+            "agent/diagnostics/target": targets.mean(),
         }
         return loss, logs
 
@@ -343,17 +343,17 @@ class PQN(Agent):
 
         learning_rate = train_state.opt_state[1].hyperparams["learning_rate"]  # type: ignore
 
-        logs["train/done_mask"] = experience.done
-        logs["train/returns"] = experience.info["return"]
-        logs["train/lengths"] = experience.t
+        logs["agent/train/done_mask"] = experience.done
+        logs["agent/train/returns"] = experience.info["return"]
+        logs["agent/train/lengths"] = experience.t
 
-        logs["train/frames"] = train_state.frames
-        logs["train/updates"] = train_state.step
+        logs["agent/train/frames"] = train_state.frames
+        logs["agent/train/updates"] = train_state.step
         # Not guaranteed uniform across every navix agent (see
-        # Agent.train's docstring) - diagnostics/*, not train/*.
-        logs["diagnostics/epochs"] = train_state.epoch
-        logs["diagnostics/learning_rate"] = learning_rate
-        logs["diagnostics/epsilon"] = self.epsilon(train_state.frames)
+        # Agent.train's docstring) - agent/diagnostics/*, not agent/train/*.
+        logs["agent/diagnostics/epochs"] = train_state.epoch
+        logs["agent/diagnostics/learning_rate"] = learning_rate
+        logs["agent/diagnostics/epsilon"] = self.epsilon(train_state.frames)
 
         if self.hparams.log_render:
             b = jax.random.randint(rng, (), 0, self.hparams.num_envs)
@@ -409,10 +409,11 @@ class PQN(Agent):
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
         )
-        # iter/fps and iter/wall_time are NOT set here - train() runs inside
-        # a jax.jit trace (see Experiment.run), where time.time() only ever
-        # fires once, at trace-build time. Experiment.run fills both in
-        # itself, from real wall-clock timing measured outside any trace.
+        # experiment/costs/fps and experiment/costs/wall_time are NOT set
+        # here - train() runs inside a jax.jit trace (see Experiment.run),
+        # where time.time() only ever fires once, at trace-build time.
+        # Experiment.run fills both in itself, from real wall-clock timing
+        # measured outside any trace.
         train_state, logs = jax.lax.scan(self.update, train_state, length=num_updates)
 
         return train_state, logs

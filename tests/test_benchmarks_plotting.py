@@ -43,12 +43,12 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
     returns = rng.choice([0.0, 1.0], size=shape)
     frames = np.tile(np.arange(n_updates) * 100, (n_seeds, 1))
     return {
-        "train/frames": jnp.asarray(frames),
-        "iter/fps": jnp.asarray(rng.random((n_seeds, n_updates)) * 1000),
-        "iter/wall_time": jnp.asarray(rng.random((n_seeds, n_updates)) * 100),
-        "train/done_mask": jnp.asarray(mask),
-        "train/lengths": jnp.asarray(lengths),
-        "train/returns": jnp.asarray(returns),
+        "agent/train/frames": jnp.asarray(frames),
+        "experiment/costs/fps": jnp.asarray(rng.random((n_seeds, n_updates)) * 1000),
+        "experiment/costs/wall_time": jnp.asarray(rng.random((n_seeds, n_updates)) * 100),
+        "agent/train/done_mask": jnp.asarray(mask),
+        "agent/train/lengths": jnp.asarray(lengths),
+        "agent/train/returns": jnp.asarray(returns),
         "loss/total_loss": jnp.asarray(rng.random((n_seeds, n_updates))),
     }, mask, lengths, returns
 
@@ -56,7 +56,7 @@ def _make_logs(n_seeds=2, n_updates=3, n_steps=4, n_envs=5, seed=0):
 def test_plot_metric_returns_figure_with_data():
     logs, *_ = _make_logs()
     logs = derive_episodic_metrics(logs)
-    fig = plot_metric(logs, "episode/returns", x_key="train/frames")
+    fig = plot_metric(logs, "agent/episode/returns", x_key="agent/train/frames")
     assert isinstance(fig, plt.Figure)
     ax = fig.axes[0]
     assert len(ax.lines) == 1
@@ -66,9 +66,10 @@ def test_plot_metric_returns_figure_with_data():
 def test_plot_metrics_skips_missing_keys():
     logs, *_ = _make_logs()
     logs = derive_episodic_metrics(logs)
-    figs = plot_metrics(logs, MANDATORY_METRICS, x_key="train/frames")
-    # episode/length, episode/returns, episode/success_rate, iter/fps,
-    # iter/wall_time all present
+    figs = plot_metrics(logs, MANDATORY_METRICS, x_key="agent/train/frames")
+    # agent/episode/length, agent/episode/returns, agent/episode/
+    # success_rate, experiment/costs/fps, experiment/costs/wall_time
+    # all present
     assert set(figs.keys()) == set(MANDATORY_METRICS.keys())
     for fig in figs.values():
         plt.close(fig)
@@ -77,7 +78,7 @@ def test_plot_metrics_skips_missing_keys():
 def test_plot_dashboard_defaults_to_mandatory_metrics():
     logs, *_ = _make_logs()
     logs = derive_episodic_metrics(logs)
-    fig = plot_dashboard(logs, x_key="train/frames")
+    fig = plot_dashboard(logs, x_key="agent/train/frames")
     on_axes = [ax for ax in fig.axes if ax.axison]
     assert len(on_axes) == len(MANDATORY_METRICS)
     plt.close(fig)
@@ -91,7 +92,7 @@ def test_plot_dashboard_accepts_an_arbitrary_metrics_dict():
     logs = derive_episodic_metrics(logs)
     custom_metrics = {**MANDATORY_METRICS, "loss/total_loss": "Total Loss"}
 
-    fig = plot_dashboard(logs, metrics=custom_metrics, x_key="train/frames")
+    fig = plot_dashboard(logs, metrics=custom_metrics, x_key="agent/train/frames")
     on_axes = [ax for ax in fig.axes if ax.axison]
     assert len(on_axes) == len(custom_metrics)
     plt.close(fig)

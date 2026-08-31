@@ -78,13 +78,13 @@ def hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
 
     Args:
         logs (Dict[str, Array]): Shape `(pop_size, num_seeds,
-            num_updates, num_steps, num_envs)` for `train/done_mask`/
-            `train/returns`/`train/lengths`.
+            num_updates, num_steps, num_envs)` for `agent/train/done_mask`/
+            `agent/train/returns`/`agent/train/lengths`.
 
     Returns:
         Array: Shape `(pop_size,)`.
     """
-    returns = derive_episodic_metrics(logs)["episode/returns"]  # (pop_size, num_seeds, num_updates)
+    returns = derive_episodic_metrics(logs)["agent/episode/returns"]  # (pop_size, num_seeds, num_updates)
     tail = max(1, int(returns.shape[-1] * 0.2))
     return jnp.mean(jnp.mean(returns[..., -tail:], axis=-1), axis=-1)
 
@@ -176,28 +176,29 @@ class Experiment:
         training_time = time.time() - start_time
         print(f"Training time cost: {training_time}")
 
-        # iter/fps and iter/wall_time can't be measured inside agent.train
-        # itself - it runs inside the jax.jit trace just compiled above,
-        # where time.time() only ever fires once, at trace-build time (see
-        # each agent's train()). training_time above, timed here from
-        # outside any trace and block_until_ready'd, is the real thing -
-        # one number for the whole vmapped call (seeds train together, so
-        # there's no per-seed breakdown), broadcast to match every other
-        # per-seed/per-update logged key's shape. fps is derived from each
-        # seed's own final train/frames count (real, already correctly
-        # accumulated by the scan) rather than hparams.budget, both because
-        # not every Agent.hparams carries a budget field and because a
-        # seed's actual frame count can land slightly under budget (budget
-        # // (num_steps * num_envs) floors to a whole number of updates).
-        # Deliberately still iter/* (not train/*): Experiment adds these
-        # after agent.train() already returned, so they aren't part of
-        # Agent.train's own guaranteed-floor contract (see its docstring) -
-        # this is the one place iter/* still exists.
-        num_updates = logs["train/updates"].shape[-1]
-        frames = jnp.mean(jnp.asarray(logs["train/frames"])[..., -1])
+        # experiment/costs/fps and experiment/costs/wall_time can't be
+        # measured inside agent.train itself - it runs inside the jax.jit
+        # trace just compiled above, where time.time() only ever fires
+        # once, at trace-build time (see each agent's train()).
+        # training_time above, timed here from outside any trace and
+        # block_until_ready'd, is the real thing - one number for the
+        # whole vmapped call (seeds train together, so there's no per-seed
+        # breakdown), broadcast to match every other per-seed/per-update
+        # logged key's shape. fps is derived from each seed's own final
+        # agent/train/frames count (real, already correctly accumulated by
+        # the scan) rather than hparams.budget, both because not every
+        # Agent.hparams carries a budget field and because a seed's actual
+        # frame count can land slightly under budget (budget //
+        # (num_steps * num_envs) floors to a whole number of updates).
+        # Deliberately experiment/costs/*, not agent/train/*: Experiment
+        # adds these after agent.train() already returned, so they aren't
+        # part of Agent.train's own guaranteed-floor contract (see its
+        # docstring) - a different producer gets a different namespace.
+        num_updates = logs["agent/train/updates"].shape[-1]
+        frames = jnp.mean(jnp.asarray(logs["agent/train/frames"])[..., -1])
         fps = frames / training_time
-        logs["iter/wall_time"] = jnp.full((len(self.seeds), num_updates), training_time)
-        logs["iter/fps"] = jnp.full((len(self.seeds), num_updates), fps)
+        logs["experiment/costs/wall_time"] = jnp.full((len(self.seeds), num_updates), training_time)
+        logs["experiment/costs/fps"] = jnp.full((len(self.seeds), num_updates), fps)
 
         if not self.agent.hparams.debug and log_to_wandb:
             print("Logging final results to wandb...")
@@ -371,17 +372,18 @@ class Experiment:
             _, logs = jax.block_until_ready(search_fn(search_set))
             gen_wall_time = time.time() - gen_start
 
-            # Same reasoning as Experiment.run: iter/fps/iter/wall_time
-            # can't be measured inside agent.train itself - fill them in
-            # here instead, for whichever generation's logs end up
-            # surfaced as best_logs below (plotting.py's MANDATORY_METRICS
-            # contract expects both to be present).
-            gen_num_updates = logs["train/updates"].shape[-1]
-            gen_frames = jnp.mean(jnp.asarray(logs["train/frames"])[..., -1])
+            # Same reasoning as Experiment.run: experiment/costs/fps/
+            # experiment/costs/wall_time can't be measured inside
+            # agent.train itself - fill them in here instead, for
+            # whichever generation's logs end up surfaced as best_logs
+            # below (plotting.py's MANDATORY_METRICS contract expects
+            # both to be present).
+            gen_num_updates = logs["agent/train/updates"].shape[-1]
+            gen_frames = jnp.mean(jnp.asarray(logs["agent/train/frames"])[..., -1])
             gen_fps = gen_frames / gen_wall_time
             gen_logs_shape = (pop_size, len(self.seeds), gen_num_updates)
-            logs["iter/wall_time"] = jnp.full(gen_logs_shape, gen_wall_time)
-            logs["iter/fps"] = jnp.full(gen_logs_shape, gen_fps)
+            logs["experiment/costs/wall_time"] = jnp.full(gen_logs_shape, gen_wall_time)
+            logs["experiment/costs/fps"] = jnp.full(gen_logs_shape, gen_fps)
 
             fitness = hparam_search_fitness(logs)  # (pop_size,)
 

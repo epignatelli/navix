@@ -82,10 +82,14 @@ def curve_diagnostics(result: BenchmarkResult, resample: Optional[Any] = None) -
     """`result.curve`'s fields flattened into the plain `{name: array}`
     shape both `Benchmark.submit_entry` (writing `diagnostics.npz`)
     and `Benchmark.plot_diagnostics` (plotting the same curves
-    in-memory) need: `episodic_returns`/`length` plus one
-    `diagnostics_<key>` entry per `curve.diagnostics` key (npz has no
-    native nesting, so this flattening happens once here rather than
-    separately in each caller).
+    in-memory) need: `benchmark/episode/returns`/`benchmark/episode/
+    length` plus `curve.diagnostics`'s own keys, unchanged - `curve.
+    diagnostics` is free-form (see `TrainingCurve`'s docstring), so
+    this doesn't impose or assume any prefix on it. navix's own agents
+    happen to already key it `agent/diagnostics/<name>` (`Agent.
+    train`'s own contract, preserved end to end through `benchmarks/
+    */*/run.py`'s `TrainingCurve.diagnostics` construction), but a
+    submitted entry that isn't a navix agent owes no such convention.
 
     Args:
         result (BenchmarkResult): Already `jax.device_get`'d by the
@@ -96,16 +100,17 @@ def curve_diagnostics(result: BenchmarkResult, resample: Optional[Any] = None) -
             native resolution.
 
     Returns:
-        Dict[str, np.ndarray]: `episodic_returns`, `length`, and one
-        `diagnostics_<key>` entry per `result.curve.diagnostics` key."""
+        Dict[str, np.ndarray]: `benchmark/episode/returns`,
+        `benchmark/episode/length`, and `result.curve.diagnostics`'
+        own keys, unchanged."""
     identity = lambda value: np.asarray(value)
     transform = resample or identity
     curves = {
-        "episodic_returns": transform(result.curve.episodic_returns),
-        "length": transform(result.curve.lengths),
+        "benchmark/episode/returns": transform(result.curve.episodic_returns),
+        "benchmark/episode/length": transform(result.curve.lengths),
     }
     for key, value in result.curve.diagnostics.items():
-        curves[f"diagnostics_{key}"] = transform(value)
+        curves[key] = transform(value)
     return curves
 
 
@@ -585,14 +590,15 @@ class Benchmark(struct.PyTreeNode):
         - `details.json`: `self.details(results)` - per-row
           diagnostics about this run.
         - `diagnostics.npz`: `results` itself. `curve.episodic_returns`/
-          `curve.lengths`/`curve.diagnostics`' values are resampled to
-          exactly `max_points` evenly-spaced points along their
-          trailing axis, so every submission's curve fields end up the
-          same fixed shape regardless of how many updates actually
-          ran; `wall_time`/`fps`/`cost.*` are already scalars and are
-          written as-is. `curve.diagnostics`' entries are flattened to
-          top-level `diagnostics_<key>` npz entries (npz has no native
-          nesting).
+          `curve.lengths`/`curve.diagnostics`' values (written as
+          `benchmark/episode/returns`/`benchmark/episode/length`, plus
+          `curve.diagnostics`' own keys unchanged - see
+          `curve_diagnostics`) are resampled to exactly `max_points`
+          evenly-spaced points along their trailing axis, so every
+          submission's curve fields end up the same fixed shape
+          regardless of how many updates actually ran;
+          `benchmark/costs/*` (wall_time/fps/cost.*) are already
+          scalars and are written as-is.
 
         Args:
             entry (AlgorithmEntry): The algorithm that produced
@@ -640,11 +646,11 @@ class Benchmark(struct.PyTreeNode):
             return array[..., index]
 
         curves = curve_diagnostics(result, resample=resample)
-        curves["wall_time"] = np.asarray(result.wall_time)
-        curves["fps"] = np.asarray(result.fps)
-        curves["flops"] = np.asarray(result.cost.flops)
-        curves["memory_bytes"] = np.asarray(result.cost.memory_bytes)
-        curves["compile_time_seconds"] = np.asarray(result.cost.compile_time_seconds)
+        curves["benchmark/costs/wall_time"] = np.asarray(result.wall_time)
+        curves["benchmark/costs/fps"] = np.asarray(result.fps)
+        curves["benchmark/costs/flops"] = np.asarray(result.cost.flops)
+        curves["benchmark/costs/memory_bytes"] = np.asarray(result.cost.memory_bytes)
+        curves["benchmark/costs/compile_time_seconds"] = np.asarray(result.cost.compile_time_seconds)
         np.savez_compressed(path / "diagnostics.npz", **curves)
 
     def plot_summary(self, results: BenchmarkResult):
@@ -742,9 +748,10 @@ class Benchmark(struct.PyTreeNode):
             matplotlib.figure.Figure: One panel per curve."""
         import matplotlib.pyplot as plt
 
-        # curve_diagnostics's own keys (episodic_returns/length/
-        # diagnostics_<key>) can never collide with NON_CURVE_DIAGNOSTICS_
-        # KEYS (navix/benchmarks/plotting.py) - those five scalar cost
+        # curve_diagnostics's own keys (benchmark/episode/returns,
+        # benchmark/episode/length, plus curve.diagnostics's own keys
+        # unchanged) can never collide with NON_CURVE_DIAGNOSTICS_KEYS
+        # (navix/benchmarks/plotting.py) - those benchmark/costs/* scalar
         # fields are only ever added to a *different* dict, inside
         # submit_entry, when building diagnostics.npz - so no filtering
         # against them is needed here. The ndim check still matters: a

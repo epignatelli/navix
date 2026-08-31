@@ -130,7 +130,7 @@ def train_with_hparams(
 
     Returns:
         TrainingCurve: `episodic_returns`/`lengths` (masked-mean over
-        completed episodes), plus every `diagnostics/*` entry PQN's
+        completed episodes), plus every `agent/diagnostics/*` entry PQN's
         own training loop already computes per update as
         `diagnostics`."""
     encoder_cls: Type[nn.Module]
@@ -150,18 +150,18 @@ def train_with_hparams(
     network = QNetwork(action_dim=len(env.action_set), encoder=encoder_cls(hidden_size=hp.hidden_size))
     agent = PQN(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
-    mask = jnp.asarray(logs["train/done_mask"], dtype=jnp.bool_)
-    # PQN.update already reduces diagnostics/q_loss (and diagnostics/
-    # epsilon, PQN's exploration schedule) to one scalar per training
-    # update (see PQN.update in navix/agents/pqn.py) - already the exact
-    # per-update-curve shape TrainingCurve.diagnostics wants, no further
-    # reduction needed. Surfacing these is what makes Benchmark.
-    # plot_diagnostics/`diagnostics.npz` show more than just
-    # episodic_returns/length for this entry.
-    diagnostics = {key: value for key, value in logs.items() if key.startswith("diagnostics/")}
+    mask = jnp.asarray(logs["agent/train/done_mask"], dtype=jnp.bool_)
+    # PQN.update already reduces agent/diagnostics/q_loss (and
+    # agent/diagnostics/epsilon, PQN's exploration schedule) to one
+    # scalar per training update (see PQN.update in navix/agents/pqn.py)
+    # - already the exact per-update-curve shape TrainingCurve.
+    # diagnostics wants, no further reduction needed. Surfacing these is
+    # what makes Benchmark.plot_diagnostics/`diagnostics.npz` show more
+    # than just episodic_returns/length for this entry.
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("agent/diagnostics/")}
     return TrainingCurve(
-        episodic_returns=masked_mean(logs["train/returns"], mask, axis=(-2, -1)),
-        lengths=masked_mean(logs["train/lengths"], mask, axis=(-2, -1)),
+        episodic_returns=masked_mean(logs["agent/train/returns"], mask, axis=(-2, -1)),
+        lengths=masked_mean(logs["agent/train/lengths"], mask, axis=(-2, -1)),
         diagnostics=diagnostics,
     )
 
@@ -238,13 +238,13 @@ if __name__ == "__main__":
         details = benchmark.details(raw)
         benchmark.submit_entry(entry, raw, subdir=observation_mode)
         print(f"{type(benchmark).__name__} / {entry.name} [{observation_mode}] summary:")
-        print(f"  episodic_returns:     {summary['episodic_returns']}")
-        print(f"  flops:                {summary['flops']}")
-        print(f"  memory_bytes:         {summary['memory_bytes']}")
-        print(f"  compile_time_seconds: {summary['compile_time_seconds']}")
-        print(f"  fps:                  {summary['fps']}")
-        print(f"  wall_time:            {summary['wall_time']}")
-        print(f"  returns_variance:            {summary['returns_variance']}")
-        print(f"  returns_convergence_rate:    {summary['returns_convergence_rate']}")
+        print(f"  returns:               {summary['benchmark/episode/returns']}")
+        print(f"  flops:                {summary['benchmark/costs/flops']}")
+        print(f"  memory_bytes:         {summary['benchmark/costs/memory_bytes']}")
+        print(f"  compile_time_seconds: {summary['benchmark/costs/compile_time_seconds']}")
+        print(f"  fps:                  {summary['benchmark/costs/fps']}")
+        print(f"  wall_time:            {summary['benchmark/costs/wall_time']}")
+        print(f"  variance:              {summary['benchmark/episode/variance']}")
+        print(f"  convergence_rate:      {summary['benchmark/episode/convergence_rate']}")
         for i, env_id in enumerate(details["env_ids"]):
-            print(f"  {env_id}: episodic_returns={details['episodic_returns'][i]} length={details['length'][i]}")
+            print(f"  {env_id}: returns={details['benchmark/episode/returns'][i]} length={details['benchmark/episode/length'][i]}")
