@@ -30,7 +30,7 @@ compiling `train` separately).
 A preset (`Navix1M`/`Navix100K`) trains your entry independently
 across `env_ids` (a small, curated default spanning several
 environment families - not every registered environment; override it
-by subclassing if you want different coverage) and `seeds` (10 by
+by subclassing if you want different coverage) and `seeds` (16 by
 default, more than one always required - vmapped together, so there's
 no per-seed timing breakdown), then stacks one `BenchmarkResult` per
 environment along a leading axis.
