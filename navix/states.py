@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Tuple
 
 from jax import Array
 import jax.numpy as jnp
@@ -29,27 +29,42 @@ from .components import (
     Positionable,
     HasColour,
 )
+from .grid import positions_equal
 from .rendering.cache import RenderingCache
 from .rendering.registry import PALETTE, SPRITES_REGISTRY
 from .entities import Entity, Entities, Goal, Wall, Ball, Lava, Key, Door, Box, Player
 
 
 class EventType:
-    """Enumeration of the different types of events that can happen in the environment."""
+    """Enumeration of the different types of events that can happen in the environment.
 
-    NONE: Array = jnp.asarray(-1, dtype=jnp.int32)
-    REACH: Array = jnp.asarray(0, dtype=jnp.int32)
-    HIT: Array = jnp.asarray(1, dtype=jnp.int32)
-    FALL: Array = jnp.asarray(2, dtype=jnp.int32)
-    PICKUP: Array = jnp.asarray(3, dtype=jnp.int32)
-    OPEN: Array = jnp.asarray(4, dtype=jnp.int32)
-    UNLOCK: Array = jnp.asarray(5, dtype=jnp.int32)
+    Plain strings, not jax arrays - `EventsManager.events` keys off
+    `(entity_type, event_type)` tuples, and a jax pytree's dict keys
+    must be static, hashable Python values, not traced arrays."""
+
+    NONE: str = "none"
+    REACH: str = "reach"
+    HIT: str = "hit"
+    FALL: str = "fall"
+    PICKUP: str = "pickup"
+    OPEN: str = "open"
+    UNLOCK: str = "unlock"
+
+
+GRID = "grid"
+"""Pseudo entity-type key for a wall-hit against the grid boundary or a
+non-walkable empty cell, as opposed to hitting an actual `Wall` entity
+- `EventsManager.record_grid_hit`/`record_wall_hit` write to separate
+`(GRID, EventType.HIT)`/`(Entities.WALL, EventType.HIT)` slots so they
+never fight over the same one; `navix.events.on_wall_hit` ORs both
+together, so the distinction is invisible to callers that only care
+whether a wall was hit at all."""
 
 
 class Event(Positionable, HasColour):
     """A struct representing an event that happened in the environment. It contains the
-    position of the event, the colour of the entity involved in the event, whether the event
-    happened, and the type of event that happened.
+    position of the event, the colour of the entity involved in the event, and whether the
+    event happened.
 
     !!! note
         Notice that we need the `happened` property, which flags if an event has
@@ -57,19 +72,44 @@ class Event(Positionable, HasColour):
         This means that we cannot add an event to the list in the middle of training.
         Instead, we initialise all events, and mask them out as not happened.
 
+    Every field of an `Event` stored in `EventsManager.events` is batched to match
+    the entity type it tracks (see `empty_like`) - one slot per instance, not one
+    scalar per event type - so e.g. two balls hitting the player the same step are
+    two independent `True` entries, not collapsed into one (see issue #139).
 
     Attributes:
         position (Array): The (row, column) position of the event in the grid.
         colour (Array): The colour of the entity involved in the event.
         happened (Array): A boolean flag indicating whether the event happened.
-        event_type (Array): The type of event that happened."""
+    """
 
     position: Array = field(
         default_factory=lambda: jnp.asarray([-1, -1], dtype=jnp.int32)
     )
     colour: Array = field(default_factory=lambda: PALETTE.UNSET)
     happened: Array = field(default_factory=lambda: jnp.asarray(False, dtype=jnp.bool_))
-    event_type: Array = field(default_factory=lambda: EventType.NONE)
+
+    @classmethod
+    def empty_like(cls, entity: Entity) -> Event:
+        """An all-`happened=False` `Event`, batched to match `entity`'s own
+        shape (one slot per instance of `entity`) rather than a single
+        scalar slot.
+
+        Args:
+            entity (Entity): The entity type this event tracks - e.g.
+                `state.entities[Entities.BALL]`.
+
+        Returns:
+            Event: `position`/`colour`/`happened`, each broadcast to
+            `entity.shape` (plus `position`'s own trailing `(2,)`)."""
+        shape = entity.shape
+        return cls(
+            position=jnp.broadcast_to(
+                jnp.asarray([-1, -1], dtype=jnp.int32), (*shape, 2)
+            ),
+            colour=jnp.broadcast_to(PALETTE.UNSET, shape),
+            happened=jnp.broadcast_to(jnp.asarray(False, dtype=jnp.bool_), shape),
+        )
 
     def __eq__(self, other: Event) -> Array:
         return jnp.logical_and(
@@ -82,28 +122,126 @@ class Event(Positionable, HasColour):
 
 
 class EventsManager(struct.PyTreeNode):
-    """A struct that manages the events. It contains the different events that can happen
-    in the environment, such as the goal being reached, the player being hit by a ball, etc.
+    """A struct that manages the events that happened in the environment this
+    step, such as the goal being reached, the player being hit by a ball, etc.
+
+    Keyed by `(entity_type, event_type)` rather than one named field per
+    event type, and each slot's `Event` is batched to match that entity
+    type's own instance count (see `Event.empty_like`) - this is what lets
+    two independent occurrences of the same event type (e.g. two balls
+    both hitting the player) coexist within one step, rather than one
+    replacing the other (see issue #139). `record_*` merges new hits into
+    a slot rather than replacing it wholesale, so a call earlier in the
+    same step's transition pipeline (e.g. the player walking into a ball)
+    isn't discarded by a later one (e.g. a different ball moving onto the
+    player) writing the same slot.
 
     Attributes:
-        goal_reached (Event): An event indicating that the goal has been reached.
-        ball_hit (Event): An event indicating that the player has been hit by a ball.
-        wall_hit (Event): An event indicating that the player has hit a wall.
-        lava_fall (Event): An event indicating that the lava has fallen.
-        key_pickup (Event): An event indicating that the player has picked up a key.
-        door_opening (Event): An event indicating that the player has opened a door.
-        door_unlock (Event): An event indicating that the player has unlocked a door.
-        ball_pickup (Event): An event indicating that the player has picked up a ball.
+        events (Dict[Tuple[str, str], Event]): One `Event` slot per
+            `(entity_type, event_type)` this environment's entities can
+            actually produce - see `create`. Not meant to be constructed
+            directly; `State.__post_init__` calls `create` automatically
+            from `State.entities`.
     """
 
-    goal_reached: Event = Event()
-    ball_hit: Event = Event()
-    wall_hit: Event = Event()
-    lava_fall: Event = Event()
-    key_pickup: Event = Event()
-    door_opening: Event = Event()
-    door_unlock: Event = Event()
-    ball_pickup: Event = Event()
+    events: Dict[Tuple[str, str], Event] = struct.field(default_factory=dict)
+
+    @classmethod
+    def create(cls, entities: Dict[str, Entity]) -> EventsManager:
+        """Builds one all-`happened=False` `Event` slot per `(entity_type,
+        event_type)` this environment's `entities` can actually produce -
+        e.g. `(Entities.BALL, EventType.HIT)` only exists if
+        `Entities.BALL in entities`. Called automatically by
+        `State.__post_init__`; not meant to be called directly.
+
+        Args:
+            entities (Dict[str, Entity]): `State.entities`.
+
+        Returns:
+            EventsManager: A fresh, all-`happened=False` manager."""
+        events: Dict[Tuple[str, str], Event] = {(GRID, EventType.HIT): Event()}
+        if Entities.GOAL in entities:
+            events[Entities.GOAL, EventType.REACH] = Event.empty_like(
+                entities[Entities.GOAL]
+            )
+        if Entities.WALL in entities:
+            events[Entities.WALL, EventType.HIT] = Event.empty_like(
+                entities[Entities.WALL]
+            )
+        if Entities.LAVA in entities:
+            events[Entities.LAVA, EventType.FALL] = Event.empty_like(
+                entities[Entities.LAVA]
+            )
+        if Entities.KEY in entities:
+            events[Entities.KEY, EventType.PICKUP] = Event.empty_like(
+                entities[Entities.KEY]
+            )
+        if Entities.DOOR in entities:
+            events[Entities.DOOR, EventType.OPEN] = Event.empty_like(
+                entities[Entities.DOOR]
+            )
+            events[Entities.DOOR, EventType.UNLOCK] = Event.empty_like(
+                entities[Entities.DOOR]
+            )
+        if Entities.BALL in entities:
+            events[Entities.BALL, EventType.HIT] = Event.empty_like(
+                entities[Entities.BALL]
+            )
+            events[Entities.BALL, EventType.PICKUP] = Event.empty_like(
+                entities[Entities.BALL]
+            )
+        return cls(events=events)
+
+    def happened(self, key: Tuple[str, str]) -> Array:
+        """Whether any instance of `key`'s `(entity_type, event_type)` slot
+        fired this step - `False` (not a `KeyError`) if this environment's
+        `entities` never included that entity type at all (see `create`).
+
+        Args:
+            key (Tuple[str, str]): The `(entity_type, event_type)` slot to
+                check.
+
+        Returns:
+            Array: A boolean scalar."""
+        event = self.events.get(key)
+        if event is None:
+            return jnp.asarray(False)
+        return jnp.any(event.happened)
+
+    def merge_event(
+        self, key: Tuple[str, str], hit: Array, position: Array, colour: Array
+    ) -> EventsManager:
+        """Records `hit` into `key`'s `Event` slot, OR-merging onto
+        whatever already happened this step rather than replacing it
+        wholesale - so a call earlier in the same step's transition
+        pipeline isn't silently discarded by a later one writing the same
+        slot (see issue #139). `position`/`colour` are written only where
+        `hit` is newly `True`; already-`True` entries keep their existing
+        stored `position`/`colour`.
+
+        Args:
+            key (Tuple[str, str]): The `(entity_type, event_type)` slot to
+                update - must already exist (see `create`).
+            hit (Array): Boolean - per-instance for a batched slot (e.g.
+                `Entities.BALL, EventType.HIT`), a bare scalar for a
+                single-instance slot (e.g. `GRID, EventType.HIT`).
+            position (Array): This instance's own position - written
+                where `hit` is `True`.
+            colour (Array): This instance's own colour - written where
+                `hit` is `True`.
+
+        Returns:
+            EventsManager: The updated events manager."""
+        existing = self.events[key]
+        hit = jnp.asarray(hit, dtype=jnp.bool_)
+        happened = jnp.logical_or(existing.happened, hit)
+        new_position = jnp.where(hit[..., None], position, existing.position)
+        new_colour = jnp.where(hit, colour, existing.colour)
+        events = dict(self.events)
+        events[key] = existing.replace(
+            position=new_position, colour=new_colour, happened=happened
+        )
+        return self.replace(events=events)
 
     def record_walk_into(self, entity: Entity, position: Array) -> EventsManager:
         """Flags an event when the player walks into an entity as happened and returns the
@@ -115,15 +253,15 @@ class EventsManager(struct.PyTreeNode):
 
         Returns:
             EventsManager: The updated events manager."""
+        hit = positions_equal(entity.position, position)
         if isinstance(entity, Goal):
-            return self.record_goal_reached(entity, position)
+            return self.record_goal_reached(entity, hit)
         elif isinstance(entity, Wall):
-            return self.record_wall_hit(entity, position)
+            return self.record_wall_hit(entity, hit)
         elif isinstance(entity, Lava):
-            return self.record_lava_fall(entity, position)
+            return self.record_lava_fall(entity, hit)
         elif isinstance(entity, Ball):
-            idx = jnp.where(entity.position == position, size=1)[0][0]
-            return self.record_ball_hit(entity[idx])
+            return self.record_ball_hit(entity, hit)
         return self
 
     def record_pickup(self, entity: Entity, position: Array) -> EventsManager:
@@ -136,193 +274,138 @@ class EventsManager(struct.PyTreeNode):
 
         Returns:
             EventsManager: The updated events manager."""
+        hit = positions_equal(entity.position, position)
         if isinstance(entity, Key):
-            return self.record_key_pickup(entity, position)
+            return self.record_key_pickup(entity, hit)
         elif isinstance(entity, Ball):
-            return self.record_ball_pickup(entity, position)
+            return self.record_ball_pickup(entity, hit)
         return self
 
-    def record_goal_reached(self, goal: Goal, position: Array) -> EventsManager:
+    def record_goal_reached(self, goal: Goal, hit: Array) -> EventsManager:
         """Flags an event when the player reaches the goal as happened and returns the
         updated events manager.
 
         Args:
-            goal (Goal): The goal the player reached.
-            position (Array): The position of the goal in the grid.
+            goal (Goal): Every `Goal` instance in the environment.
+            hit (Array): Boolean, one entry per `goal` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(goal.position == position, size=1)[0][0]
-        goal = goal[idx]
-        return self.replace(
-            goal_reached=Event(
-                position=position,
-                colour=PALETTE.UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.REACH,
-            )
+        return self.merge_event(
+            (Entities.GOAL, EventType.REACH), hit, goal.position, PALETTE.UNSET
         )
 
-    def record_ball_hit(self, ball: Ball) -> EventsManager:
+    def record_ball_hit(self, ball: Ball, hit: Array) -> EventsManager:
         """Flags an event when the player is hit by a ball as happened and returns the
         updated events manager.
 
         Args:
-            ball (Ball): The ball that hit the player.
+            ball (Ball): Every `Ball` instance in the environment.
+            hit (Array): Boolean, one entry per `ball` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        return self.replace(
-            ball_hit=Event(
-                position=ball.position,
-                colour=ball.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
+        return self.merge_event(
+            (Entities.BALL, EventType.HIT), hit, ball.position, ball.colour
         )
 
-    def record_wall_hit(self, wall: Wall, position: Array) -> EventsManager:
+    def record_wall_hit(self, wall: Wall, hit: Array) -> EventsManager:
         """Flags an event when the player hits a wall as happened and returns the
         updated events manager.
 
         Args:
-            wall (Wall): The wall the player hit.
-            position (Array): The position of the wall in the grid.
+            wall (Wall): Every `Wall` instance in the environment.
+            hit (Array): Boolean, one entry per `wall` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(wall.position == position, size=1)[0][0]
-        wall = wall[idx]
-        return self.replace(
-            wall_hit=Event(
-                position=wall.position,
-                colour=PALETTE.UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
+        return self.merge_event(
+            (Entities.WALL, EventType.HIT), hit, wall.position, PALETTE.UNSET
         )
 
     def record_grid_hit(self, position: Array) -> EventsManager:
-        """Flags an event when the player hits a wall as happened and returns the
-        updated events manager.
+        """Flags an event when the player hits the grid boundary or a
+        non-walkable empty cell (no `Wall` entity there) as happened and
+        returns the updated events manager. Kept in a separate `GRID` slot
+        from `record_wall_hit` (see `GRID`'s docstring).
 
         Args:
-            position (Array): The position of the wall in the grid.
+            position (Array): The position hit.
 
         Returns:
             EventsManager: The updated events manager."""
-        return self.replace(
-            wall_hit=Event(
-                position=position,
-                colour=PALETTE.UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.HIT,
-            )
+        return self.merge_event(
+            (GRID, EventType.HIT), jnp.asarray(True), position, PALETTE.UNSET
         )
 
-    def record_lava_fall(self, lava: Lava, position: Array) -> EventsManager:
+    def record_lava_fall(self, lava: Lava, hit: Array) -> EventsManager:
         """Flags an event when the lava falls as happened and returns the
         updated events manager.
 
         Args:
-            lava (Lava): The lava that fell.
-            position (Array): The position of the lava in the grid.
+            lava (Lava): Every `Lava` instance in the environment.
+            hit (Array): Boolean, one entry per `lava` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(lava.position == position, size=1)[0][0]
-        lava = lava[idx]
-        return self.replace(
-            lava_fall=Event(
-                position=lava.position,
-                colour=PALETTE.UNSET,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.FALL,
-            )
+        return self.merge_event(
+            (Entities.LAVA, EventType.FALL), hit, lava.position, PALETTE.UNSET
         )
 
-    def record_key_pickup(self, key: Key, position: Array) -> EventsManager:
+    def record_key_pickup(self, key: Key, hit: Array) -> EventsManager:
         """Flags an event when the player picks up a key as happened and returns the
         updated events manager.
 
         Args:
-            key (Key): The key the player picked up.
-            position (Array): The position of the key in the grid.
+            key (Key): Every `Key` instance in the environment.
+            hit (Array): Boolean, one entry per `key` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(key.position == position, size=1)[0][0]
-        key = key[idx]
-        return self.replace(
-            key_pickup=Event(
-                position=key.position,
-                colour=key.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.PICKUP,
-            )
+        return self.merge_event(
+            (Entities.KEY, EventType.PICKUP), hit, key.position, key.colour
         )
 
-    def record_door_opening(self, door: Door, position: Array) -> EventsManager:
+    def record_door_opening(self, door: Door, hit: Array) -> EventsManager:
         """Flags an event when the player opens a door as happened and returns the
         updated events manager.
 
         Args:
-            door (Door): The door the player opened.
-            position (Array): The position of the door in the grid.
+            door (Door): Every `Door` instance in the environment.
+            hit (Array): Boolean, one entry per `door` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(door.position == position, size=1)[0][0]
-        door = door[idx]
-        return self.replace(
-            door_opening=Event(
-                position=door.position,
-                colour=door.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.OPEN,
-            )
+        return self.merge_event(
+            (Entities.DOOR, EventType.OPEN), hit, door.position, door.colour
         )
 
-    def record_door_unlock(self, door: Door, position: Array) -> EventsManager:
+    def record_door_unlock(self, door: Door, hit: Array) -> EventsManager:
         """Flags an event when the player unlocks a door as happened and returns the
         updated events manager.
 
         Args:
-            door (Door): The door the player unlocked.
-            position (Array): The position of the door in the grid.
+            door (Door): Every `Door` instance in the environment.
+            hit (Array): Boolean, one entry per `door` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(door.position == position, size=1)[0][0]
-        door = door[idx]
-        return self.replace(
-            door_opening=Event(
-                position=door.position,
-                colour=door.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.UNLOCK,
-            )
+        return self.merge_event(
+            (Entities.DOOR, EventType.UNLOCK), hit, door.position, door.colour
         )
 
-    def record_ball_pickup(self, ball: Ball, position: Array) -> EventsManager:
+    def record_ball_pickup(self, ball: Ball, hit: Array) -> EventsManager:
         """Flags an event when the player picks up a ball as happened and returns the
         updated events manager.
 
         Args:
-            ball (Ball): The ball the player picked up.
-            position (Array): The position of the ball in the grid.
+            ball (Ball): Every `Ball` instance in the environment.
+            hit (Array): Boolean, one entry per `ball` instance.
 
         Returns:
             EventsManager: The updated events manager."""
-        idx = jnp.where(ball.position == position, size=1)[0][0]
-        ball = ball[idx]
-        return self.replace(
-            ball_pickup=Event(
-                position=ball.position,
-                colour=ball.colour,
-                happened=jnp.asarray(True, dtype=jnp.bool_),
-                event_type=EventType.PICKUP,
-            )
+        return self.merge_event(
+            (Entities.BALL, EventType.PICKUP), hit, ball.position, ball.colour
         )
 
 
@@ -340,8 +423,20 @@ class State(struct.PyTreeNode):
     Batched over the number of entities for each type"""
     events: EventsManager = EventsManager()
     """A struct indicating which events happened this timestep. For example, the
-    goal is reached, or the player is hit by a ball."""
+    goal is reached, or the player is hit by a ball. Left at its default (empty)
+    here - `__post_init__` populates it from `entities` via `EventsManager.create`,
+    since a `struct.PyTreeNode` field's default can't see its sibling fields."""
     mission: Event | None = None
+
+    def __post_init__(self) -> None:
+        # events.events is only ever empty right after construction with no
+        # explicit `events=...` (the default `EventsManager()` above) - once
+        # populated, it's never emptied again (record_* only ever adds/merges
+        # entries into existing slots, see EventsManager.merge_event), so this
+        # correctly runs exactly once per episode (at _reset time), not on
+        # every subsequent .replace() call within an episode.
+        if not self.events.events:
+            object.__setattr__(self, "events", EventsManager.create(self.entities))
 
     def get_entity(self, entity_enum: str) -> Entity:
         """Get an entity from the state by its enum.

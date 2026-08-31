@@ -198,7 +198,7 @@ def pickup(state: State) -> State:
     # update events
     events = jax.lax.cond(
         jnp.any(key_found),
-        lambda: state.events.record_key_pickup(keys, position_in_front),
+        lambda: state.events.record_key_pickup(keys, key_found),
         lambda: state.events,
     )
 
@@ -298,7 +298,7 @@ def open(state: State) -> State:
     # update events
     events = jax.lax.cond(
         jnp.any(do_open),
-        lambda: state.events.record_door_opening(doors, position_in_front),
+        lambda: state.events.record_door_opening(doors, do_open),
         lambda: state.events,
     )
 
