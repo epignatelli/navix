@@ -112,9 +112,18 @@ def train_with_hparams(
     agent = PPO(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
     mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    # PPO.update already reduces every loss/* entry to one scalar per
+    # training update (see PPO.sgd_step/update in navix/agents/ppo.py) -
+    # already the exact per-update-curve shape TrainingCurve.diagnostics
+    # wants, no further reduction needed. Surfacing these (entropy, value/
+    # actor loss, approx KL, clip fraction) is what makes
+    # Benchmark.plot_diagnostics/`diagnostics.npz` show more than just
+    # episodic_returns/length for this entry.
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("loss/")}
     return TrainingCurve(
         episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
         lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        diagnostics=diagnostics,
     )
 
 

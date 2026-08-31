@@ -113,9 +113,18 @@ def train_with_hparams(
     agent = PQN(hparams=hp, network=network, env=env)
     _, logs = agent.train(rng)
     mask = jnp.asarray(logs["done_mask"], dtype=jnp.bool_)
+    # PQN.update already reduces loss/q_loss (and agent/epsilon, PQN's
+    # exploration schedule) to one scalar per training update (see
+    # PQN.update in navix/agents/pqn.py) - already the exact per-update-
+    # curve shape TrainingCurve.diagnostics wants, no further reduction
+    # needed. Surfacing these is what makes Benchmark.plot_diagnostics/
+    # `diagnostics.npz` show more than just episodic_returns/length for
+    # this entry.
+    diagnostics = {key: value for key, value in logs.items() if key.startswith("loss/") or key.startswith("agent/")}
     return TrainingCurve(
         episodic_returns=masked_mean(logs["returns"], mask, axis=(-2, -1)),
         lengths=masked_mean(logs["lengths"], mask, axis=(-2, -1)),
+        diagnostics=diagnostics,
     )
 
 
