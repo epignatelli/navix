@@ -24,6 +24,15 @@ jobs:
       issues: read
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
+    env:
+      # anthropics/claude-code-action@v1 installs this exact Claude Code CLI
+      # version internally (see its src/entrypoints/run.ts's
+      # `claudeCodeVersion` constant) whenever path_to_claude_code_executable
+      # isn't given - pinned here (not "latest") so our own cache key stays
+      # meaningful and we control upgrades deliberately. Bump this whenever
+      # @v1 bumps its own internal pin (re-check run.ts on action updates),
+      # otherwise a stale cached CLI gets used instead of what @v1 expects.
+      CLAUDE_CODE_VERSION: "2.1.251"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,11 +40,41 @@ jobs:
           fetch-depth: 1
           ref: ${{ github.sha }}
 
+      # Caches the Claude Code CLI binary itself (the actually expensive part
+      # of anthropics/claude-code-action@v1's default setup, re-downloaded on
+      # every run otherwise) - not bun (its own install is ~2-3s, and the
+      # action's own bun setup step already disables its cache for the same
+      # reason, see its action.yml). Cache key has no ref/branch/PR component
+      # so it's shared and reused across every run, not just re-hits for the
+      # same PR. `claude install` symlinks ~/.local/bin/claude into a
+      # versioned dir under ~/.local/share/claude/versions/ - both must be
+      # cached together for the symlink to resolve after a restore.
+      #
+      # Deliberately NOT caching ~/.claude - that's the CLI's runtime
+      # config/memory/state directory, not its installation, and caching it
+      # into a public-repo Actions cache would leak whatever ends up there.
+      - name: Cache Claude Code CLI
+        id: cache-claude-cli
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/claude
+            ~/.local/share/claude/versions/${{ env.CLAUDE_CODE_VERSION }}
+          key: claude-code-cli-${{ runner.os }}-${{ env.CLAUDE_CODE_VERSION }}
+
+      - name: Install Claude Code CLI
+        if: steps.cache-claude-cli.outputs.cache-hit != 'true'
+        run: curl -fsSL https://claude.ai/install.sh | bash -s -- "$CLAUDE_CODE_VERSION"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Skips the action's own (uncached, re-downloaded every run)
+          # install of this same version - see the caching step above.
+          path_to_claude_code_executable: /home/runner/.local/bin/claude
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
