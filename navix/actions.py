@@ -215,7 +215,7 @@ def drop(state: State) -> State:
 
     Args:
         state (State): The current state.
-    
+
     Returns:
         State: The new state with the item in the pocket dropped in front of the player."""
     player = state.get_player(idx=0)
@@ -229,10 +229,29 @@ def drop(state: State) -> State:
     for k in state.entities:
         entity = state.entities[k]
         if isinstance(entity, Pickable):
-            cond = jnp.logical_and(can_drop, entity.position == DISCARD_PILE_COORDS)
-            position = jnp.where(cond, position_in_front, entity.position)
+            # match by id == player.pocket, not just "is this instance
+            # sitting at the discard pile" - the latter alone moves
+            # *every* already-consumed Pickable instance, not just the
+            # one actually in the player's pocket, once two Pickable
+            # entity types can coexist in one episode (see #188).
+            matches_pocket = entity.id == player.pocket
+            at_discard = jnp.all(entity.position == DISCARD_PILE_COORDS, axis=-1)
+            cond = can_drop & matches_pocket & at_discard
+            position = jnp.where(cond[:, None], position_in_front, entity.position)
             entity = entity.replace(position=position)
-            state.set_entity(k, entity)
+            state = state.set_entity(k, entity)
+
+    # the player's pocket must go back to empty on a successful drop -
+    # previously left stale (still holding the dropped item's id) after
+    # every drop, which is wrong regardless of the bug above.
+    player = jax.lax.cond(
+        can_drop, lambda: player.replace(pocket=EMPTY_POCKET_ID), lambda: player
+    )
+    state = state.set_player(player)
+    # _can_walk_there's events (e.g. a grid-hit record when the drop
+    # destination isn't walkable) were computed above but never applied
+    # to state - also fixed here while touching this function.
+    state = state.set_events(events)
     return state
 
 
