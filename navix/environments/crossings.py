@@ -26,7 +26,7 @@ from flax import struct
 
 from navix import observations, rewards, terminations
 
-from ..components import EMPTY_POCKET_ID
+from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
 from ..entities import Player, Goal, Lava
@@ -219,6 +219,10 @@ class Crossings(Environment):
         assert (
             self.height % 2 == 1 and self.width % 2 == 1
         ), "Crossings grid dimensions must be odd"
+        assert self.obstacle_type in (
+            "wall",
+            "lava",
+        ), f'obstacle_type must be "wall" or "lava", got {self.obstacle_type!r}'
 
         key, k1 = jax.random.split(key)
 
@@ -242,22 +246,34 @@ class Crossings(Environment):
             # grid stays fully walkable - Lava blocks nothing, it just
             # ends the episode on contact (via on_lava_fall). Every
             # selected river has exactly the same length (height ==
-            # width is asserted above, so Hi == Wi), so the obstacle
-            # count is always exactly n_crossings * (Hi - 1), regardless
-            # of how the random vertical/horizontal split comes out - a
-            # fixed, JIT-compatible entity count for every n_crossings
-            # actually used by a registered LavaCrossing variant.
-            # jnp.nonzero's size= handles the (here, unreachable for any
-            # registered variant) case where n_crossings exceeds the
-            # number of available rivers by padding with fill_value=Hi,
-            # which lands on the wall border once offset below - safely
-            # outside the player/goal/interior area.
+            # width is asserted above, so Hi == Wi), so
+            # n_crossings * (Hi - 1) is always a safe *upper* bound on
+            # the true obstacle count, regardless of how the random
+            # vertical/horizontal split comes out - a fixed, JIT-
+            # compatible entity count. It frequently overshoots though
+            # (whenever both a vertical and a horizontal river are
+            # selected, their one intersection cell is double-counted
+            # by the formula but only once in the real mask), so
+            # jnp.nonzero's size= often does pad. A padded slot's
+            # position must be pushed off-grid (DISCARD_PILE_COORDS,
+            # the same sentinel `actions.pickup`/`drop` already use for
+            # "not really here") rather than left at some fixed
+            # in-bounds fill_value - observations.symbolic/rgb write
+            # every entity's position unconditionally, so an in-bounds
+            # fill_value would overwrite whatever real symbol/sprite is
+            # already at that cell (confirmed: fill_value=Hi previously
+            # landed exactly on the grid's own bottom-right wall corner
+            # post-offset, replacing its wall symbol with a lava one).
             Hi = self.height - 2
             grid_interior = jnp.zeros((Hi, self.width - 2), dtype=jnp.int32)
-            rows, cols = jnp.nonzero(
-                obstacle_mask, size=self.n_crossings * (Hi - 1), fill_value=Hi
+            size = self.n_crossings * (Hi - 1)
+            rows, cols = jnp.nonzero(obstacle_mask, size=size, fill_value=0)
+            valid = jnp.arange(size) < jnp.sum(obstacle_mask)
+            lava_pos = jnp.where(
+                valid[:, None],
+                jnp.stack([rows + 1, cols + 1], axis=1),
+                DISCARD_PILE_COORDS,
             )
-            lava_pos = jnp.stack([rows + 1, cols + 1], axis=1)
             entities["lava"] = Lava.create(position=lava_pos)
         else:
             grid_interior = jnp.where(obstacle_mask, -1, 0).astype(jnp.int32)
