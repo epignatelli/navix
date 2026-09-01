@@ -228,6 +228,81 @@ def test_crossings_always_solvable():
         )
 
 
+def test_lava_crossing_structure_and_solvability():
+    """LavaCrossing shares SimpleCrossing's exact river/gap algorithm
+    (`_crossings_obstacle_mask`) - only how the obstacle cells are
+    materialized differs (Lava entities, not baked into the grid as
+    walls), so the grid interior itself is fully walkable and a BFS
+    solvability check has to treat lava *entity positions* as blocked
+    instead of `grid == -1` (unlike test_crossings_always_solvable's
+    SimpleCrossing check, where the grid itself already encodes the
+    obstacles)."""
+    from collections import deque
+    import numpy as np
+    from navix.entities import Entities
+
+    def is_solvable(blocked, start, goal):
+        H, W = blocked.shape
+        seen = np.zeros_like(blocked, dtype=bool)
+        q = deque([start])
+        seen[start] = True
+        while q:
+            y, x = q.popleft()
+            if (y, x) == goal:
+                return True
+            for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                ny, nx_ = y + dy, x + dx
+                if (
+                    0 <= ny < H
+                    and 0 <= nx_ < W
+                    and not seen[ny, nx_]
+                    and not blocked[ny, nx_]
+                ):
+                    seen[ny, nx_] = True
+                    q.append((ny, nx_))
+        return False
+
+    n_seeds = 256
+    for env_id, size in [
+        ("Navix-LavaCrossingS9N1-v0", 9),
+        ("Navix-LavaCrossingS9N2-v0", 9),
+        ("Navix-LavaCrossingS9N3-v0", 9),
+        ("Navix-LavaCrossingS11N5-v0", 11),
+    ]:
+        env = nx.make(env_id)
+        keys = jax.random.split(jax.random.PRNGKey(0), n_seeds)
+        states = jax.vmap(lambda k: env.reset(k).state)(keys)
+        grids = np.asarray(states.grid)
+        lava_positions = np.asarray(states.entities[Entities.LAVA].position)
+
+        unsolvable = []
+        for s in range(n_seeds):
+            grid = grids[s]
+            interior = grid[1:-1, 1:-1]
+            assert np.all(interior == 0), (
+                f"{env_id} seed={s}: interior grid should be fully walkable "
+                f"(lava is an entity overlay, not a grid obstacle)"
+            )
+            blocked = grid == -1  # the wall border only, interior is never -1
+            for r, c in lava_positions[s]:
+                if 1 <= r <= size - 2 and 1 <= c <= size - 2:  # skip safe padding entries
+                    blocked[r, c] = True
+            if not is_solvable(blocked, (1, 1), (size - 2, size - 2)):
+                unsolvable.append(s)
+        assert not unsolvable, (
+            f"{env_id}: {len(unsolvable)}/{n_seeds} seeds produced an "
+            f"unsolvable maze (goal not reachable from start avoiding lava). "
+            f"First failing seed indices: {unsolvable[:5]}"
+        )
+
+        # the last seed's state also gets the direct structural checks:
+        # no Wall entities (LavaCrossing has none, unlike SimpleCrossing
+        # which bakes obstacles into the grid), Lava entities present.
+        last_state = jax.tree.map(lambda x: x[-1], states)
+        assert Entities.WALL not in last_state.entities
+        assert Entities.LAVA in last_state.entities
+
+
 if __name__ == "__main__":
     # test_room()
     # jax.jit(test_room)()

@@ -29,7 +29,7 @@ from navix import observations, rewards, terminations
 from ..components import EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from . import Environment
-from ..entities import Player, Goal
+from ..entities import Player, Goal, Lava
 from ..states import State
 from . import Timestep
 from .registry import register_env
@@ -141,16 +141,19 @@ def _gaps_from_monotone_path(
     return gaps
 
 
-def _crossings_grid(key: Array, H: int, W: int, n: int) -> Array:
-    """Build the interior grid for SimpleCrossing.
+def _crossings_obstacle_mask(key: Array, H: int, W: int, n: int) -> Array:
+    """Boolean ``(H - 2, W - 2)`` mask of the crossing obstacle cells -
+    ``True`` where a river (with its one gap already carved out) runs.
 
     Places ``n`` complete river lines (horizontal or vertical, randomly
     selected from the ``odd_rows`` / ``odd_cols`` candidates) in a
     ``(H - 2, W - 2)`` interior grid, then carves a single gap in each
-    selected river along a monotone start-to-goal path.
-
-    Returns a ``jnp.int32`` interior grid where ``-1`` is wall and ``0`` is
-    floor; the caller pads it with a wall border.
+    selected river along a monotone start-to-goal path. Shared by both
+    `SimpleCrossing` (obstacle = `Wall`, baked into the grid - see
+    `_crossings_grid`) and `LavaCrossing` (obstacle = `Lava` entities,
+    grid stays fully walkable - see `Crossings._reset`'s `"lava"`
+    branch) - MiniGrid's own `CrossingEnv` generates both from the same
+    algorithm too, only `obstacle_type` differs.
     """
     Hi, Wi = H - 2, W - 2
     rows = jnp.arange(Hi)
@@ -183,12 +186,30 @@ def _crossings_grid(key: Array, H: int, W: int, n: int) -> Array:
         k_gap, Hi, Wi, odd_rows, odd_cols, sel_mask[:Nv], sel_mask[Nv:]
     )
 
-    obstacles = rivers & ~gaps
+    return rivers & ~gaps
+
+
+def _crossings_grid(key: Array, H: int, W: int, n: int) -> Array:
+    """Build the interior grid for `SimpleCrossing` (`obstacle_type=
+    "wall"`) - see `_crossings_obstacle_mask` for the algorithm.
+
+    Returns a ``jnp.int32`` interior grid where ``-1`` is wall and ``0`` is
+    floor; the caller pads it with a wall border.
+    """
+    obstacles = _crossings_obstacle_mask(key, H, W, n)
     return jnp.where(obstacles, -1, 0).astype(jnp.int32)
 
 
 class Crossings(Environment):
     n_crossings: int = struct.field(pytree_node=False, default=1)
+    obstacle_type: str = struct.field(pytree_node=False, default="wall")
+    """`"wall"` (`SimpleCrossing` - the obstacle blocks movement, no
+    termination beyond reaching the goal) or `"lava"` (`LavaCrossing` -
+    the obstacle is walkable but ends the episode via `on_lava_fall`).
+    Mirrors MiniGrid's own `CrossingEnv(obstacle_type=Wall | Lava)`
+    parametrization - both variants share the exact same river-
+    placement algorithm (`_crossings_obstacle_mask`), only how the
+    obstacle cells are materialized differs."""
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert (
@@ -214,7 +235,33 @@ class Crossings(Environment):
             "goal": goals[None],
         }
 
-        grid_interior = _crossings_grid(k1, self.height, self.width, self.n_crossings)
+        obstacle_mask = _crossings_obstacle_mask(
+            k1, self.height, self.width, self.n_crossings
+        )
+        if self.obstacle_type == "lava":
+            # grid stays fully walkable - Lava blocks nothing, it just
+            # ends the episode on contact (via on_lava_fall). Every
+            # selected river has exactly the same length (height ==
+            # width is asserted above, so Hi == Wi), so the obstacle
+            # count is always exactly n_crossings * (Hi - 1), regardless
+            # of how the random vertical/horizontal split comes out - a
+            # fixed, JIT-compatible entity count for every n_crossings
+            # actually used by a registered LavaCrossing variant.
+            # jnp.nonzero's size= handles the (here, unreachable for any
+            # registered variant) case where n_crossings exceeds the
+            # number of available rivers by padding with fill_value=Hi,
+            # which lands on the wall border once offset below - safely
+            # outside the player/goal/interior area.
+            Hi = self.height - 2
+            grid_interior = jnp.zeros((Hi, self.width - 2), dtype=jnp.int32)
+            rows, cols = jnp.nonzero(
+                obstacle_mask, size=self.n_crossings * (Hi - 1), fill_value=Hi
+            )
+            lava_pos = jnp.stack([rows + 1, cols + 1], axis=1)
+            entities["lava"] = Lava.create(position=lava_pos)
+        else:
+            grid_interior = jnp.where(obstacle_mask, -1, 0).astype(jnp.int32)
+
         grid = jnp.pad(grid_interior, 1, mode="constant", constant_values=-1)
 
         state = State(
@@ -281,6 +328,82 @@ register_env(
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
         termination_fn=kwargs.pop("termination_fn", terminations.on_goal_reached),
+        *args,
+        **kwargs,
+    ),
+)
+register_env(
+    "Navix-LavaCrossingS9N1-v0",
+    lambda *args, **kwargs: Crossings.create(
+        height=9,
+        width=9,
+        n_crossings=1,
+        obstacle_type="lava",
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached, terminations.on_lava_fall
+            ),
+        ),
+        *args,
+        **kwargs,
+    ),
+)
+register_env(
+    "Navix-LavaCrossingS9N2-v0",
+    lambda *args, **kwargs: Crossings.create(
+        height=9,
+        width=9,
+        n_crossings=2,
+        obstacle_type="lava",
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached, terminations.on_lava_fall
+            ),
+        ),
+        *args,
+        **kwargs,
+    ),
+)
+register_env(
+    "Navix-LavaCrossingS9N3-v0",
+    lambda *args, **kwargs: Crossings.create(
+        height=9,
+        width=9,
+        n_crossings=3,
+        obstacle_type="lava",
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached, terminations.on_lava_fall
+            ),
+        ),
+        *args,
+        **kwargs,
+    ),
+)
+register_env(
+    "Navix-LavaCrossingS11N5-v0",
+    lambda *args, **kwargs: Crossings.create(
+        height=11,
+        width=11,
+        n_crossings=5,
+        obstacle_type="lava",
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached, terminations.on_lava_fall
+            ),
+        ),
         *args,
         **kwargs,
     ),
