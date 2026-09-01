@@ -70,7 +70,12 @@ def two_equal_rooms_with_door(
     assert (
         width == 2 * (height - 1) + 1
     ), f"width must be 2 * (height - 1) + 1 for two equal rooms, got height={height}, width={width}"
-    assert height >= 3, f"height (room size) must be >= 3, got {height}"
+    # height == 3 degenerates: the left room's interior collapses to a
+    # single walkable cell, so the player and key can't both fit -
+    # random_positions then places the key outside the room entirely
+    # (verified empirically: 20/20 seeds at height=3 misplace the key at
+    # a wall/border cell). height >= 4 leaves at least a 2-cell interior.
+    assert height >= 4, f"height (room size) must be >= 4, got {height}"
 
     key, k_color, k_door_row, k_player_pos, k_player_dir, k_key_pos = jax.random.split(
         key, 6
