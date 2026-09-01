@@ -2,7 +2,7 @@
 
 import jax
 import navix as nx
-from navix.states import Event, EventType
+from navix.states import Event
 
 
 def test_issue_92():
@@ -11,7 +11,6 @@ def test_issue_92():
         position=jax.numpy.asarray([-1, -1]),
         colour=jax.numpy.asarray([255, 0, 0]),
         happened=jax.numpy.asarray(False),
-        event_type=EventType.NONE,
     )
     # try instantiate environment
     env = nx.make("Navix-KeyCorridorS6R3-v0")

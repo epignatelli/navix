@@ -29,7 +29,7 @@ from navix.components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
 from navix.entities import Ball, Entities, EntityIds, Goal, Key, Player
 from navix.rendering.cache import RenderingCache
 from navix.rendering.registry import PALETTE
-from navix.states import State
+from navix.states import EventType, State
 
 
 def test_82():
@@ -90,8 +90,78 @@ def test_91():
     assert jnp.array_equal(player.position, jnp.asarray((1, 1))), (
         "Expected the player to remain in place, since balls are not walkable"
     )
-    assert state.events.ball_hit.happened, (
+    assert state.events.happened((Entities.BALL, EventType.HIT)), (
         "Expected walking into a ball to record a ball_hit event"
+    )
+
+
+def test_139():
+    # https://github.com/epignatelli/navix/issues/139
+    # EventsManager used to store one scalar Event per event type, replaced
+    # wholesale on every record_* call - so two independent occurrences of
+    # the same event type within one step (e.g. two balls both hitting the
+    # player, or the player walking into a ball earlier in the same step's
+    # transition pipeline followed by a *different* ball moving onto the
+    # player later in that same pipeline) collapsed into one, discarding
+    # the other. EventsManager.events is now keyed by (entity_type,
+    # event_type), with each slot batched per-entity-instance and merged
+    # (OR'd) rather than replaced, so both survive.
+    height, width = 5, 5
+    grid = jnp.zeros((height - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    player = Player(
+        position=jnp.asarray((2, 2)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    cache = RenderingCache.init(grid)
+
+    # scenario 1: two balls, positioned so at least one PRNG seed makes
+    # both move onto the player's cell the same step - both must register.
+    balls = Ball.create(
+        position=jnp.asarray([[1, 2], [3, 2]]),
+        colour=jnp.asarray([PALETTE.BLUE, PALETTE.RED]),
+        probability=jnp.asarray([0.0, 0.0]),
+    )
+    found_both = False
+    for seed in range(200):
+        state = State(
+            key=jax.random.PRNGKey(seed),
+            grid=grid,
+            cache=cache,
+            entities={Entities.PLAYER: player[None], Entities.BALL: balls},
+        )
+        state = nx.transitions.update_balls(state)
+        hit = state.events.events[Entities.BALL, EventType.HIT].happened
+        if bool(jnp.all(hit)):
+            found_both = True
+            break
+    assert found_both, (
+        "expected at least one seed (of 200) to move both balls onto the "
+        "player in the same step, with both recorded as happened"
+    )
+
+    # scenario 2: walking into ball 0 (recorded first, via actions.forward)
+    # must survive update_balls running afterwards in the same step's
+    # pipeline, even though it writes the same (BALL, HIT) slot.
+    balls2 = Ball.create(
+        position=jnp.asarray([[2, 3], [1, 1]]),  # ball 0 directly in front
+        colour=jnp.asarray([PALETTE.BLUE, PALETTE.RED]),
+        probability=jnp.asarray([0.0, 0.0]),
+    )
+    state2 = State(
+        key=jax.random.PRNGKey(0),
+        grid=grid,
+        cache=cache,
+        entities={Entities.PLAYER: player[None], Entities.BALL: balls2},
+    )
+    state2 = nx.actions.forward(state2)
+    assert state2.events.events[Entities.BALL, EventType.HIT].happened[0], (
+        "walking into ball 0 should record its hit"
+    )
+
+    state2 = nx.transitions.update_balls(state2)
+    assert state2.events.events[Entities.BALL, EventType.HIT].happened[0], (
+        "ball 0's earlier walk-into hit must survive update_balls "
+        "running afterwards in the same step's transition pipeline"
     )
 
 

@@ -31,7 +31,7 @@ from navix import observations
 from .. import rewards, terminations
 from ..components import EMPTY_POCKET_ID
 from ..entities import Entities, Door, Player
-from ..states import EventType, State, Event
+from ..states import State, Event
 from ..grid import random_colour, random_directions
 from ..rendering.cache import RenderingCache
 from .environment import Environment, Timestep
@@ -94,7 +94,6 @@ class GoToDoor(Environment):
             position=target_door.position,
             colour=target_door.colour,
             happened=jnp.asarray(False),
-            event_type=EventType.REACH,
         )
 
         # systems

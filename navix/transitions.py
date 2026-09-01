@@ -25,7 +25,7 @@ from jax import Array
 import jax
 import jax.numpy as jnp
 from .entities import Entities, Ball
-from .states import EventsManager, State
+from .states import State
 from .grid import positions_equal, translate
 
 
@@ -69,53 +69,50 @@ def stochastic_transition(
 def update_balls(state: State) -> State:
     """Update the position of the balls in the game.
     Balls move in a random direction if they can, otherwise they stay in place.
-    
+
     Args:
         state (State): The current state of the game.
-    
+
     Returns:
         State: The new state of the game."""
-    def update_one(ball: Ball, key: Array) -> Tuple[Array, EventsManager]:
+    def update_one(ball: Ball, key: Array) -> Tuple[Array, Array]:
         direction = jax.random.randint(key, (), minval=0, maxval=4)
         new_position = translate(ball.position, direction)
         new_ball = ball.replace(position=new_position)
-        can_move, events = _can_spawn_there(state, new_ball)
-        return jnp.where(can_move, new_ball.position, ball.position), events
+        can_move, hit = _can_spawn_there(state, new_ball)
+        return jnp.where(can_move, new_ball.position, ball.position), hit
 
     if Entities.BALL in state.entities:
         balls: Ball = state.entities[Entities.BALL]  # type: ignore
         keys = jax.random.split(state.key, len(balls.position) + 1)
-        new_position, new_events = jax.jit(jax.vmap(update_one))(balls, keys[1:])
+        # hit is one boolean per ball, computed independently for every
+        # ball in the same vmapped call - merged into events.events in one
+        # shot below, so two different balls hitting the player the same
+        # step both survive (see EventsManager.record_ball_hit/merge_event,
+        # issue #139), instead of collapsing to only the first one found.
+        new_position, hit = jax.jit(jax.vmap(update_one))(balls, keys[1:])
         # update balls
         balls = balls.replace(position=new_position)
         state = state.set_balls(balls)
         # update events
-        # take only the first happened event (even if happened already)
-        idx = jnp.where(new_events.ball_hit.happened, size=1)[0][0]  # scalar
-        ball_hits = jax.tree.map(lambda x: x[idx], new_events.ball_hit)
-        events = state.events.replace(ball_hit=ball_hits)
+        events = state.events.record_ball_hit(balls, hit)
         state = state.replace(key=keys[0], events=events)
     return state
 
 
-def _can_spawn_there(state: State, ball: Ball) -> Tuple[Array, EventsManager]:
+def _can_spawn_there(state: State, ball: Ball) -> Tuple[Array, Array]:
     # according to the grid
     walkable = jnp.equal(state.grid[tuple(ball.position)], 0)
 
     # according to entities
-    events = state.events
+    hit = jnp.asarray(False)
     entities = state.entities
     for k in state.entities:
         obstructs = positions_equal(entities[k].position, ball.position)[0]
         if k == Entities.PLAYER:
-            events = jax.lax.cond(
-                obstructs,
-                lambda x: x.record_ball_hit(ball),
-                lambda x: x,
-                events,
-            )
+            hit = jnp.logical_or(hit, obstructs)
         walkable = jnp.logical_and(walkable, jnp.any(jnp.logical_not(obstructs)))
-    return jnp.asarray(walkable, dtype=jnp.bool_), events
+    return jnp.asarray(walkable, dtype=jnp.bool_), hit
 
 
 DEFAULT_TRANSITION = stochastic_transition

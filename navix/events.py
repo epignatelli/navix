@@ -21,7 +21,7 @@ from __future__ import annotations
 from jax import Array
 import jax.numpy as jnp
 
-from .states import State
+from .states import State, EventType, GRID
 from .grid import positions_equal, translate
 from .entities import Entities, Player
 
@@ -33,8 +33,9 @@ def on_goal_reached(state: State) -> Array:
         state (State): The current state of the game.
 
     Returns:
-        Array: A boolean array indicating whether the goal has been reached."""
-    return state.events.goal_reached.happened
+        Array: A boolean scalar indicating whether the goal has been reached
+        by any goal instance this step."""
+    return state.events.happened((Entities.GOAL, EventType.REACH))
 
 
 def on_lava_fall(state: State) -> Array:
@@ -44,8 +45,9 @@ def on_lava_fall(state: State) -> Array:
         state (State): The current state of the game.
 
     Returns:
-        Array: A boolean array indicating whether the lava has fallen."""
-    return state.events.lava_fall.happened
+        Array: A boolean scalar indicating whether the lava has fallen for
+        any lava instance this step."""
+    return state.events.happened((Entities.LAVA, EventType.FALL))
 
 
 def on_ball_hit(state: State) -> Array:
@@ -55,8 +57,9 @@ def on_ball_hit(state: State) -> Array:
         state (State): The current state of the game.
 
     Returns:
-        Array: A boolean array indicating whether the ball has hit something."""
-    return state.events.ball_hit.happened
+        Array: A boolean scalar indicating whether any ball hit the player
+        this step."""
+    return state.events.happened((Entities.BALL, EventType.HIT))
 
 
 def on_door_done(state: State) -> Array:
@@ -86,11 +89,17 @@ def on_door_done(state: State) -> Array:
 
 
 def on_wall_hit(state: State) -> Array:
-    """Checks whether the wall has been hit using the `wall_hit` event.
+    """Checks whether the wall has been hit using the `wall_hit` event -
+    either an actual `Wall` entity, or the grid boundary/a non-walkable
+    empty cell with no entity there (see `navix.states.GRID`).
 
     Args:
         state (State): The current state of the game.
 
     Returns:
-        Array: A boolean array indicating whether the wall has been hit."""
-    return state.events.wall_hit.happened
+        Array: A boolean scalar indicating whether a wall was hit this
+        step."""
+    return jnp.logical_or(
+        state.events.happened((Entities.WALL, EventType.HIT)),
+        state.events.happened((GRID, EventType.HIT)),
+    )

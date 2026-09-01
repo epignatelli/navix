@@ -185,6 +185,15 @@ def pickup(state: State) -> State:
 
     key_found = positions_equal(position_in_front, keys.position)
 
+    # update events - before keys is moved to the discard pile below, so
+    # the recorded event keeps the key's real pickup position, not
+    # DISCARD_PILE_COORDS.
+    events = jax.lax.cond(
+        jnp.any(key_found),
+        lambda: state.events.record_key_pickup(keys, key_found),
+        lambda: state.events,
+    )
+
     # update keys
     positions = jnp.where(key_found, DISCARD_PILE_COORDS, keys.position)
     keys = keys.replace(position=positions)
@@ -193,13 +202,6 @@ def pickup(state: State) -> State:
     key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
     player = jax.lax.cond(
         jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player
-    )
-
-    # update events
-    events = jax.lax.cond(
-        jnp.any(key_found),
-        lambda: state.events.record_key_pickup(keys, position_in_front),
-        lambda: state.events,
     )
 
     state = state.set_player(player)
@@ -298,7 +300,7 @@ def open(state: State) -> State:
     # update events
     events = jax.lax.cond(
         jnp.any(do_open),
-        lambda: state.events.record_door_opening(doors, position_in_front),
+        lambda: state.events.record_door_opening(doors, do_open),
         lambda: state.events,
     )
 
