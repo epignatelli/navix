@@ -88,6 +88,32 @@ def on_door_done(state: State) -> Array:
     return jnp.logical_and(pos_match, colour_match)
 
 
+def on_door_open(state: State) -> Array:
+    """Checks whether any door was opened using the `door_opening` event -
+    unlike `on_door_done`, this doesn't need a `state.mission` target;
+    any door opening (unlocking or not) counts.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean scalar indicating whether any door was opened
+        this step."""
+    return state.events.happened((Entities.DOOR, EventType.OPEN))
+
+
+def on_box_pickup(state: State) -> Array:
+    """Checks whether any box was picked up using the `box_pickup` event.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean scalar indicating whether any box was picked up
+        this step."""
+    return state.events.happened((Entities.BOX, EventType.PICKUP))
+
+
 def on_wall_hit(state: State) -> Array:
     """Checks whether the wall has been hit using the `wall_hit` event -
     either an actual `Wall` entity, or the grid boundary/a non-walkable

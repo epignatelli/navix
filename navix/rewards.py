@@ -142,5 +142,32 @@ def on_door_done(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_door_done(state), dtype=jnp.float32)
 
 
+def on_door_open(prev_state: State, action: Array, state: State) -> Array:
+    """A reward function that returns 1 when any door is opened this
+    step, and 0 otherwise - unlike `on_door_done`, no `state.mission`
+    target is needed; any door opening counts.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]` with value 1 if a door was opened,
+        and 0 otherwise."""
+    return jnp.asarray(events.on_door_open(state), dtype=jnp.float32)
+
+
+def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
+    """A reward function that returns 1 when any box is picked up this
+    step, and 0 otherwise.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]` with value 1 if a box was picked
+        up, and 0 otherwise."""
+    return jnp.asarray(events.on_box_pickup(state), dtype=jnp.float32)
+
+
 DEFAULT_TASK = compose(on_goal_reached, action_cost)
 """The default task for the game, composed of the `on_goal_reached` and `action_cost` reward functions."""

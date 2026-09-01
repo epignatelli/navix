@@ -112,4 +112,32 @@ def on_door_done(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_door_done(state), dtype=jnp.bool_)
 
 
+def on_door_open(prev_state: State, action: Array, state: State) -> Array:
+    """Check if any door was opened this step, using the `door_opening`
+    event.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether any door was opened."""
+    return jnp.asarray(events.on_door_open(state), dtype=jnp.bool_)
+
+
+def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
+    """Check if any box was picked up this step, using the `box_pickup`
+    event.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether any box was picked up."""
+    return jnp.asarray(events.on_box_pickup(state), dtype=jnp.bool_)
+
+
 DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)

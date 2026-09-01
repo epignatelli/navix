@@ -27,7 +27,7 @@ import jax
 from jax import Array
 import jax.numpy as jnp
 
-from .entities import Entities, Player
+from .entities import Entities, Player, Box
 from .states import EventsManager, State
 from .components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID, Pickable
 from .grid import translate, rotate, positions_equal
@@ -170,43 +170,74 @@ def left(state: State) -> State:
 
 
 def pickup(state: State) -> State:
-    """Picks up an item in front of the player and puts it in the pocket.
+    """Picks up an item (`Key` or `Box`) in front of the player and puts
+    it in the pocket.
     Args:
         state (State): The current state.
     Returns:
         State: The new state with the player entity having the item in the pocket."""
-    if Entities.KEY not in state.entities:
+
+    def pickup_entity(state: State, entity_enum: str, entity, setter) -> State:
+        """Shared logic for one pickable entity type (`Key`/`Box`): if the
+        player is facing an instance of `entity`, discard it and put its
+        `id` in the player's pocket. A closure (not a module-level
+        function) specifically so it stays out of `actions.py`'s public
+        surface, where every other name is a real `State -> State`
+        action - unlike those, this needs `entity_enum`/`entity`/
+        `setter` too, to stay parametrized over which pickable entity
+        type `pickup`'s two call sites (`Key`, `Box`) are handling.
+
+        Args:
+            state (State): The current state.
+            entity_enum (str): The entity type's `Entities.*` string,
+                used to dispatch to the matching `EventsManager.
+                record_*_pickup`.
+            entity: Every instance of this entity type in the
+                environment (`state.get_keys()`/`state.get_boxes()`).
+            setter (Callable[[Any], State]): `state.set_keys`/
+                `state.set_boxes` - writes the updated entity batch back.
+
+        Returns:
+            State: The new state with the item picked up, if the player
+            was facing one."""
+        player = state.get_player(idx=0)
+        position_in_front = translate(player.position, player.direction)
+
+        found = positions_equal(position_in_front, entity.position)
+
+        # update events - before entity is moved to the discard pile
+        # below, so the recorded event keeps the item's real pickup
+        # position, not DISCARD_PILE_COORDS.
+        record = (
+            state.events.record_key_pickup
+            if entity_enum == Entities.KEY
+            else state.events.record_box_pickup
+        )
+        events = jax.lax.cond(
+            jnp.any(found),
+            lambda: record(entity, found),
+            lambda: state.events,
+        )
+
+        # discard the picked-up instance
+        positions = jnp.where(found, DISCARD_PILE_COORDS, entity.position)
+        entity = entity.replace(position=positions)
+
+        # update player's pocket, if the pocket has something else, we overwrite it
+        picked_id = jnp.sum(entity.id * found, dtype=jnp.int32)
+        player = jax.lax.cond(
+            jnp.any(found), lambda: player.replace(pocket=picked_id), lambda: player
+        )
+
+        state = state.set_player(player)
+        state = setter(entity)
+        state = state.set_events(events)
         return state
 
-    player = state.get_player(idx=0)
-    keys = state.get_keys()
-
-    position_in_front = translate(player.position, player.direction)
-
-    key_found = positions_equal(position_in_front, keys.position)
-
-    # update events - before keys is moved to the discard pile below, so
-    # the recorded event keeps the key's real pickup position, not
-    # DISCARD_PILE_COORDS.
-    events = jax.lax.cond(
-        jnp.any(key_found),
-        lambda: state.events.record_key_pickup(keys, key_found),
-        lambda: state.events,
-    )
-
-    # update keys
-    positions = jnp.where(key_found, DISCARD_PILE_COORDS, keys.position)
-    keys = keys.replace(position=positions)
-
-    # update player's pocket, if the pocket has something else, we overwrite it
-    key = jnp.sum(keys.id * key_found, dtype=jnp.int32)
-    player = jax.lax.cond(
-        jnp.any(key_found), lambda: player.replace(pocket=key), lambda: player
-    )
-
-    state = state.set_player(player)
-    state = state.set_keys(keys)
-    state = state.set_events(events)
+    if Entities.KEY in state.entities:
+        state = pickup_entity(state, Entities.KEY, state.get_keys(), state.set_keys)
+    if Entities.BOX in state.entities:
+        state = pickup_entity(state, Entities.BOX, state.get_boxes(), state.set_boxes)
     return state
 
 

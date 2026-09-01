@@ -190,6 +190,10 @@ class EventsManager(struct.PyTreeNode):
             events[Entities.BALL, EventType.PICKUP] = Event.empty_like(
                 entities[Entities.BALL]
             )
+        if Entities.BOX in entities:
+            events[Entities.BOX, EventType.PICKUP] = Event.empty_like(
+                entities[Entities.BOX]
+            )
         return cls(events=events)
 
     def happened(self, key: Tuple[str, str]) -> Array:
@@ -279,6 +283,8 @@ class EventsManager(struct.PyTreeNode):
             return self.record_key_pickup(entity, hit)
         elif isinstance(entity, Ball):
             return self.record_ball_pickup(entity, hit)
+        elif isinstance(entity, Box):
+            return self.record_box_pickup(entity, hit)
         return self
 
     def record_goal_reached(self, goal: Goal, hit: Array) -> EventsManager:
@@ -364,6 +370,20 @@ class EventsManager(struct.PyTreeNode):
             EventsManager: The updated events manager."""
         return self.merge_event(
             (Entities.KEY, EventType.PICKUP), hit, key.position, key.colour
+        )
+
+    def record_box_pickup(self, box: Box, hit: Array) -> EventsManager:
+        """Flags an event when the player picks up a box as happened and returns the
+        updated events manager.
+
+        Args:
+            box (Box): Every `Box` instance in the environment.
+            hit (Array): Boolean, one entry per `box` instance.
+
+        Returns:
+            EventsManager: The updated events manager."""
+        return self.merge_event(
+            (Entities.BOX, EventType.PICKUP), hit, box.position, box.colour
         )
 
     def record_door_opening(self, door: Door, hit: Array) -> EventsManager:
@@ -515,7 +535,7 @@ class State(struct.PyTreeNode):
         """Gets the ball entity from the state."""
         return self.entities[Entities.BALL]  # type: ignore
 
-    def get_boxes(self) -> Ball:
+    def get_boxes(self) -> Box:
         """Gets the box entity from the state."""
         return self.entities[Entities.BOX]  # type: ignore
 
