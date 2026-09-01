@@ -348,14 +348,17 @@ def test_drop():
     ), "Expected pocket to be empty after drop, got {}".format(player.pocket)
 
 
-def test_drop_does_not_resurrect_a_different_pickable_type():
+def test_drop_does_not_resurrect_a_different_pickable_instance():
     # PR #186 review / issue #188: drop() used to move *every* Pickable
     # instance sitting at the discard pile, not just the one matching
-    # player.pocket - unreachable before two Pickable entity types
-    # (Key, Box) could coexist in one episode. Here the Key has already
-    # been consumed (e.g. used to unlock a door) and sits permanently at
-    # the discard pile, while the player is now separately holding a
-    # Box - dropping the Box must not resurrect the spent Key.
+    # player.pocket. Reproducible with two instances of the same
+    # Pickable type alone (no second Pickable *class* needed - the
+    # original report used Key+Box, but Box only gained an `id`/became
+    # Pickable in the still-unmerged PR #186, so this uses two Keys
+    # instead to stay independent of that PR): key id=1 has already
+    # been consumed (e.g. used to unlock a door) and sits permanently
+    # at the discard pile, while the player is now separately holding
+    # key id=2 - dropping it must not resurrect the spent key id=1.
     heigh, width = 5, 5
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
     grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
@@ -363,35 +366,26 @@ def test_drop_does_not_resurrect_a_different_pickable_type():
     player = nx.entities.Player(
         position=jnp.asarray((2, 1)), direction=jnp.asarray(0), pocket=jnp.asarray(2)
     )
-    keys = nx.entities.Key(
-        position=DISCARD_PILE_COORDS, id=jnp.asarray(1), colour=PALETTE.YELLOW
-    )
-    boxes = nx.entities.Box(
-        position=DISCARD_PILE_COORDS,
-        id=jnp.asarray(2),
-        colour=PALETTE.RED,
-        pocket=jnp.asarray(-1),
+    keys = nx.entities.Key.create(
+        position=jnp.stack([DISCARD_PILE_COORDS, DISCARD_PILE_COORDS]),
+        id=jnp.asarray([1, 2]),
+        colour=jnp.asarray([PALETTE.YELLOW, PALETTE.RED]),
     )
     cache = nx.rendering.cache.RenderingCache.init(grid)
-    entities = {
-        Entities.PLAYER: player[None],
-        Entities.KEY: keys[None],
-        Entities.BOX: boxes[None],
-    }
+    entities = {Entities.PLAYER: player[None], Entities.KEY: keys}
     state = State(key=key, grid=grid, cache=cache, entities=entities)
 
     state = nx.actions.drop(state)
 
-    boxes = state.get_boxes()
-    assert jnp.array_equal(
-        boxes.position[0], jnp.asarray((2, 2))
-    ), "Expected box to be dropped in front of the player at (2, 2), got {}".format(
-        boxes.position[0]
-    )
     keys = state.get_keys()
     assert jnp.array_equal(
+        keys.position[1], jnp.asarray((2, 2))
+    ), "Expected key id=2 (in pocket) to be dropped in front of the player at (2, 2), got {}".format(
+        keys.position[1]
+    )
+    assert jnp.array_equal(
         keys.position[0], DISCARD_PILE_COORDS
-    ), "Expected the already-consumed key to stay at the discard pile, got {}".format(
+    ), "Expected the already-consumed key id=1 to stay at the discard pile, got {}".format(
         keys.position[0]
     )
     player = state.get_player()
