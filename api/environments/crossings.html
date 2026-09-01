@@ -1815,6 +1815,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.crossings.Crossings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Crossings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Crossings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.crossings.Crossings.obstacle_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;obstacle_type
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2425,6 +2453,81 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.crossings.Crossings" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Crossings</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.environments.crossings.Crossings.obstacle_type" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">obstacle_type</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">pytree_node</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'wall'</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>"wall"</code> (<code>SimpleCrossing</code> - the obstacle blocks movement, no
+termination beyond reaching the goal) or <code>"lava"</code> (<code>LavaCrossing</code> -
+the obstacle is walkable but ends the episode via <code>on_lava_fall</code>).
+Mirrors MiniGrid's own <code>CrossingEnv(obstacle_type=Wall | Lava)</code>
+parametrization - both variants share the exact same river-
+placement algorithm (<code>_crossings_obstacle_mask</code>), only how the
+obstacle cells are materialized differs.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 
