@@ -1200,6 +1200,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.states.GRID" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;GRID
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.states.Event" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1207,6 +1218,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" Event">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.states.Event.empty_like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;empty_like
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1232,6 +1260,39 @@
   
     <nav class="md-nav" aria-label=" EventsManager">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.states.EventsManager.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.states.EventsManager.happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;happened
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.states.EventsManager.merge_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;merge_event
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#navix.states.EventsManager.record_ball_hit" class="md-nav__link">
@@ -2864,6 +2925,34 @@
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.states.GRID" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">GRID</span> <span class="o">=</span> <span class="s1">'grid'</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Pseudo entity-type key for a wall-hit against the grid boundary or a
+non-walkable empty cell, as opposed to hitting an actual <code>Wall</code> entity
+- <code>EventsManager.record_grid_hit</code>/<code>record_wall_hit</code> write to separate
+<code>(GRID, EventType.HIT)</code>/<code>(Entities.WALL, EventType.HIT)</code> slots so they
+never fight over the same one; <code>navix.events.on_wall_hit</code> ORs both
+together, so the distinction is invisible to callers that only care
+whether a wall was hit at all.</p>
+
+    </div>
+
+</div>
+
 
 
 <div class="doc doc-object doc-class">
@@ -2884,8 +2973,8 @@
 
 
         <p>A struct representing an event that happened in the environment. It contains the
-position of the event, the colour of the entity involved in the event, whether the event
-happened, and the type of event that happened.</p>
+position of the event, the colour of the entity involved in the event, and whether the
+event happened.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Notice that we need the <code>happened</code> property, which flags if an event has
@@ -2893,6 +2982,10 @@ happened or not, because JAX does not support variable size arrays.
 This means that we cannot add an event to the list in the middle of training.
 Instead, we initialise all events, and mask them out as not happened.</p>
 </div>
+<p>Every field of an <code>Event</code> stored in <code>EventsManager.events</code> is batched to match
+the entity type it tracks (see <code>empty_like</code>) - one slot per instance, not one
+scalar per event type - so e.g. two balls hitting the player the same step are
+two independent <code>True</code> entries, not collapsed into one (see issue #139).</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -2938,17 +3031,6 @@ Instead, we initialise all events, and mask them out as not happened.</p>
               </div>
             </td>
           </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.Event.event_type">event_type</span></code></td>
-            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The type of event that happened.</p>
-              </div>
-            </td>
-          </tr>
       </tbody>
     </table>
 
@@ -2972,6 +3054,95 @@ Instead, we initialise all events, and mask them out as not happened.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.states.Event.empty_like" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">empty_like</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>An all-<code>happened=False</code> <code>Event</code>, batched to match <code>entity</code>'s own
+shape (one slot per instance of <code>entity</code>) rather than a single
+scalar slot.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>entity</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="entities.html#navix.entities.Entity">Entity</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The entity type this event tracks - e.g.
+<code>state.entities[Entities.BALL]</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Event</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>position</code>/<code>colour</code>/<code>happened</code>, each broadcast to</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>entity.shape</code> (plus <code>position</code>'s own trailing <code>(2,)</code>).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -2997,6 +3168,9 @@ Instead, we initialise all events, and mask them out as not happened.</p>
 
 
         <p>Enumeration of the different types of events that can happen in the environment.</p>
+<p>Plain strings, not jax arrays - <code>EventsManager.events</code> keys off
+<code>(entity_type, event_type)</code> tuples, and a jax pytree's dict keys
+must be static, hashable Python values, not traced arrays.</p>
 
 
 
@@ -3044,8 +3218,18 @@ Instead, we initialise all events, and mask them out as not happened.</p>
 
 
 
-        <p>A struct that manages the events. It contains the different events that can happen
-in the environment, such as the goal being reached, the player being hit by a ball, etc.</p>
+        <p>A struct that manages the events that happened in the environment this
+step, such as the goal being reached, the player being hit by a ball, etc.</p>
+<p>Keyed by <code>(entity_type, event_type)</code> rather than one named field per
+event type, and each slot's <code>Event</code> is batched to match that entity
+type's own instance count (see <code>Event.empty_like</code>) - this is what lets
+two independent occurrences of the same event type (e.g. two balls
+both hitting the player) coexist within one step, rather than one
+replacing the other (see issue #139). <code>record_*</code> merges new hits into
+a slot rather than replacing it wholesale, so a call earlier in the
+same step's transition pipeline (e.g. the player walking into a ball)
+isn't discarded by a later one (e.g. a different ball moving onto the
+player) writing the same slot.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -3059,90 +3243,17 @@ in the environment, such as the goal being reached, the player being hit by a ba
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.goal_reached">goal_reached</span></code></td>
+            <td><code><span title="navix.states.EventsManager.events">events</span></code></td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
+                  <code><span title="typing.Dict">Dict</span>[<span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="str">str</span>], <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>An event indicating that the goal has been reached.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.ball_hit">ball_hit</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has been hit by a ball.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.wall_hit">wall_hit</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has hit a wall.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.lava_fall">lava_fall</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the lava has fallen.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.key_pickup">key_pickup</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has picked up a key.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.door_opening">door_opening</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has opened a door.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.door_unlock">door_unlock</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has unlocked a door.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.states.EventsManager.ball_pickup">ball_pickup</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Event&lt;/code&gt; (&lt;code&gt;navix.states.Event&lt;/code&gt;)" href="#navix.states.Event">Event</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An event indicating that the player has picked up a ball.</p>
+                <p>One <code>Event</code> slot per
+<code>(entity_type, event_type)</code> this environment's entities can
+actually produce - see <code>create</code>. Not meant to be constructed
+directly; <code>State.__post_init__</code> calls <code>create</code> automatically
+from <code>State.entities</code>.</p>
               </div>
             </td>
           </tr>
@@ -3173,8 +3284,294 @@ in the environment, such as the goal being reached, the player being hit by a ba
 <div class="doc doc-object doc-function">
 
 
+<h4 id="navix.states.EventsManager.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">entities</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Builds one all-<code>happened=False</code> <code>Event</code> slot per <code>(entity_type,
+event_type)</code> this environment's <code>entities</code> can actually produce -
+e.g. <code>(Entities.BALL, EventType.HIT)</code> only exists if
+<code>Entities.BALL in entities</code>. Called automatically by
+<code>State.__post_init__</code>; not meant to be called directly.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>entities</code>
+            </td>
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="entities.html#navix.entities.Entity">Entity</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>State.entities</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>EventsManager</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;EventsManager&lt;/code&gt; (&lt;code&gt;navix.states.EventsManager&lt;/code&gt;)" href="#navix.states.EventsManager">EventsManager</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A fresh, all-<code>happened=False</code> manager.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.states.EventsManager.happened" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">happened</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether any instance of <code>key</code>'s <code>(entity_type, event_type)</code> slot
+fired this step - <code>False</code> (not a <code>KeyError</code>) if this environment's
+<code>entities</code> never included that entity type at all (see <code>create</code>).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(entity_type, event_type)</code> slot to
+check.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A boolean scalar.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.states.EventsManager.merge_event" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">merge_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">hit</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">colour</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Records <code>hit</code> into <code>key</code>'s <code>Event</code> slot, OR-merging onto
+whatever already happened this step rather than replacing it
+wholesale - so a call earlier in the same step's transition
+pipeline isn't silently discarded by a later one writing the same
+slot (see issue #139). <code>position</code>/<code>colour</code> are written only where
+<code>hit</code> is newly <code>True</code>; already-<code>True</code> entries keep their existing
+stored <code>position</code>/<code>colour</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(entity_type, event_type)</code> slot to
+update - must already exist (see <code>create</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>hit</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Boolean - per-instance for a batched slot (e.g.
+<code>Entities.BALL, EventType.HIT</code>), a bare scalar for a
+single-instance slot (e.g. <code>GRID, EventType.HIT</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>This instance's own position - written
+where <code>hit</code> is <code>True</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>colour</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>This instance's own colour - written where
+<code>hit</code> is <code>True</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>EventsManager</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;EventsManager&lt;/code&gt; (&lt;code&gt;navix.states.EventsManager&lt;/code&gt;)" href="#navix.states.EventsManager">EventsManager</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The updated events manager.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="navix.states.EventsManager.record_ball_hit" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_ball_hit</span><span class="p">(</span><span class="n">ball</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_ball_hit</span><span class="p">(</span><span class="n">ball</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3205,7 +3602,23 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The ball that hit the player.</p>
+                <p>Every <code>Ball</code> instance in the environment.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>hit</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Boolean, one entry per <code>ball</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3247,7 +3660,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_ball_pickup" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_ball_pickup</span><span class="p">(</span><span class="n">ball</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_ball_pickup</span><span class="p">(</span><span class="n">ball</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3278,7 +3691,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The ball the player picked up.</p>
+                <p>Every <code>Ball</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3287,14 +3700,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the ball in the grid.</p>
+                <p>Boolean, one entry per <code>ball</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3336,7 +3749,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_door_opening" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_door_opening</span><span class="p">(</span><span class="n">door</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_door_opening</span><span class="p">(</span><span class="n">door</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3367,7 +3780,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The door the player opened.</p>
+                <p>Every <code>Door</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3376,14 +3789,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the door in the grid.</p>
+                <p>Boolean, one entry per <code>door</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3425,7 +3838,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_door_unlock" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_door_unlock</span><span class="p">(</span><span class="n">door</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_door_unlock</span><span class="p">(</span><span class="n">door</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3456,7 +3869,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The door the player unlocked.</p>
+                <p>Every <code>Door</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3465,14 +3878,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the door in the grid.</p>
+                <p>Boolean, one entry per <code>door</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3514,7 +3927,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_goal_reached" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_goal_reached</span><span class="p">(</span><span class="n">goal</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_goal_reached</span><span class="p">(</span><span class="n">goal</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3545,7 +3958,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The goal the player reached.</p>
+                <p>Every <code>Goal</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3554,14 +3967,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the goal in the grid.</p>
+                <p>Boolean, one entry per <code>goal</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3610,8 +4023,10 @@ updated events manager.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Flags an event when the player hits a wall as happened and returns the
-updated events manager.</p>
+        <p>Flags an event when the player hits the grid boundary or a
+non-walkable empty cell (no <code>Wall</code> entity there) as happened and
+returns the updated events manager. Kept in a separate <code>GRID</code> slot
+from <code>record_wall_hit</code> (see <code>GRID</code>'s docstring).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3634,7 +4049,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the wall in the grid.</p>
+                <p>The position hit.</p>
               </div>
             </td>
             <td>
@@ -3676,7 +4091,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_key_pickup" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_key_pickup</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_key_pickup</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3707,7 +4122,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The key the player picked up.</p>
+                <p>Every <code>Key</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3716,14 +4131,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the key in the grid.</p>
+                <p>Boolean, one entry per <code>key</code> instance.</p>
               </div>
             </td>
             <td>
@@ -3765,7 +4180,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_lava_fall" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_lava_fall</span><span class="p">(</span><span class="n">lava</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_lava_fall</span><span class="p">(</span><span class="n">lava</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3796,7 +4211,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The lava that fell.</p>
+                <p>Every <code>Lava</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -3805,14 +4220,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the lava in the grid.</p>
+                <p>Boolean, one entry per <code>lava</code> instance.</p>
               </div>
             </td>
             <td>
@@ -4032,7 +4447,7 @@ updated events manager.</p>
 
 
 <h4 id="navix.states.EventsManager.record_wall_hit" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_wall_hit</span><span class="p">(</span><span class="n">wall</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_wall_hit</span><span class="p">(</span><span class="n">wall</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
 
 </h4>
 
@@ -4063,7 +4478,7 @@ updated events manager.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The wall the player hit.</p>
+                <p>Every <code>Wall</code> instance in the environment.</p>
               </div>
             </td>
             <td>
@@ -4072,14 +4487,14 @@ updated events manager.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>position</code>
+                <code>hit</code>
             </td>
             <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The position of the wall in the grid.</p>
+                <p>Boolean, one entry per <code>wall</code> instance.</p>
               </div>
             </td>
             <td>
@@ -4226,7 +4641,9 @@ Batched over the number of entities for each type</p>
     <div class="doc doc-contents ">
 
         <p>A struct indicating which events happened this timestep. For example, the
-goal is reached, or the player is hit by a ball.</p>
+goal is reached, or the player is hit by a ball. Left at its default (empty)
+here - <code>__post_init__</code> populates it from <code>entities</code> via <code>EventsManager.create</code>,
+since a <code>struct.PyTreeNode</code> field's default can't see its sibling fields.</p>
 
     </div>
 

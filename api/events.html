@@ -2497,7 +2497,17 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A boolean array indicating whether the ball has hit something.</p>
+                <p>A boolean scalar indicating whether any ball hit the player</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>this step.</p>
               </div>
             </td>
           </tr>
@@ -2641,7 +2651,17 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A boolean array indicating whether the goal has been reached.</p>
+                <p>A boolean scalar indicating whether the goal has been reached</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>by any goal instance this step.</p>
               </div>
             </td>
           </tr>
@@ -2713,7 +2733,17 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A boolean array indicating whether the lava has fallen.</p>
+                <p>A boolean scalar indicating whether the lava has fallen for</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>any lava instance this step.</p>
               </div>
             </td>
           </tr>
@@ -2736,7 +2766,9 @@
 
     <div class="doc doc-contents ">
 
-        <p>Checks whether the wall has been hit using the <code>wall_hit</code> event.</p>
+        <p>Checks whether the wall has been hit using the <code>wall_hit</code> event -
+either an actual <code>Wall</code> entity, or the grid boundary/a non-walkable
+empty cell with no entity there (see <code>navix.states.GRID</code>).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2785,7 +2817,17 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A boolean array indicating whether the wall has been hit.</p>
+                <p>A boolean scalar indicating whether a wall was hit this</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>step.</p>
               </div>
             </td>
           </tr>
