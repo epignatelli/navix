@@ -410,17 +410,23 @@ class Ball(Entity, HasColour, Stochastic):
         return jnp.broadcast_to(0, self.shape)
 
 
-class Box(Entity, HasColour, Holder):
-    """Goals are entities that can be reached by the player"""
+class Box(Entity, Pickable, HasColour, Holder):
+    """A pickable container - `id` (from `Pickable`) identifies this box
+    instance the same way `Key.id` does, for `actions.pickup` to match
+    against `player.pocket`; `pocket` (from `Holder`) is a *different*
+    field, for whatever item is hidden inside the box (e.g. a `Key`'s
+    id), unrelated to the box's own pickup-identity."""
 
     @classmethod
     def create(
         cls,
         position: Array,
         colour: Array,
+        id: Array,
         pocket: Array,
     ) -> Box:
-        return cls(position=position, colour=colour, pocket=pocket)
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
+        return cls(position=position, colour=colour, id=id, pocket=pocket)
 
     @property
     def walkable(self) -> Array:

@@ -31,3 +31,4 @@ from .crossings import Crossings
 from .dynamic_obstacles import DynamicObstacles
 from .dist_shift import DistShift
 from .go_to_door import GoToDoor
+from .unlock import Unlock, UnlockPickup
