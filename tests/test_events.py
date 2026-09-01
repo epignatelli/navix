@@ -39,11 +39,15 @@ same seed, genuinely different procedurally-generated layout). Reading
 positions from the live state instead of assuming them keeps these
 tests meaningful regardless of which jax version produced the layout.
 
-Every test calls `navix.actions`/`navix.transitions` functions directly
-(not `env.step`), so movement is fully deterministic - `env.step`'s
-`stochastic_transition` also runs `update_balls` (random per-step ball
-movement) after every action, which would make navigation
-non-reproducible."""
+Every test but the last calls `navix.actions`/`navix.transitions`
+functions directly (not `env.step`), so movement is fully deterministic
+- `env.step`'s `stochastic_transition` also runs `update_balls` (random
+per-step ball movement) after every action, which would make navigation
+non-reproducible.
+`test_events_reset_each_step_not_persisted_across_episode` is the
+exception - it specifically tests `Environment._step`'s own per-step
+events reset, which only `env.step` (not bare `navix.actions` calls)
+goes through."""
 
 from __future__ import annotations
 
@@ -399,3 +403,62 @@ def test_happened_returns_false_not_keyerror_for_absent_entity_type():
     # on_wall_hit must still work (falls back to the always-present GRID
     # slot) even though this environment has no Wall entities.
     assert not bool(nx.events.on_wall_hit(state))
+
+
+def test_events_reset_each_step_not_persisted_across_episode():
+    # EventsManager's own docstring says events are "which events
+    # happened this timestep" - but merge_event only ever ORs new hits
+    # onto whatever a slot already holds (necessary within one step's
+    # own compound transition pipeline - see issue #139, e.g. an action
+    # and transitions.update_balls both recording a hit in the same
+    # step must not clobber each other), so something has to actually
+    # clear a slot back to False *between different* steps, or a
+    # non-terminating reward/observation reading state.events would see
+    # a stale hit from N steps ago as if it just happened again (this
+    # was never observable for the terminating conditions - on_goal_
+    # reached/on_lava_fall/on_ball_hit all end the episode the first
+    # time they fire, so there's no later step to leak into before
+    # autoreset gives every entity a fresh EventsManager anyway - but a
+    # non-terminating one like rewards.wall_hit_cost would be, checked
+    # here directly instead). Environment._step now resets state.events
+    # to fresh right before running transitions_fn each step - verified
+    # here via a real env.step() cycle (the only test in this file that
+    # does; see this module's own docstring for why every other test
+    # calls navix.actions directly instead).
+    env = nx.make("Navix-DoorKey-5x5-v0")
+    timestep = env.reset(jax.random.PRNGKey(0))
+    state = timestep.state
+
+    wall = state.entities[Entities.WALL]
+    wall_row = int(wall.position[0, 0])
+    doors = state.get_doors()
+    door_col = int(doors.position[0, 1])
+
+    # navix.actions.DEFAULT_ACTION_SET (Navix-DoorKey-5x5-v0 doesn't
+    # override action_set) is (rotate_ccw, rotate_cw, forward, pickup,
+    # drop, toggle, done).
+    ROTATE_CCW, ROTATE_CW, FORWARD = 0, 1, 2
+
+    # face south, walk down to the wall's own row, face east again -
+    # via real env.step() calls this time, not the bare navix.actions
+    # calls this file's other tests use.
+    timestep = env.step(timestep, jnp.asarray(ROTATE_CW))  # east -> south
+    for _ in range(wall_row - 1):
+        timestep = env.step(timestep, jnp.asarray(FORWARD))
+    timestep = env.step(timestep, jnp.asarray(ROTATE_CCW))  # south -> east
+
+    assert not timestep.state.events.happened((Entities.WALL, EventType.HIT))
+    timestep = env.step(timestep, jnp.asarray(FORWARD))  # walk into the wall
+    assert timestep.state.get_player().position.tolist() == [wall_row, door_col - 1]
+    assert timestep.state.events.happened((Entities.WALL, EventType.HIT)), (
+        "the wall hit should be recorded on the step it actually happened"
+    )
+
+    # a following step that doesn't hit anything (a pure rotation) must
+    # NOT still show the wall hit as True - it happened last step, not
+    # this one.
+    timestep = env.step(timestep, jnp.asarray(ROTATE_CCW))
+    assert not timestep.state.events.happened((Entities.WALL, EventType.HIT)), (
+        "WALL/HIT must reset once the step it happened on is over, not "
+        "persist for the rest of the episode"
+    )

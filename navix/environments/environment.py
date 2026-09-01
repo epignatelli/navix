@@ -28,7 +28,7 @@ from flax import struct
 
 from .. import rewards, terminations, observations, transitions
 from ..rendering.cache import RenderingCache, TILE_SIZE
-from ..states import State
+from ..states import EventsManager, State
 from ..actions import DEFAULT_ACTION_SET
 from ..spaces import Space, Discrete, Continuous
 from ..entities import EntityIds
@@ -186,8 +186,27 @@ class Environment(struct.PyTreeNode):
         Returns:
             (Timestep): The timestep at time $t + 1$
         """
+        # events are a per-step record - EventsManager's own docstring
+        # says "which events happened this timestep" - but
+        # EventsManager.merge_event only ever ORs new hits onto
+        # whatever a slot already holds (by design, see issue #139:
+        # that's what lets two events in the *same* step's transition
+        # pipeline both survive), so nothing actually clears a slot
+        # back to False between steps unless something does it here.
+        # Reset before the transition runs, not after, so a hit
+        # recorded during this step's own transition_fn call still
+        # counts - only carried-over history from earlier steps is
+        # dropped. Without this, a non-terminating reward like
+        # rewards.wall_hit_cost would keep firing every subsequent step
+        # after the first wall hit, not just the step it happened
+        # (terminating conditions like on_goal_reached/on_lava_fall/
+        # on_ball_hit were never actually affected by this in practice -
+        # the episode ends the first time they fire, so there's no
+        # "subsequent step" for the stale True to leak into before
+        # autoreset gives every entity a fresh EventsManager anyway).
+        reset_state = timestep.state.replace(events=EventsManager())
         # update agents
-        state = self.transitions_fn(timestep.state, action, self.action_set)
+        state = self.transitions_fn(reset_state, action, self.action_set)
         t = timestep.t + 1
 
         # calculate termination
