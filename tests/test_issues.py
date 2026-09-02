@@ -72,6 +72,7 @@ def test_91():
         position=jnp.asarray((1, 2)),
         colour=PALETTE.BLUE,
         probability=jnp.asarray(0.0),
+        id=jnp.asarray(1),
     )
     cache = RenderingCache.init(grid)
     state = State(
@@ -120,6 +121,7 @@ def test_139():
         position=jnp.asarray([[1, 2], [3, 2]]),
         colour=jnp.asarray([PALETTE.BLUE, PALETTE.RED]),
         probability=jnp.asarray([0.0, 0.0]),
+        id=jnp.asarray([1, 2]),
     )
     found_both = False
     for seed in range(200):
@@ -146,6 +148,7 @@ def test_139():
         position=jnp.asarray([[2, 3], [1, 1]]),  # ball 0 directly in front
         colour=jnp.asarray([PALETTE.BLUE, PALETTE.RED]),
         probability=jnp.asarray([0.0, 0.0]),
+        id=jnp.asarray([1, 2]),
     )
     state2 = State(
         key=jax.random.PRNGKey(0),
