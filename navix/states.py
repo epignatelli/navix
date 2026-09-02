@@ -468,15 +468,15 @@ class State(struct.PyTreeNode):
     goal is reached, or the player is hit by a ball. Left at its default (empty)
     here - `__post_init__` populates it from `entities` via `EventsManager.create`,
     since a `struct.PyTreeNode` field's default can't see its sibling fields."""
-    mission: Event | None = None
-    """The environment's primary mission target, if any (e.g. the door to
-    open in `GoToDoor`, the object to reach in `GoToObject`, the object to
-    carry in `Fetch`/`PutNear`)."""
-    mission2: Event | None = None
-    """A second, independently-tracked mission target, if any - only
-    `PutNear` needs this today (the object to drop *near*, distinct from
-    `mission`'s "object to carry"); every other environment leaves this
-    at its default `None`."""
+    mission: Tuple[Event, ...] = ()
+    """The environment's mission target(s), if any - e.g. `(door,)` in
+    `GoToDoor`, `(target,)` in `GoToObject`/`Fetch`, `(carry, drop_near)`
+    in `PutNear` (index 0 is always the "primary"/carry target; index 1,
+    where present, is a second, independently-tracked target - only
+    `PutNear` needs two today). Empty for an environment with no mission
+    at all. A tuple, not a fixed number of separate fields, so a future
+    environment needing a third simultaneous target is just a longer
+    tuple, not another numbered field."""
 
     def __post_init__(self) -> None:
         # events.events is only ever empty right after construction with no
