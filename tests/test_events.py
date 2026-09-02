@@ -338,19 +338,59 @@ def test_ball_hit_walk_into():
     assert bool(nx.events.on_ball_hit(state))
 
 
+def test_ball_pickup_terminates_dynamic_obstacles():
+    # PR #191 review: Ball becoming Pickable means actions.pickup no
+    # longer no-ops facing a ball in Navix-Dynamic-Obstacles-* (every
+    # registered environment includes pickup in its default action_set,
+    # and this is the only pre-existing environment that constructs
+    # Ball - confirmed via grep, no other shipped environment is
+    # affected). Rather than silently removing the ball from play, or
+    # shrinking the action space to exclude pickup (which would make
+    # this environment's action interface heterogeneous with the rest
+    # of the suite, breaking any agent meant to train across all of
+    # it), DynamicObstacles' termination_fn now also fires on
+    # ball_pickup, exactly like it already does on ball_hit - picking
+    # one up ends the episode the same way touching it always did.
+    PICKUP = 3
+    env = nx.make("Navix-Dynamic-Obstacles-5x5-v0")
+    timestep = env.reset(jax.random.PRNGKey(0))
+    state = timestep.state
+
+    player = state.get_player()
+    assert player.position.tolist() == [1, 1]
+
+    balls = state.get_balls()
+    balls = balls.replace(position=jnp.asarray([[3, 2], [2, 2]]))
+    state = state.replace(entities={**state.entities, Entities.BALL: balls})
+    state = walk_to(state, 2, 1)
+    state = face(state, EAST)
+    timestep = timestep.replace(state=state)
+
+    assert timestep.step_type == 0
+    timestep = env.step(timestep, jnp.asarray(PICKUP))
+
+    assert timestep.state.events.happened((Entities.BALL, EventType.PICKUP)), (
+        "expected a ball_pickup event"
+    )
+    assert timestep.step_type == 2, (
+        "expected termination on picking up a ball, same as walking into one"
+    )
+    assert float(timestep.reward) == 0, "expected zero reward (goal wasn't reached)"
+
+
 def test_door_unlock_and_ball_pickup_are_directly_testable():
-    # record_door_unlock and record_ball_pickup are the two record_*
-    # methods no current navix action ever calls: actions.open only ever
-    # calls record_door_opening (even when it unlocks a locked door in
-    # the same step - see test_wall_key_door_goal_sequence above, where
+    # record_door_unlock is the one record_* method no current navix
+    # action ever calls: actions.open only ever calls
+    # record_door_opening (even when it unlocks a locked door in the
+    # same step - see test_wall_key_door_goal_sequence above, where
     # DOOR/UNLOCK stays False despite the door being both unlocked and
-    # opened), and actions.pickup only ever handles Key, never Ball
-    # (confirmed via grep across navix/ before writing this test - no
-    # call site for either exists outside states.py itself). That's a
-    # pre-existing gap unrelated to issue #139 (not something this PR
-    # changes), but merge_event's own correctness for these two slots
-    # is still worth verifying directly, the same way the reachable
-    # record_* methods are verified above through real gameplay.
+    # opened). record_ball_pickup *is* reachable through real gameplay
+    # as of PR #191 (actions.pickup handles Ball, not just Key/Box - see
+    # test_ball_pickup_terminates_dynamic_obstacles below for that path
+    # exercised directly), but merge_event's own correctness for both
+    # slots is still worth verifying directly here too, the same way
+    # the other record_* methods are verified above through real
+    # gameplay.
     env = nx.make("Navix-DoorKey-5x5-v0")
     timestep = env.reset(jax.random.PRNGKey(0))
     state = timestep.state

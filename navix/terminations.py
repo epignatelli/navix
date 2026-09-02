@@ -96,6 +96,24 @@ def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_ball_hit(state), dtype=jnp.bool_)
 
 
+def on_ball_pickup(prev_state: State, action: Array, state: State) -> Array:
+    """Check if any ball was picked up this step, using the `ball_pickup`
+    event - for environments (e.g. `DynamicObstacles`) where `Ball`
+    represents a hazard to avoid touching, not an object to carry:
+    composing this alongside `on_ball_hit` makes picking one up end the
+    episode the same way walking into it already does, rather than
+    silently removing it from play now that `Ball` is `Pickable`.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether any ball was picked up."""
+    return jnp.asarray(events.on_ball_pickup(state), dtype=jnp.bool_)
+
+
 def on_door_done(prev_state: State, action: Array, state: State) -> Array:
     """Check if the action `done` has been called in front of a `Door` object with the \
         correct colour.
