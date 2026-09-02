@@ -35,6 +35,11 @@ EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
 ROTATE_CCW, ROTATE_CW, FORWARD = 0, 1, 2
 
 N_SEEDS = 20
+# real env.step() gameplay walks are the expensive part (each one is a
+# fresh JIT compilation) - same finding as test_unlock.py's
+# GAMEPLAY_SEEDS: keep these few, structural checks cover every seed
+# cheaply instead.
+GAMEPLAY_SEEDS = 2
 
 FIXED_LENGTH_ENV_IDS = (
     "Navix-MemoryS13-v0",
@@ -116,7 +121,7 @@ def test_memory_structure():
 
 def test_memory_success_and_failure():
     for env_id in FIXED_LENGTH_ENV_IDS:
-        for seed in range(N_SEEDS):
+        for seed in range(GAMEPLAY_SEEDS):
             env = nx.make(env_id)
             timestep = env.reset(jax.random.PRNGKey(seed))
             state = timestep.state
