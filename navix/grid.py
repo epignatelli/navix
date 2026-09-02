@@ -254,6 +254,39 @@ def random_positions(
     return position.squeeze()
 
 
+def random_distinct_positions(
+    key: Array, grid: Array, n: int, exclude: Array = jnp.asarray((-1, -1))
+) -> Array:
+    """Generates `n` *mutually distinct* random positions in the grid,
+    each also excluding `exclude` - unlike `random_positions(..., n=n)`,
+    whose `n` draws are i.i.d. (`jax.random.categorical` samples with
+    replacement) and so can collide with each other (see issue #172's
+    PR: GoToObject/Fetch/PutNear all need genuinely distinct object
+    positions to track a mission by position alone). Draws sequentially,
+    each excluding every position drawn so far in addition to `exclude` -
+    `n` is a small static Python int in every current caller, so the
+    unrolled loop is fine under jit (same pattern as `jax.random.split`
+    being called with a static count elsewhere in this codebase).
+
+    Args:
+        key (Array): A random key.
+        grid (Array): A 2D grid of shape (height, width).
+        n (int): The number of distinct positions to generate.
+        exclude (Array, optional): Position(s) to also exclude, shape
+            `(2,)` or `(k, 2)`. Defaults to `jnp.asarray((-1, -1))`.
+
+    Returns:
+        Array: `n` mutually distinct positions of shape `i32[n, 2]`."""
+    exclude = jnp.atleast_2d(exclude)
+    keys = jax.random.split(key, n)
+    positions = []
+    for i in range(n):
+        excluded_so_far = jnp.concatenate([exclude, *positions], axis=0)
+        pos = random_positions(keys[i], grid, n=1, exclude=excluded_so_far)
+        positions.append(jnp.reshape(pos, (1, 2)))
+    return jnp.concatenate(positions, axis=0)
+
+
 def random_directions(key: Array, n=1) -> Array:
     """Generates `n` random directions in the range [0, 1, 2, 3] representing the \
         cardinal directions [east, south, west, north].
