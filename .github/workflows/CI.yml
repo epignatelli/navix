@@ -33,7 +33,7 @@ jobs:
       - name: Run unit tests with pytest
         run: |
           wandb offline
-          pytest
+          pytest -n auto
       - name: Run examples
         run: |
           for example in examples/*.py; do
