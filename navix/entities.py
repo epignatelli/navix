@@ -371,11 +371,24 @@ class Lava(Entity):
 
 
 class Ball(Entity, Pickable, HasColour, Stochastic):
-    """A pickable, stochastic obstacle - `id` (from `Pickable`) identifies
-    this ball instance for `actions.pickup`/`actions.drop`, the same way
-    `Key.id`/`Box.id` do; `probability` (from `Stochastic`, pre-existing)
-    is unrelated to pickup and is used elsewhere (e.g. `DynamicObstacles`'
-    random movement)."""
+    """A pickable obstacle - `id` (from `Pickable`) identifies this ball
+    instance for `actions.pickup`/`actions.drop`, the same way `Key.id`/
+    `Box.id` do. `probability` (from `Stochastic`, pre-existing) is
+    unrelated to pickup - unused by `Ball` itself; every `Ball`
+    instance actually moves unconditionally each step under the default
+    `transitions.stochastic_transition` (`transitions.update_balls`,
+    regardless of `probability`'s value), which is why any environment
+    wanting a static `Ball` (a pickup target/decoy, not a wandering
+    obstacle) must register with `transitions_fn=transitions.
+    deterministic_transition` instead - see `GoToObject`/`Fetch`/
+    `PutNear`/`BlockedUnlockPickup`.
+
+    BREAKING CHANGE: `Ball` becoming `Pickable` means `actions.pickup`
+    no longer no-ops facing a `Ball` in any environment whose
+    action_set includes `pickup` and whose transitions_fn is the
+    default `stochastic_transition` - concretely, this changes
+    `Navix-Dynamic-Obstacles-*`'s existing dynamics: `pickup` now
+    removes the faced obstacle from play instead of doing nothing."""
 
     @classmethod
     def create(
