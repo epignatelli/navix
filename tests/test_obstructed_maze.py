@@ -17,12 +17,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""`ObstructedMaze1Dlhb` (issue #183, smallest variant only - see that
-issue's own staged-rollout recommendation): structural checks against
-the live reset state, plus a full hand-crafted gameplay walkthrough
-via real `env.step()` calls - clear the blocking ball, open the box to
-reveal the key, unlock and open the door, cross into the second room,
-pick up the target ball. Uses BFS pathfinding (not a row-then-column
+"""`ObstructedMaze`'s `1D*` variants (issue #183 - the `Full`-based
+`2D*`/`1Q`/`2Q`/`Full` registrations need a 3x3 room grid and are
+deliberately deferred, see that issue's staged-rollout
+recommendation): structural checks against the live reset state, plus
+a full gameplay walkthrough via real `env.step()` calls.
+
+The walkthrough adapts to whichever obstacles a variant actually has
+rather than being written three times - clear the blocking ball (only
+`1Dlhb`), open the box to reveal the key (`1Dlh`/`1Dlhb`) or pick it
+straight off the floor (`1Dl`), then unlock the door, cross, and take
+the target ball. Uses BFS pathfinding (not a row-then-column
 heuristic) since the blocking ball can end up dropped anywhere,
 matching test_unlock.py's own `BlockedUnlockPickup` precedent."""
 
@@ -43,7 +48,24 @@ EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
 ROTATE_CW, FORWARD, PICKUP, DROP, TOGGLE = 1, 2, 3, 4, 5
 
 N_SEEDS = 3
-GAMEPLAY_SEEDS = 2
+# one seed only: each variant's *distinct solve path* is the coverage
+# that matters here, and there are three of them - extra seeds replay
+# the same path at real env.step() cost. #196's CI job OOMed on
+# exactly this shape (several env ids x a gameplay walkthrough in one
+# process, each env id its own JIT compilation).
+GAMEPLAY_SEEDS = 1
+
+ENV_IDS = (
+    "Navix-ObstructedMaze-1Dl-v0",
+    "Navix-ObstructedMaze-1Dlh-v0",
+    "Navix-ObstructedMaze-1Dlhb-v0",
+)
+# key_in_box, blocked - MiniGrid's own per-id registration kwargs
+VARIANT_FLAGS = {
+    "Navix-ObstructedMaze-1Dl-v0": (False, False),
+    "Navix-ObstructedMaze-1Dlh-v0": (True, False),
+    "Navix-ObstructedMaze-1Dlhb-v0": (True, True),
+}
 
 
 def face_via_step(env, timestep, direction: int):
@@ -142,90 +164,120 @@ def bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row: int, targ
     raise AssertionError(f"no reachable approach cell for target {target}")
 
 
-def test_obstructed_maze_1dlhb_structure():
-    env = nx.make("Navix-ObstructedMaze-1Dlhb-v0")
-    for seed in range(N_SEEDS):
-        state = env.reset(jax.random.PRNGKey(seed)).state
+def test_obstructed_maze_structure():
+    for env_id in ENV_IDS:
+        key_in_box, blocked = VARIANT_FLAGS[env_id]
+        env = nx.make(env_id)
+        for seed in range(N_SEEDS):
+            state = env.reset(jax.random.PRNGKey(seed)).state
+            where = f"{env_id} seed={seed}"
 
-        doors = state.get_doors()
-        assert bool(doors.requires[0] == 1), f"seed={seed}: door must require key id 1"
-        assert not bool(doors.open[0]), f"seed={seed}: door must start closed"
+            doors = state.get_doors()
+            assert bool(doors.requires[0] == 1), f"{where}: door must require key id 1"
+            assert not bool(doors.open[0]), f"{where}: door must start closed"
 
-        keys = state.get_keys()
-        assert (keys.position[0] == DISCARD_PILE_COORDS).all(), (
-            f"seed={seed}: key must start hidden (discard pile) until the box is opened"
-        )
+            # the key is hidden in a box, or lying on the floor
+            keys = state.get_keys()
+            hidden = bool((keys.position[0] == DISCARD_PILE_COORDS).all())
+            assert hidden == key_in_box, f"{where}: key hidden={hidden}, key_in_box={key_in_box}"
+            assert (Entities.BOX in state.entities) == key_in_box, (
+                f"{where}: box presence must follow key_in_box"
+            )
+            if key_in_box:
+                assert int(state.get_boxes().pocket[0]) == 1, f"{where}: box must hold key id 1"
+            else:
+                row, col = int(keys.position[0, 0]), int(keys.position[0, 1])
+                assert int(state.grid[row, col]) == 0, f"{where}: key must lie on a floor cell"
 
-        boxes = state.get_boxes()
-        assert int(boxes.pocket[0]) == 1, f"seed={seed}: box must hold key id 1"
-
-        balls = state.get_balls()
-        assert balls.position.shape[0] == 2, f"seed={seed}: expected 2 balls (blocker + target)"
-
-        mission_row, mission_col = (int(x) for x in state.mission[0].position)
-        assert (mission_row, mission_col) == (
-            int(balls.position[1, 0]),
-            int(balls.position[1, 1]),
-        ), f"seed={seed}: mission must target the second (non-blocking) ball"
+            # a blocking ball only exists for the `blocked` variants,
+            # and the target is always the last ball
+            balls = state.get_balls()
+            assert balls.position.shape[0] == (2 if blocked else 1), (
+                f"{where}: unexpected ball count for blocked={blocked}"
+            )
+            assert bool((state.mission[0].position == balls.position[-1]).all()), (
+                f"{where}: mission must target the last (non-blocking) ball"
+            )
 
 
-def test_obstructed_maze_1dlhb_gameplay_and_reward_termination():
-    for seed in range(GAMEPLAY_SEEDS):
-        env = nx.make("Navix-ObstructedMaze-1Dlhb-v0")
-        timestep = env.reset(jax.random.PRNGKey(seed))
-        state = timestep.state
-        doors = state.get_doors()
-        door_row, door_col = int(doors.position[0, 0]), int(doors.position[0, 1])
-        boxes = state.get_boxes()
-        box_row, box_col = int(boxes.position[0, 0]), int(boxes.position[0, 1])
-        balls = state.get_balls()
+def solve_via_step(env, timestep, seed_label: str):
+    """Plays a variant through to the target ball, adapting to whichever
+    obstacles it actually has (see this module's docstring)."""
+    state = timestep.state
+    doors = state.get_doors()
+    door_row, door_col = int(doors.position[0, 0]), int(doors.position[0, 1])
+    balls = state.get_balls()
+    blocked = balls.position.shape[0] == 2
+    target_row, target_col = int(balls.position[-1, 0]), int(balls.position[-1, 1])
+
+    # 1. clear the blocking ball out of the door's only approach cell,
+    # then drop it back the way we came (a known-free cell)
+    if blocked:
         block_row, block_col = int(balls.position[0, 0]), int(balls.position[0, 1])
-        target_row, target_col = int(balls.position[1, 0]), int(balls.position[1, 1])
-
-        # clear the blocking ball out of the door's only approach cell
         timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, block_row, block_col)
         timestep = env.step(timestep, jnp.asarray(PICKUP))
         assert int(timestep.state.get_player().pocket) != int(EMPTY_POCKET_ID), (
-            f"seed={seed}: blocking ball not picked up"
+            f"{seed_label}: blocking ball not picked up"
         )
+        approach_dir = int(timestep.state.get_player().direction)
         timestep = env.step(timestep, jnp.asarray(FORWARD))
-        timestep = face_via_step(env, timestep, WEST)
+        timestep = face_via_step(env, timestep, (approach_dir + 2) % 4)
         timestep = env.step(timestep, jnp.asarray(DROP))
         assert int(timestep.state.get_player().pocket) == int(EMPTY_POCKET_ID), (
-            f"seed={seed}: pocket not freed after dropping the ball"
+            f"{seed_label}: pocket not freed after dropping the ball"
         )
 
-        # open the box, revealing the key at the same position
+    # 2. get the key - opening the box first when it is hidden in one
+    if Entities.BOX in timestep.state.entities:
+        boxes = timestep.state.get_boxes()
+        box_row, box_col = int(boxes.position[0, 0]), int(boxes.position[0, 1])
         timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, box_row, box_col)
         timestep = env.step(timestep, jnp.asarray(TOGGLE))
         assert (timestep.state.get_boxes().position[0] == DISCARD_PILE_COORDS).all(), (
-            f"seed={seed}: box not removed after opening"
+            f"{seed_label}: box not removed after opening"
         )
-        assert (timestep.state.get_keys().position[0] == jnp.asarray([box_row, box_col])).all(), (
-            f"seed={seed}: key not revealed at the box's former position"
-        )
-
-        # still facing that same cell - pick up the now-revealed key
+        assert (
+            timestep.state.get_keys().position[0] == jnp.asarray([box_row, box_col])
+        ).all(), f"{seed_label}: key not revealed at the box's former position"
+        # still facing that same cell - take the now-revealed key
         timestep = env.step(timestep, jnp.asarray(PICKUP))
-        assert int(timestep.state.get_player().pocket) == 1, f"seed={seed}: key not picked up"
-
-        # unlock and open the door
-        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, door_row, door_col)
-        timestep = env.step(timestep, jnp.asarray(TOGGLE))
-        assert bool(timestep.state.get_doors().open[0]), f"seed={seed}: door not opened"
-        assert timestep.step_type == 0, f"seed={seed}: episode ended before reaching the target"
-
-        # cross through and pick up the target ball
-        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row, target_col)
+    else:
+        keys = timestep.state.get_keys()
+        key_row, key_col = int(keys.position[0, 0]), int(keys.position[0, 1])
+        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, key_row, key_col)
         timestep = env.step(timestep, jnp.asarray(PICKUP))
-        assert timestep.step_type == 2, f"seed={seed}: expected termination on the target pickup"
-        assert float(timestep.reward) > 0, f"seed={seed}: expected positive reward"
+    assert int(timestep.state.get_player().pocket) == 1, f"{seed_label}: key not picked up"
+
+    # 3. unlock and open the door
+    timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, door_row, door_col)
+    timestep = env.step(timestep, jnp.asarray(TOGGLE))
+    assert bool(timestep.state.get_doors().open[0]), f"{seed_label}: door not opened"
+    assert timestep.step_type == 0, f"{seed_label}: episode ended before reaching the target"
+
+    # 4. cross through and pick up the target ball
+    timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row, target_col)
+    return env.step(timestep, jnp.asarray(PICKUP))
 
 
-def test_obstructed_maze_1dlhb_wrong_pickup_does_not_terminate():
+def test_obstructed_maze_gameplay_and_reward_termination():
+    for env_id in ENV_IDS:
+        env = nx.make(env_id)
+        for seed in range(GAMEPLAY_SEEDS):
+            timestep = env.reset(jax.random.PRNGKey(seed))
+            timestep = solve_via_step(env, timestep, f"{env_id} seed={seed}")
+            assert timestep.step_type == 2, (
+                f"{env_id} seed={seed}: expected termination on the target pickup"
+            )
+            assert float(timestep.reward) > 0, (
+                f"{env_id} seed={seed}: expected positive reward"
+            )
+
+
+def test_obstructed_maze_wrong_pickup_does_not_terminate():
     # picking up the blocking ball (the "wrong" pickup) must not end
     # the episode - only terminations.on_target_fetched, keyed to the
-    # specific mission-target ball, does.
+    # specific mission-target ball, does. Only `1Dlhb` has a blocking
+    # ball to get this wrong with.
     env = nx.make("Navix-ObstructedMaze-1Dlhb-v0")
     timestep = env.reset(jax.random.PRNGKey(0))
     balls = timestep.state.get_balls()
@@ -237,12 +289,13 @@ def test_obstructed_maze_1dlhb_wrong_pickup_does_not_terminate():
     assert float(timestep.reward) == 0
 
 
-def test_obstructed_maze_1dlhb_jit_vmap_compatible():
-    env = nx.make("Navix-ObstructedMaze-1Dlhb-v0")
-    keys = jax.random.split(jax.random.PRNGKey(0), 4)
-    reset = jax.jit(env.reset)
-    step = jax.jit(env.step)
-    timestep = jax.vmap(reset)(keys)
-    for action in range(7):
-        timestep = jax.vmap(step, in_axes=(0, None))(timestep, jnp.asarray(action))
-    jax.block_until_ready(timestep)
+def test_obstructed_maze_jit_vmap_compatible():
+    for env_id in ENV_IDS:
+        env = nx.make(env_id)
+        keys = jax.random.split(jax.random.PRNGKey(0), 4)
+        reset = jax.jit(env.reset)
+        step = jax.jit(env.step)
+        timestep = jax.vmap(reset)(keys)
+        for action in range(7):
+            timestep = jax.vmap(step, in_axes=(0, None))(timestep, jnp.asarray(action))
+        jax.block_until_ready(timestep)
