@@ -232,5 +232,24 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     )
 
 
+def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
+    """`Memory`'s reward: 1 if the player reached the target position,
+    0 otherwise (including on failure). Deliberately flat, not
+    MiniGrid's step-count-shaped `1 - 0.9 * (step_count / max_steps)` -
+    matches navix's existing `on_goal_reached` convention, itself
+    already the same simplification versus real MiniGrid's `Goal`
+    reward, kept here for consistency rather than a one-off shaped
+    reward unique to this environment.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]`."""
+    return jnp.asarray(events.on_memory_success(state), dtype=jnp.float32)
+
+
 DEFAULT_TASK = compose(on_goal_reached, action_cost)
 """The default task for the game, composed of the `on_goal_reached` and `action_cost` reward functions."""

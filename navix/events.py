@@ -367,3 +367,48 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     col_diff = jnp.abs(drop_position[1] - state.mission[1].position[1])
     near_target = jnp.maximum(row_diff, col_diff) <= 1
     return jnp.logical_and(drop_succeeded, near_target)
+
+
+def on_memory_success(state: State) -> Array:
+    """`Memory`'s win condition (verified against MiniGrid's actual
+    `MemoryEnv.step`): the player has walked onto `state.mission`'s
+    target position - pure position equality, no `done` action, no
+    facing (the target cell is an ordinary walkable floor cell
+    adjacent to the matching object, not the object's own cell).
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean scalar."""
+    assert (
+        len(state.mission) > 0
+    ), "on_memory_success requires the state to specify a mission."
+    player = state.entities[Entities.PLAYER][0]
+    assert isinstance(player, Player)
+    return jnp.all(player.position == state.mission[0].position)
+
+
+def on_memory_failure(state: State) -> Array:
+    """`Memory`'s fail condition: the player has walked onto the cell
+    adjacent to the *wrong* object. `failure_pos` is never stored as
+    its own mission slot - it's always the mirror image of `state.
+    mission`'s (success) position across the hallway's centre row
+    (`state.grid.shape[0] // 2`, verified against MiniGrid's actual
+    `_gen_grid`: both positions sit at `height // 2 - 1`/`height // 2
+    + 1`), so it's derived here instead.
+
+    Args:
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean scalar."""
+    assert (
+        len(state.mission) > 0
+    ), "on_memory_failure requires the state to specify a mission."
+    player = state.entities[Entities.PLAYER][0]
+    assert isinstance(player, Player)
+    hallway_mid_row = state.grid.shape[0] // 2
+    success_row, success_col = state.mission[0].position
+    failure_pos = jnp.asarray([2 * hallway_mid_row - success_row, success_col])
+    return jnp.all(player.position == failure_pos)

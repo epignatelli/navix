@@ -248,4 +248,32 @@ def on_put_near_drop_attempted(prev_state: State, action: Array, state: State) -
     )
 
 
+def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
+    """Check if the player reached `Memory`'s target position, using
+    the `on_memory_success` event.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the target was reached."""
+    return jnp.asarray(events.on_memory_success(state), dtype=jnp.bool_)
+
+
+def on_memory_failure(prev_state: State, action: Array, state: State) -> Array:
+    """Check if the player reached `Memory`'s wrong (failure) position,
+    using the `on_memory_failure` event.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array indicating whether the wrong position was reached."""
+    return jnp.asarray(events.on_memory_failure(state), dtype=jnp.bool_)
+
+
 DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)
