@@ -218,6 +218,23 @@ def on_any_target_pickup(prev_state: State, action: Array, state: State) -> Arra
     return jnp.asarray(events.on_any_target_pickup(state), dtype=jnp.bool_)
 
 
+def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
+    """`ObstructedMaze`'s termination: only picking up the *specific*
+    mission-target `Key`/`Ball` ends the episode - unlike `Fetch`'s
+    `on_any_target_pickup`, a wrong pickup (the blocking `Ball`, say)
+    does not end it here, matching MiniGrid's actual `ObstructedMazeEnv`
+    (reward + termination only on picking up the target).
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A boolean array."""
+    return jnp.asarray(events.on_target_fetched(state), dtype=jnp.bool_)
+
+
 def on_put_near_wrong_pickup(prev_state: State, action: Array, state: State) -> Array:
     """`PutNear`'s failure-on-pickup termination: the wrong object was
     picked up this step.

@@ -461,6 +461,155 @@ def horizontal_wall(
     return positions
 
 
+def room_grid_dims(room_size: int, num_rows: int, num_cols: int) -> Tuple[int, int]:
+    """The `(height, width)` of a `room_grid` layout - adjacent rooms
+    share a single-cell-thick dividing wall (verified against
+    MiniGrid's actual `RoomGrid.__init__`), so the grid is smaller than
+    `num_rows * room_size` naively.
+
+    Args:
+        room_size (int): The size (both height and width) of one room,
+            including its own walls. Must be >= 3 (at least a 1-cell
+            interior).
+        num_rows (int): Number of rooms stacked vertically.
+        num_cols (int): Number of rooms stacked horizontally.
+
+    Returns:
+        Tuple[int, int]: The `(height, width)` of the full grid."""
+    height = (room_size - 1) * num_rows + 1
+    width = (room_size - 1) * num_cols + 1
+    return height, width
+
+
+def room_grid(room_size: int, num_rows: int, num_cols: int) -> Array:
+    """Creates the base occupancy grid for a `num_rows` x `num_cols`
+    layout of `room_size` x `room_size` rooms: the outer border plus
+    every internal room-dividing wall, with no doors punched through
+    yet (every room is fully sealed off from its neighbours) - callers
+    open specific cells with `open_wall` to place doors. `room_size`,
+    `num_rows`, `num_cols` are always static (environment-registration-
+    time) values, never per-episode traced ones, so this is plain
+    Python control flow, not vectorised.
+
+    Args:
+        room_size (int): The size of one room, including its own walls.
+        num_rows (int): Number of rooms stacked vertically.
+        num_cols (int): Number of rooms stacked horizontally.
+
+    Returns:
+        Array: A 2D grid of shape `(height, width)`."""
+    height, width = room_grid_dims(room_size, num_rows, num_cols)
+    grid = jnp.zeros((height, width), dtype=jnp.int32)
+    grid = grid.at[jnp.asarray([0, height - 1])].set(-1)
+    grid = grid.at[:, jnp.asarray([0, width - 1])].set(-1)
+    for i in range(1, num_rows):
+        grid = grid.at[i * (room_size - 1)].set(-1)
+    for j in range(1, num_cols):
+        grid = grid.at[:, j * (room_size - 1)].set(-1)
+    return grid
+
+
+def room_top_left(room_size: int, i: int, j: int) -> Tuple[int, int]:
+    """The `(row, col)` of room `(i, j)`'s top-left corner (its own
+    wall, not its interior) in a `room_grid` layout.
+
+    Args:
+        room_size (int): The size of one room, including its own walls.
+        i (int): The room's row index.
+        j (int): The room's column index.
+
+    Returns:
+        Tuple[int, int]: The `(row, col)` of the room's top-left corner."""
+    return i * (room_size - 1), j * (room_size - 1)
+
+
+def room_interior_bounds(room_size: int, i: int, j: int) -> Tuple[int, int, int, int]:
+    """The inclusive `(row_min, col_min, row_max, col_max)` interior
+    bounds of room `(i, j)` in a `room_grid` layout - excludes the
+    room's own walls, the range a position can be sampled from.
+
+    Args:
+        room_size (int): The size of one room, including its own walls.
+        i (int): The room's row index.
+        j (int): The room's column index.
+
+    Returns:
+        Tuple[int, int, int, int]: The inclusive interior bounds."""
+    top_row, top_col = room_top_left(room_size, i, j)
+    return top_row + 1, top_col + 1, top_row + room_size - 2, top_col + room_size - 2
+
+
+def room_grid_door_position(
+    key: Array, room_size: int, i: int, j: int, side: int
+) -> Array:
+    """A random position along room `(i, j)`'s shared wall on the given
+    `side` - where `add_door` would place a door in MiniGrid's actual
+    `RoomGrid`. Verified against MiniGrid's own door placement: a
+    uniform random offset along the wall, excluding the corners.
+
+    Args:
+        key (Array): A random key.
+        room_size (int): The size of one room, including its own walls.
+        i (int): The room's row index.
+        j (int): The room's column index.
+        side (int): The wall side, using navix's own direction
+            convention (`entities.Directions`): 0=east, 1=south,
+            2=west, 3=north. Always a static (registration-time) value,
+            never a per-episode traced one, so this is a plain `if`,
+            not `jax.lax.switch`.
+
+    Returns:
+        Array: An `i32[2]` `(row, col)` position on the wall."""
+    top_row, top_col = room_top_left(room_size, i, j)
+    offset = jax.random.randint(key, (), minval=1, maxval=room_size - 1)
+    if side == 0:  # east
+        return jnp.asarray([top_row + offset, top_col + room_size - 1])
+    elif side == 1:  # south
+        return jnp.asarray([top_row + room_size - 1, top_col + offset])
+    elif side == 2:  # west
+        return jnp.asarray([top_row + offset, top_col])
+    else:  # north
+        return jnp.asarray([top_row, top_col + offset])
+
+
+def room_mask(grid: Array, room_size: int, i: int, j: int) -> Array:
+    """A boolean mask of `grid`'s shape, `True` only within room `(i,
+    j)`'s interior (its own walls excluded) - unlike `unlock.py`'s
+    `mask_by_coordinates` (which only tests "before a single row/col",
+    fine for a 1-row-of-rooms layout corner-anchored at the origin),
+    rooms in a general `room_grid` need all four bounds, since they
+    aren't corner-anchored. Useful for scoping `random_positions`'
+    sampling to one room.
+
+    Args:
+        grid (Array): A 2D grid of shape `(height, width)`.
+        room_size (int): The size of one room, including its own walls.
+        i (int): The room's row index.
+        j (int): The room's column index.
+
+    Returns:
+        Array: A boolean mask of shape `(height, width)`."""
+    row_min, col_min, row_max, col_max = room_interior_bounds(room_size, i, j)
+    rows, cols = coordinates(grid)
+    return (
+        (rows >= row_min) & (rows <= row_max) & (cols >= col_min) & (cols <= col_max)
+    )
+
+
+def open_wall(grid: Array, position: Array) -> Array:
+    """Removes a single wall cell (e.g. to place a door through it) by
+    setting it to floor (`0`) - the door's own entity (not the grid)
+    then controls whether the player can actually pass through.
+
+    Args:
+        grid (Array): A 2D grid of shape `(height, width)`.
+        position (Array): The `(row, col)` position to open.
+
+    Returns:
+        Array: The updated grid."""
+    return grid.at[position[0], position[1]].set(0)
+
+
 def crop(
     grid: Array, origin: Array, direction: Array, radius: int, padding_value: int = 100
 ) -> Array:
