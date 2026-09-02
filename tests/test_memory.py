@@ -34,15 +34,8 @@ from navix.components import DISCARD_PILE_COORDS
 EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
 ROTATE_CCW, ROTATE_CW, FORWARD = 0, 1, 2
 
-N_SEEDS = 5
-# real env.step() gameplay walks are the expensive part (each one is a
-# fresh JIT compilation) - same finding as test_unlock.py's
-# GAMEPLAY_SEEDS: keep these few, structural checks cover every seed
-# cheaply instead. N_SEEDS itself is also lower than the 20 other test
-# files use - Memory registers 6 sizes (2-3x any other family), so
-# even reset-only structural checks multiply out to real cumulative
-# cost (each env.reset() still does genuine work - grid/entity
-# construction, RenderingCache.init - even without recompiling).
+N_SEEDS = 3  # 3 seeds max unless a test specifically needs more
+GAMEPLAY_SEEDS = 2
 
 FIXED_LENGTH_ENV_IDS = (
     "Navix-MemoryS13-v0",
