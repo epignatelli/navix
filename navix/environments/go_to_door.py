@@ -102,7 +102,7 @@ class GoToDoor(Environment):
             grid=grid,
             cache=RenderingCache.init(grid),
             entities=entities,
-            mission=mission,
+            mission=(mission,),
         )
 
         return Timestep(
