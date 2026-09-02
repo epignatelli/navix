@@ -1,2 +1,3 @@
 minigrid
 pytest-xdist
+pytest-split
