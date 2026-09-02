@@ -305,22 +305,62 @@ def toggle(state: State) -> State:
     return open(state)
 
 
-def open(state: State) -> State:
-    """Unlocks and opens an openable object (like a door) if possible.
-    
+def open_box(state: State, position_in_front: Array) -> State:
+    """Opens the `Box` in front of the player, if any (verified against
+    MiniGrid's actual `Box.toggle`: `env.grid.set(pos, self.contains)`
+    - the box is removed and, if it held something, that object takes
+    its place at the same position). Currently only `Key` boxes are
+    supported (`Box.pocket` stores the id of a `Key` instance, the same
+    way `player.pocket` does) - `ObstructedMaze`'s only real user of
+    this, keys hidden inside boxes.
+
     Args:
         state (State): The current state.
-    
+        position_in_front (Array): The position directly in front of
+            the player.
+
+    Returns:
+        State: The new state, with any opened box removed and its
+        contents (if any) revealed at its former position."""
+    boxes = state.get_boxes()
+    opened = positions_equal(position_in_front, boxes.position)
+
+    if Entities.KEY in state.entities:
+        keys = state.get_keys()
+        has_key = boxes.pocket != EMPTY_POCKET_ID
+        revealing = opened & has_key
+        revealed_key_id = jnp.sum(jnp.where(revealing, boxes.pocket, 0))
+        reveal = jnp.any(revealing) & (keys.id == revealed_key_id)
+        keys = keys.replace(
+            position=jnp.where(reveal[:, None], position_in_front, keys.position)
+        )
+        state = state.set_keys(keys)
+
+    boxes = boxes.replace(
+        position=jnp.where(opened[:, None], DISCARD_PILE_COORDS, boxes.position)
+    )
+    return state.set_boxes(boxes)
+
+
+def open(state: State) -> State:
+    """Unlocks and opens an openable object (like a door), or opens a
+    box to reveal what it contains, if possible.
+
+    Args:
+        state (State): The current state.
+
     Returns:
         State: The new state with the openable object opened."""
+    player = state.get_player(idx=0)
+    position_in_front = translate(player.position, player.direction)
+
+    if Entities.BOX in state.entities:
+        state = open_box(state, position_in_front)
+
     if Entities.DOOR not in state.entities:
         return state
 
-    # get the tile in front of the player
-    player = state.get_player(idx=0)
     doors = state.get_doors()
-
-    position_in_front = translate(player.position, player.direction)
 
     # check if there is a door in front of the player
     door_found = positions_equal(position_in_front, doors.position)

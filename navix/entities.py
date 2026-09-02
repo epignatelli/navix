@@ -434,7 +434,19 @@ class Box(Entity, Pickable, HasColour, Holder):
     instance the same way `Key.id` does, for `actions.pickup` to match
     against `player.pocket`; `pocket` (from `Holder`) is a *different*
     field, for whatever item is hidden inside the box (e.g. a `Key`'s
-    id), unrelated to the box's own pickup-identity."""
+    id), unrelated to the box's own pickup-identity.
+
+    BREAKING CHANGE: `actions.open` (the `toggle` action) now also
+    handles `Box` - toggling one removes it from play and, if its
+    `pocket` held a `Key`'s id, reveals that `Key` at the box's former
+    position (verified against MiniGrid's actual `Box.toggle`: `env.
+    grid.set(pos, self.contains)`). Previously boxes were inert to
+    `toggle` in every environment. This changes the dynamics of any
+    existing environment whose `action_set` includes `toggle` and
+    which places a `Box` (`GoToObject`, `PutNear`, `Unlock`/
+    `UnlockPickup`/`BlockedUnlockPickup`'s decoy box) - the box can now
+    be made to disappear by toggling it, where it previously could
+    not."""
 
     @classmethod
     def create(
