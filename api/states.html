@@ -1317,6 +1317,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#navix.states.EventsManager.record_box_pickup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;record_box_pickup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#navix.states.EventsManager.record_door_opening" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2655,6 +2666,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/unlock.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unlock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/wrappers.html" class="md-nav__link">
         
   
@@ -3708,6 +3747,95 @@ updated events manager.</p>
             <td>
               <div class="doc-md-description">
                 <p>Boolean, one entry per <code>ball</code> instance.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>EventsManager</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;EventsManager&lt;/code&gt; (&lt;code&gt;navix.states.EventsManager&lt;/code&gt;)" href="#navix.states.EventsManager">EventsManager</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The updated events manager.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.states.EventsManager.record_box_pickup" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">record_box_pickup</span><span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">hit</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Flags an event when the player picks up a box as happened and returns the
+updated events manager.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>box</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Box&lt;/code&gt; (&lt;code&gt;navix.entities.Box&lt;/code&gt;)" href="entities.html#navix.entities.Box">Box</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Every <code>Box</code> instance in the environment.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>hit</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Boolean, one entry per <code>box</code> instance.</p>
               </div>
             </td>
             <td>

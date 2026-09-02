@@ -2330,6 +2330,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/unlock.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unlock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/wrappers.html" class="md-nav__link">
         
   
@@ -2663,11 +2691,15 @@
 
     <div class="doc doc-contents ">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="#navix.entities.Entity">Entity</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;HasColour&lt;/code&gt; (&lt;code&gt;navix.components.HasColour&lt;/code&gt;)" href="components.html#navix.components.HasColour">HasColour</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Holder&lt;/code&gt; (&lt;code&gt;navix.components.Holder&lt;/code&gt;)" href="components.html#navix.components.Holder">Holder</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="#navix.entities.Entity">Entity</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Pickable&lt;/code&gt; (&lt;code&gt;navix.components.Pickable&lt;/code&gt;)" href="components.html#navix.components.Pickable">Pickable</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;HasColour&lt;/code&gt; (&lt;code&gt;navix.components.HasColour&lt;/code&gt;)" href="components.html#navix.components.HasColour">HasColour</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Holder&lt;/code&gt; (&lt;code&gt;navix.components.Holder&lt;/code&gt;)" href="components.html#navix.components.Holder">Holder</a></code></p>
 
 
 
-        <p>Goals are entities that can be reached by the player</p>
+        <p>A pickable container - <code>id</code> (from <code>Pickable</code>) identifies this box
+instance the same way <code>Key.id</code> does, for <code>actions.pickup</code> to match
+against <code>player.pocket</code>; <code>pocket</code> (from <code>Holder</code>) is a <em>different</em>
+field, for whatever item is hidden inside the box (e.g. a <code>Key</code>'s
+id), unrelated to the box's own pickup-identity.</p>
 
 
 

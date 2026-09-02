@@ -1188,10 +1188,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.rewards.on_box_pickup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;on_box_pickup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.rewards.on_door_done" class="md-nav__link">
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;on_door_done
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.rewards.on_door_open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;on_door_open
       
     </span>
   </a>
@@ -2197,6 +2219,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/unlock.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unlock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/wrappers.html" class="md-nav__link">
         
   
@@ -2777,6 +2827,89 @@ The functions are called in order and the results are reduced using the <code>op
 <div class="doc doc-object doc-function">
 
 
+<h3 id="navix.rewards.on_box_pickup" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">on_box_pickup</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>A reward function that returns 1 when any box is picked up this
+step, and 0 otherwise.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A scalar array <code>f32[]</code> with value 1 if a box was picked</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>up, and 0 otherwise.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="navix.rewards.on_door_done" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">on_door_done</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></code>
 
@@ -2835,6 +2968,90 @@ The functions are called in order and the results are reduced using the <code>op
             <td>
               <div class="doc-md-description">
                 <p>A scalar array <code>f32[]</code> with value 1 if the agent uses the action <code>done</code> in         front of a door, and 0 otherwise.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.rewards.on_door_open" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">on_door_open</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>A reward function that returns 1 when any door is opened this
+step, and 0 otherwise - unlike <code>on_door_done</code>, no <code>state.mission</code>
+target is needed; any door opening counts.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A scalar array <code>f32[]</code> with value 1 if a door was opened,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>and 0 otherwise.</p>
               </div>
             </td>
           </tr>
