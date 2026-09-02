@@ -25,7 +25,13 @@ move object and drop it within Chebyshev distance 1 of the target.
 Verified against MiniGrid's actual `PutNearEnv.step`: picking up the
 wrong object ends the episode immediately (0 reward); any genuine drop
 attempt (was holding something) also ends the episode, success
-determined by whether it landed near the target."""
+determined by whether it landed near the target.
+
+Registers with `transitions_fn=transitions.deterministic_transition` -
+see go_to_object.py's module docstring for why (the default
+`stochastic_transition` would otherwise walk every `Ball` entity a
+random step each turn, which real MiniGrid's `Ball` doesn't do outside
+`DynamicObstacles`)."""
 
 from __future__ import annotations
 from typing import Union
@@ -35,11 +41,11 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
-from navix import observations, rewards, terminations
+from navix import observations, rewards, terminations, transitions
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Ball, Entities, Key, Player
-from ..grid import random_colour, random_directions, random_positions, room
+from ..grid import random_colour, random_directions, random_distinct_positions, random_positions, room
 from ..rendering.cache import RenderingCache
 from ..states import Event, State
 from . import Environment, Timestep
@@ -62,9 +68,10 @@ class PutNear(Environment):
         )
 
         colours = jnp.reshape(random_colour(k_colour, n=self.n_objects), (self.n_objects,))
-        positions = jnp.reshape(
-            random_positions(k_obj_pos, grid, n=self.n_objects, exclude=player_pos),
-            (self.n_objects, 2),
+        # mutually distinct positions - random_positions(..., n=n) alone
+        # would allow two objects to land on the same cell (see #178's PR).
+        positions = random_distinct_positions(
+            k_obj_pos, grid, n=self.n_objects, exclude=player_pos
         )
         n_keys = self.n_objects // 2
         n_balls = self.n_objects - n_keys
@@ -126,6 +133,7 @@ register_env(
         width=6,
         n_objects=2,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_put_near_success),
         termination_fn=kwargs.pop(
             "termination_fn",
@@ -145,6 +153,7 @@ register_env(
         width=8,
         n_objects=3,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_put_near_success),
         termination_fn=kwargs.pop(
             "termination_fn",

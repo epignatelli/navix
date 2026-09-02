@@ -24,7 +24,16 @@ uses). Success requires calling `done` while facing the target (verified
 against MiniGrid's actual `GoToObjectEnv.step` - not just proximity, and
 calling `toggle` at all immediately fails), unlike the already-shipped
 `GoToDoor`/`events.on_door_done`, which doesn't check the action at all
-(a pre-existing gap, left as-is here - see PR description)."""
+(a pre-existing gap, left as-is here - see PR description).
+
+Registers with `transitions_fn=transitions.deterministic_transition`,
+overriding the default `stochastic_transition` - the latter
+unconditionally moves *every* `Ball` entity a random step each turn
+(`transitions.update_balls`, meant for `DynamicObstacles`), which would
+silently walk this environment's target/decoy objects around the room
+turn by turn. Real MiniGrid's `Ball` is static outside `DynamicObstacles`
+(confirmed empirically: without this override, mission.position stops
+matching any object's actual position after just a couple of steps)."""
 
 from __future__ import annotations
 from typing import Union
@@ -34,11 +43,11 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
-from navix import observations, rewards, terminations
+from navix import observations, rewards, terminations, transitions
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Ball, Entities, Key, Player
-from ..grid import random_colour, random_directions, random_positions, room
+from ..grid import random_colour, random_directions, random_distinct_positions, random_positions, room
 from ..rendering.cache import RenderingCache
 from ..states import Event, State
 from . import Environment, Timestep
@@ -62,13 +71,14 @@ class GoToObject(Environment):
 
         # n_objects distinct colours, split as evenly as possible between
         # Key and Ball (n_objects=2 -> one of each, matching the
-        # registered sizes below); positions exclude the player.
+        # registered sizes below); positions mutually distinct and
+        # excluding the player (random_positions(..., n=n) alone would
+        # allow two objects to land on the same cell - see #172's PR).
         colours = random_colour(k_colour, n=self.n_objects)
         colours = jnp.reshape(colours, (self.n_objects,))
-        positions = random_positions(
+        positions = random_distinct_positions(
             k_obj_pos, grid, n=self.n_objects, exclude=player_pos
         )
-        positions = jnp.reshape(positions, (self.n_objects, 2))
         n_keys = self.n_objects // 2
         n_balls = self.n_objects - n_keys
 
@@ -121,6 +131,7 @@ register_env(
         width=6,
         n_objects=2,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_target_done),
         termination_fn=kwargs.pop(
             "termination_fn",
@@ -139,6 +150,7 @@ register_env(
         width=8,
         n_objects=2,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_target_done),
         termination_fn=kwargs.pop(
             "termination_fn",

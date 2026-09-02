@@ -24,7 +24,13 @@ mission` (same placement/target-selection shape as `GoToObject`). Unlike
 reaching it - and, verified against MiniGrid's actual `FetchEnv.step`
 (this contradicted this issue's own original guess that a wrong pickup
 would be a no-op): picking up *any* object, right or wrong, ends the
-episode; only the reward differs (1 for the right one, 0 otherwise)."""
+episode; only the reward differs (1 for the right one, 0 otherwise).
+
+Registers with `transitions_fn=transitions.deterministic_transition` -
+see go_to_object.py's module docstring for why (the default
+`stochastic_transition` would otherwise walk every `Ball` entity a
+random step each turn, which real MiniGrid's `Ball` doesn't do outside
+`DynamicObstacles`)."""
 
 from __future__ import annotations
 from typing import Union
@@ -34,11 +40,11 @@ import jax.numpy as jnp
 from jax import Array
 from flax import struct
 
-from navix import observations, rewards, terminations
+from navix import observations, rewards, terminations, transitions
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Ball, Entities, Key, Player
-from ..grid import random_colour, random_directions, random_positions, room
+from ..grid import random_colour, random_directions, random_distinct_positions, random_positions, room
 from ..rendering.cache import RenderingCache
 from ..states import Event, State
 from . import Environment, Timestep
@@ -61,9 +67,10 @@ class Fetch(Environment):
         )
 
         colours = jnp.reshape(random_colour(k_colour, n=self.n_objects), (self.n_objects,))
-        positions = jnp.reshape(
-            random_positions(k_obj_pos, grid, n=self.n_objects, exclude=player_pos),
-            (self.n_objects, 2),
+        # mutually distinct positions - random_positions(..., n=n) alone
+        # would allow two objects to land on the same cell (see #177's PR).
+        positions = random_distinct_positions(
+            k_obj_pos, grid, n=self.n_objects, exclude=player_pos
         )
         n_keys = self.n_objects // 2
         n_balls = self.n_objects - n_keys
@@ -116,6 +123,7 @@ register_env(
         width=5,
         n_objects=2,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_target_fetched),
         termination_fn=kwargs.pop("termination_fn", terminations.on_any_target_pickup),
         *args,
@@ -129,6 +137,7 @@ register_env(
         width=6,
         n_objects=2,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_target_fetched),
         termination_fn=kwargs.pop("termination_fn", terminations.on_any_target_pickup),
         *args,
@@ -142,6 +151,7 @@ register_env(
         width=8,
         n_objects=3,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_target_fetched),
         termination_fn=kwargs.pop("termination_fn", terminations.on_any_target_pickup),
         *args,
