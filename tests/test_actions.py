@@ -316,6 +316,84 @@ def test_pickup():
     ), "Expected key to be at {}, got {}".format(DISCARD_PILE_COORDS, keys.position)
 
 
+def test_drop():
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    # player facing east (direction=0), holding a key it already picked up
+    # (position at the discard pile, id in its pocket) - dropping should
+    # place it on the empty tile in front and empty the pocket back out.
+    player = nx.entities.Player(
+        position=jnp.asarray((2, 1)), direction=jnp.asarray(0), pocket=jnp.asarray(1)
+    )
+    keys = nx.entities.Key(
+        position=DISCARD_PILE_COORDS, id=jnp.asarray(1), colour=PALETTE.YELLOW
+    )
+    cache = nx.rendering.cache.RenderingCache.init(grid)
+    entities = {Entities.PLAYER: player[None], Entities.KEY: keys[None]}
+    state = State(key=key, grid=grid, cache=cache, entities=entities)
+
+    state = nx.actions.drop(state)
+
+    keys = state.get_keys()
+    assert jnp.array_equal(
+        keys.position[0], jnp.asarray((2, 2))
+    ), "Expected key to be dropped in front of the player at (2, 2), got {}".format(
+        keys.position[0]
+    )
+    player = state.get_player()
+    assert jnp.array_equal(
+        player.pocket, EMPTY_POCKET_ID
+    ), "Expected pocket to be empty after drop, got {}".format(player.pocket)
+
+
+def test_drop_does_not_resurrect_a_different_pickable_instance():
+    # PR #186 review / issue #188: drop() used to move *every* Pickable
+    # instance sitting at the discard pile, not just the one matching
+    # player.pocket. Reproducible with two instances of the same
+    # Pickable type alone (no second Pickable *class* needed - the
+    # original report used Key+Box, but Box only gained an `id`/became
+    # Pickable in the still-unmerged PR #186, so this uses two Keys
+    # instead to stay independent of that PR): key id=1 has already
+    # been consumed (e.g. used to unlock a door) and sits permanently
+    # at the discard pile, while the player is now separately holding
+    # key id=2 - dropping it must not resurrect the spent key id=1.
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((2, 1)), direction=jnp.asarray(0), pocket=jnp.asarray(2)
+    )
+    keys = nx.entities.Key.create(
+        position=jnp.stack([DISCARD_PILE_COORDS, DISCARD_PILE_COORDS]),
+        id=jnp.asarray([1, 2]),
+        colour=jnp.asarray([PALETTE.YELLOW, PALETTE.RED]),
+    )
+    cache = nx.rendering.cache.RenderingCache.init(grid)
+    entities = {Entities.PLAYER: player[None], Entities.KEY: keys}
+    state = State(key=key, grid=grid, cache=cache, entities=entities)
+
+    state = nx.actions.drop(state)
+
+    keys = state.get_keys()
+    assert jnp.array_equal(
+        keys.position[1], jnp.asarray((2, 2))
+    ), "Expected key id=2 (in pocket) to be dropped in front of the player at (2, 2), got {}".format(
+        keys.position[1]
+    )
+    assert jnp.array_equal(
+        keys.position[0], DISCARD_PILE_COORDS
+    ), "Expected the already-consumed key id=1 to stay at the discard pile, got {}".format(
+        keys.position[0]
+    )
+    player = state.get_player()
+    assert jnp.array_equal(
+        player.pocket, EMPTY_POCKET_ID
+    ), "Expected pocket to be empty after drop, got {}".format(player.pocket)
+
+
 def test_open():
     heigh, width = 5, 5
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
