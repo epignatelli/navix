@@ -131,7 +131,7 @@ def navigate_adjacent_and_face(env, timestep):
     target and faces it - picks whichever reachable neighbour BFS finds
     first."""
     state = timestep.state
-    target = (int(state.mission.position[0]), int(state.mission.position[1]))
+    target = (int(state.mission[0].position[0]), int(state.mission[0].position[1]))
     blocked = blocked_mask(state)
     start = (int(state.get_player().position[0]), int(state.get_player().position[1]))
 
@@ -158,7 +158,7 @@ def test_go_to_object_structure():
         env = nx.make(env_id)
         for seed in range(N_SEEDS):
             state = env.reset(jax.random.PRNGKey(seed)).state
-            assert state.mission is not None, f"{env_id} seed={seed}: expected a mission"
+            assert len(state.mission) > 0, f"{env_id} seed={seed}: expected a mission"
 
             positions = jnp.concatenate(
                 [
@@ -173,7 +173,7 @@ def test_go_to_object_structure():
                 f"{env_id} seed={seed}: expected {env.n_objects} real objects total"
             )
 
-            matches = jnp.all(positions == state.mission.position, axis=-1) & on_grid
+            matches = jnp.all(positions == state.mission[0].position, axis=-1) & on_grid
             assert int(jnp.sum(matches)) == 1, (
                 f"{env_id} seed={seed}: mission.position must match exactly one real object"
             )
