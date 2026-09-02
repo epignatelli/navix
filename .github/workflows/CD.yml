@@ -2,9 +2,16 @@ name: CD
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "main"
+  schedule:
+    # weekly, Monday 09:00 UTC - batches every commit merged to main
+    # since the last release into one version bump/changelog/PyPI
+    # publish, instead of releasing on every single push (previously
+    # `on: push: branches: [main]` here) - conventional-changelog-action
+    # already aggregates all commits since the last tag, so batching
+    # needs no changes beyond the trigger and skip-on-empty below.
+    # workflow_dispatch above still allows an out-of-cycle release
+    # (e.g. an urgent fix) without waiting for the next Monday.
+    - cron: "0 9 * * 1"
 
 jobs:
   release:
@@ -35,7 +42,11 @@ jobs:
           output-file: false
           skip-commit: true
           skip-tag: true
-          skip-on-empty: false
+          # a scheduled run with nothing new to release (a quiet week)
+          # must be a no-op, not an empty release - true (was false)
+          # only matters now that the trigger is time-based rather than
+          # one release attempt per push.
+          skip-on-empty: true
           tag-prefix: ""
           fallback-version: ${{ env.NAVIX_VERSION }}
 
@@ -77,18 +88,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
-
-  deploy-docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - run: pip install --upgrade pip && pip install -r docs/requirements.txt
-      - run: git config user.name 'github-actions[bot]' && git config user.email 'github-actions[bot]@users.noreply.github.com'
-      - name: Publish docs
-        run: mkdocs gh-deploy
-        
