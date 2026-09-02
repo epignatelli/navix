@@ -150,9 +150,9 @@ def test_fetch_structure():
         env = nx.make(env_id)
         for seed in range(N_SEEDS):
             state = env.reset(jax.random.PRNGKey(seed)).state
-            assert state.mission is not None, f"{env_id} seed={seed}: expected a mission"
+            assert len(state.mission) > 0, f"{env_id} seed={seed}: expected a mission"
             positions = all_object_positions(state)
-            matches = jnp.all(positions == state.mission.position, axis=-1)
+            matches = jnp.all(positions == state.mission[0].position, axis=-1)
             assert int(jnp.sum(matches)) == 1, (
                 f"{env_id} seed={seed}: mission.position must match exactly one object"
             )
@@ -166,8 +166,8 @@ def test_fetch_correct_pickup_succeeds():
             env = nx.make(env_id)
             timestep = env.reset(jax.random.PRNGKey(seed))
             target_row, target_col = (
-                int(timestep.state.mission.position[0]),
-                int(timestep.state.mission.position[1]),
+                int(timestep.state.mission[0].position[0]),
+                int(timestep.state.mission[0].position[1]),
             )
             timestep = navigate_adjacent_and_face(env, timestep, target_row, target_col)
             assert timestep.step_type == 0, f"{env_id} seed={seed}: episode ended before pickup"
@@ -185,7 +185,7 @@ def test_fetch_wrong_pickup_ends_episode_with_no_reward():
         timestep = env.reset(jax.random.PRNGKey(seed))
         state = timestep.state
         positions = all_object_positions(state)
-        is_target = jnp.all(positions == state.mission.position, axis=-1)
+        is_target = jnp.all(positions == state.mission[0].position, axis=-1)
         wrong_idx = int(jnp.argmin(is_target.astype(jnp.int32)))
         assert not bool(is_target[wrong_idx]), f"seed={seed}: expected a non-target object to exist"
         wrong_row, wrong_col = int(positions[wrong_idx, 0]), int(positions[wrong_idx, 1])

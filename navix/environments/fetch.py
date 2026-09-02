@@ -104,7 +104,7 @@ class Fetch(Environment):
             grid=grid,
             cache=cache or RenderingCache.init(grid),
             entities=entities,
-            mission=mission,
+            mission=(mission,),
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),
