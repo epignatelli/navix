@@ -284,18 +284,21 @@ def on_target_fetched(state: State) -> Array:
 def on_any_target_pickup(state: State) -> Array:
     """`Fetch`'s termination trigger: MiniGrid's real `FetchEnv` ends the
     episode on *any* `Key`/`Ball` pickup, right or wrong - only the
-    reward differs (see `on_target_fetched`).
+    reward differs (see `on_target_fetched`). Also reused by `PutNear`
+    (below), which additionally places `Box` - safe for `Fetch` either
+    way, since `on_box_pickup` is always `False` for an environment that
+    never constructs any `Box` entities.
 
     Args:
         state (State): The current state of the game.
 
     Returns:
         Array: A boolean scalar."""
-    return jnp.logical_or(on_key_pickup(state), on_ball_pickup(state))
+    return on_key_pickup(state) | on_ball_pickup(state) | on_box_pickup(state)
 
 
 def on_put_near_wrong_pickup(state: State) -> Array:
-    """`PutNear`'s fail-on-pickup condition: a `Key`/`Ball` pickup
+    """`PutNear`'s fail-on-pickup condition: a `Key`/`Ball`/`Box` pickup
     happened this step, but not at `state.mission`'s tracked position
     (the "object to carry") - matches MiniGrid's real `PutNearEnv`,
     which ends the episode immediately if the wrong object is picked up.
@@ -309,9 +312,11 @@ def on_put_near_wrong_pickup(state: State) -> Array:
         state.mission is not None
     ), "on_put_near_wrong_pickup requires the state to specify a mission."
     any_pickup = on_any_target_pickup(state)
-    right_pickup = state.events.happened_at(
-        (Entities.KEY, EventType.PICKUP), state.mission.position
-    ) | state.events.happened_at((Entities.BALL, EventType.PICKUP), state.mission.position)
+    right_pickup = (
+        state.events.happened_at((Entities.KEY, EventType.PICKUP), state.mission.position)
+        | state.events.happened_at((Entities.BALL, EventType.PICKUP), state.mission.position)
+        | state.events.happened_at((Entities.BOX, EventType.PICKUP), state.mission.position)
+    )
     return jnp.logical_and(any_pickup, jnp.logical_not(right_pickup))
 
 
