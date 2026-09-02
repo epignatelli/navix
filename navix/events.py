@@ -83,7 +83,7 @@ def on_door_done(state: State) -> Array:
         Array: A boolean array indicating whether the action `done` has been called in front of a `Door` object with the correct colour.
     """
     assert (
-        state.mission is not None
+        len(state.mission) > 0
     ), "Termination on door done requires the state to specify a mission."
     player = state.entities[Entities.PLAYER][0]
     assert isinstance(player, Player)
@@ -94,8 +94,8 @@ def on_door_done(state: State) -> Array:
     doors = state.get_doors()
     idx = jnp.where(positions_equal(doors.position, fwd_pos), size=1)[0][0]
     doors = doors[idx]
-    pos_match = jnp.array_equal(fwd_pos, state.mission.position)
-    colour_match = jnp.array_equal(doors.colour, state.mission.colour)
+    pos_match = jnp.array_equal(fwd_pos, state.mission[0].position)
+    colour_match = jnp.array_equal(doors.colour, state.mission[0].colour)
     return jnp.logical_and(pos_match, colour_match)
 
 
@@ -230,12 +230,12 @@ def on_target_done(action: Array, state: State) -> Array:
     Returns:
         Array: A boolean scalar."""
     assert (
-        state.mission is not None
+        len(state.mission) > 0
     ), "on_target_done requires the state to specify a mission."
     player = state.entities[Entities.PLAYER][0]
     assert isinstance(player, Player)
-    row_diff = player.position[0] - state.mission.position[0]
-    col_diff = player.position[1] - state.mission.position[1]
+    row_diff = player.position[0] - state.mission[0].position[0]
+    col_diff = player.position[1] - state.mission[0].position[1]
     adjacent = jnp.logical_or(
         jnp.logical_and(row_diff == 0, jnp.abs(col_diff) == 1),
         jnp.logical_and(col_diff == 0, jnp.abs(row_diff) == 1),
@@ -270,13 +270,13 @@ def on_target_fetched(state: State) -> Array:
     Returns:
         Array: A boolean scalar."""
     assert (
-        state.mission is not None
+        len(state.mission) > 0
     ), "on_target_fetched requires the state to specify a mission."
     fetched_key = state.events.happened_at(
-        (Entities.KEY, EventType.PICKUP), state.mission.position
+        (Entities.KEY, EventType.PICKUP), state.mission[0].position
     )
     fetched_ball = state.events.happened_at(
-        (Entities.BALL, EventType.PICKUP), state.mission.position
+        (Entities.BALL, EventType.PICKUP), state.mission[0].position
     )
     return jnp.logical_or(fetched_key, fetched_ball)
 
@@ -309,13 +309,13 @@ def on_put_near_wrong_pickup(state: State) -> Array:
     Returns:
         Array: A boolean scalar."""
     assert (
-        state.mission is not None
+        len(state.mission) > 0
     ), "on_put_near_wrong_pickup requires the state to specify a mission."
     any_pickup = on_any_target_pickup(state)
     right_pickup = (
-        state.events.happened_at((Entities.KEY, EventType.PICKUP), state.mission.position)
-        | state.events.happened_at((Entities.BALL, EventType.PICKUP), state.mission.position)
-        | state.events.happened_at((Entities.BOX, EventType.PICKUP), state.mission.position)
+        state.events.happened_at((Entities.KEY, EventType.PICKUP), state.mission[0].position)
+        | state.events.happened_at((Entities.BALL, EventType.PICKUP), state.mission[0].position)
+        | state.events.happened_at((Entities.BOX, EventType.PICKUP), state.mission[0].position)
     )
     return jnp.logical_and(any_pickup, jnp.logical_not(right_pickup))
 
@@ -341,13 +341,13 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     `on_put_near_drop_attempted`) that actually placed the item (the
     player's pocket went from holding something to empty - `actions.
     drop` only clears the pocket on a *successful* drop, see #189) at a
-    cell within Chebyshev distance 1 of `state.mission2`'s tracked
+    cell within Chebyshev distance 1 of `state.mission[1]`'s tracked
     position (the "object to drop near"). Note: by the time a `drop`
     action is reached without the episode already having ended via
     `on_put_near_wrong_pickup`, the held item is guaranteed to be the
-    right one (`state.mission`'s object) - wrong pickups end the episode
-    immediately, so no separate "is this the right item" check is
-    needed here.
+    right one (`state.mission[0]`'s object) - wrong pickups end the
+    episode immediately, so no separate "is this the right item" check
+    is needed here.
 
     Args:
         prev_state (State): The state before this step's action.
@@ -357,13 +357,13 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     Returns:
         Array: A boolean scalar."""
     assert (
-        state.mission2 is not None
+        len(state.mission) > 1
     ), "on_put_near_success requires the state to specify a second mission target."
     drop_attempted = on_put_near_drop_attempted(prev_state, action)
     drop_succeeded = jnp.logical_and(drop_attempted, state.get_player().pocket == -1)
     prev_player = prev_state.get_player()
     drop_position = translate(prev_player.position, prev_player.direction)
-    row_diff = jnp.abs(drop_position[0] - state.mission2.position[0])
-    col_diff = jnp.abs(drop_position[1] - state.mission2.position[1])
+    row_diff = jnp.abs(drop_position[0] - state.mission[1].position[0])
+    col_diff = jnp.abs(drop_position[1] - state.mission[1].position[1])
     near_target = jnp.maximum(row_diff, col_diff) <= 1
     return jnp.logical_and(drop_succeeded, near_target)
