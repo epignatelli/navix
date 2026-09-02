@@ -1292,6 +1292,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.grid.random_distinct_positions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;random_distinct_positions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.grid.random_position_far_from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;random_position_far_from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.grid.random_positions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2294,6 +2316,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/fetch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/four_rooms.html" class="md-nav__link">
         
   
@@ -2350,6 +2400,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/go_to_object.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go to object
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/key_corridor.html" class="md-nav__link">
         
   
@@ -2386,6 +2464,62 @@
     
   
     Lava gap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/put_near.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Put near
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/red_blue_doors.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red blue doors
   
 
     
@@ -4396,6 +4530,283 @@ corresponding element in <code>address</code> (col, row) and 0 otherwise.</p>
             <td>
               <div class="doc-md-description">
                 <p>A batch of random directions of shape <code>i32[n]</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.grid.random_distinct_positions" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">random_distinct_positions</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)))</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Generates <code>n</code> <em>mutually distinct</em> random positions in the grid,
+each also excluding <code>exclude</code> - unlike <code>random_positions(..., n=n)</code>,
+whose <code>n</code> draws are i.i.d. (<code>jax.random.categorical</code> samples with
+replacement) and so can collide with each other (see issue #172's
+PR: GoToObject/Fetch/PutNear all need genuinely distinct object
+positions to track a mission by position alone). Draws sequentially,
+each excluding every position drawn so far in addition to <code>exclude</code> -
+<code>n</code> is a small static Python int in every current caller, so the
+unrolled loop is fine under jit (same pattern as <code>jax.random.split</code>
+being called with a static count elsewhere in this codebase).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A random key.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>grid</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A 2D grid of shape (height, width).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The number of distinct positions to generate.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Position(s) to also exclude, shape
+<code>(2,)</code> or <code>(k, 2)</code>. Defaults to <code>jnp.asarray((-1, -1))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="jax.numpy.asarray">asarray</span>((-1, -1))</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>n</code> mutually distinct positions of shape <code>i32[n, 2]</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.grid.random_position_far_from" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">random_position_far_from</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">min_distance</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)))</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Generates one random position at Chebyshev distance <code>&gt;=
+min_distance</code> from <code>reference</code>, also excluding <code>exclude</code>.</p>
+<p>For <code>PutNear</code>-style tasks: quantified directly (500 seeds each),
+<code>random_distinct_positions</code> alone let 36% of <code>Navix-PutNear-6x6-N2-v0</code>
+episodes spawn with the "move" object already within Chebyshev
+distance 1 of the "drop near" target - trivially "solved" with no
+real navigation needed, unlike real MiniGrid's <code>PutNearEnv</code>, which
+explicitly rejects that via <code>reject_fn=near_obj</code> (see PR #191
+review's "New risks" section).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A random key.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>grid</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A 2D grid of shape (height, width).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(row, col)</code> position to stay away from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>min_distance</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum Chebyshev distance from
+<code>reference</code>. Defaults to 2 (i.e. not orthogonally/
+diagonally adjacent, and not the same cell).</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>exclude</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Position(s) to also exclude, shape
+<code>(2,)</code> or <code>(k, 2)</code>. Defaults to <code>jnp.asarray((-1, -1))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="jax.numpy.asarray">asarray</span>((-1, -1))</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A position of shape <code>i32[2]</code>.</p>
               </div>
             </td>
           </tr>

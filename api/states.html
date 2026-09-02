@@ -1284,6 +1284,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#navix.states.EventsManager.happened_at" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;happened_at
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#navix.states.EventsManager.merge_event" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1492,6 +1503,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.states.State.mission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;mission
       
     </span>
   </a>
@@ -2526,6 +2548,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/fetch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/four_rooms.html" class="md-nav__link">
         
   
@@ -2582,6 +2632,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/go_to_object.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go to object
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/key_corridor.html" class="md-nav__link">
         
   
@@ -2618,6 +2696,62 @@
     
   
     Lava gap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/put_near.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Put near
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/red_blue_doors.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red blue doors
   
 
     
@@ -3438,6 +3572,101 @@ fired this step - <code>False</code> (not a <code>KeyError</code>) if this envir
               <div class="doc-md-description">
                 <p>The <code>(entity_type, event_type)</code> slot to
 check.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A boolean scalar.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.states.EventsManager.happened_at" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">happened_at</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether <code>key</code>'s slot fired this step for the specific instance
+that was at <code>position</code> when recorded - <code>Event.position</code> keeps the
+firing instance's own position even after game logic later moves
+the entity itself (e.g. to the discard pile on pickup), so this
+can identify <em>which</em> instance fired, not just whether any did
+(see <code>happened</code>). <code>False</code> (not a <code>KeyError</code>) if this
+environment's <code>entities</code> never included that entity type at all.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The <code>(entity_type, event_type)</code> slot to
+check.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The position to match against.</p>
               </div>
             </td>
             <td>
@@ -4816,6 +5045,36 @@ since a <code>struct.PyTreeNode</code> field's default can't see its sibling fie
     <div class="doc doc-contents ">
 
         <p>The random number generator state</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.states.State.mission" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">mission</span> <span class="o">=</span> <span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The environment's mission target(s), if any - e.g. <code>(door,)</code> in
+<code>GoToDoor</code>, <code>(target,)</code> in <code>GoToObject</code>/<code>Fetch</code>, <code>(carry, drop_near)</code>
+in <code>PutNear</code> (index 0 is always the "primary"/carry target; index 1,
+where present, is a second, independently-tracked target - only
+<code>PutNear</code> needs two today). Empty for an environment with no mission
+at all. A tuple, not a fixed number of separate fields, so a future
+environment needing a third simultaneous target is just a longer
+tuple, not another numbered field.</p>
 
     </div>
 

@@ -1899,6 +1899,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.dynamic_obstacles.DynamicObstacles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DynamicObstacles
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1951,6 +1962,34 @@
     
   
     Environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="fetch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch
   
 
     
@@ -2027,6 +2066,34 @@
   
   
     <li class="md-nav__item">
+      <a href="go_to_object.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go to object
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="key_corridor.html" class="md-nav__link">
         
   
@@ -2063,6 +2130,62 @@
     
   
     Lava gap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="put_near.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Put near
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="red_blue_doors.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red blue doors
   
 
     
@@ -2453,6 +2576,77 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.dynamic_obstacles.DynamicObstacles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>DynamicObstacles</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p>A room with <code>n_obstacles</code> <code>Ball</code>s that each take one random step
+every turn; reach the goal without touching one.</p>
+<p>Deliberately differs from real MiniGrid's <code>DynamicObstaclesEnv</code> in
+one place: real MiniGrid removes <code>pickup</code>/<code>drop</code>/<code>toggle</code>/<code>done</code>
+from this environment's action space entirely (<code>Discrete(3)</code>
+instead of the usual <code>Discrete(7)</code>), since none of them mean
+anything here. Navix keeps the full default action set instead, so
+that an agent trained across the whole navix suite sees one
+uniform action interface everywhere - and since <code>Ball</code> is
+<code>Pickable</code> (needed elsewhere, for <code>Fetch</code>/<code>PutNear</code>/<code>GoToObject</code>/
+<code>BlockedUnlockPickup</code>), picking one up here ends the episode the
+same way walking into it already does (<code>termination_fn</code> composes
+<code>on_ball_pickup</code> alongside <code>on_ball_hit</code>), rather than either
+silently removing it from play or being unavailable.</p>
+<p>To instantiate the exact MiniGrid-equivalent <code>Discrete(3)</code> action
+space instead, pass <code>action_set</code> explicitly:</p>
+<div class="highlight"><pre><span></span><code><span class="n">env</span> <span class="o">=</span> <span class="n">navix</span><span class="o">.</span><span class="n">make</span><span class="p">(</span>
+    <span class="s2">"Navix-Dynamic-Obstacles-5x5-v0"</span><span class="p">,</span>
+    <span class="n">action_set</span><span class="o">=</span><span class="p">(</span><span class="n">navix</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">rotate_ccw</span><span class="p">,</span> <span class="n">navix</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">rotate_cw</span><span class="p">,</span> <span class="n">navix</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">forward</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>(verified directly: <code>env.action_set</code>/<code>env.action_space</code> both come
+out as length/<code>Discrete(3)</code>, matching real MiniGrid, and
+<code>env.step()</code> works normally with action indices <code>0</code>/<code>1</code>/<code>2</code>).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

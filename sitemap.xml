@@ -137,6 +137,10 @@
          <lastmod>2026-09-02</lastmod>
     </url>
     <url>
+         <loc>https://epignatelli/navix/api/environments/fetch.html</loc>
+         <lastmod>2026-09-02</lastmod>
+    </url>
+    <url>
          <loc>https://epignatelli/navix/api/environments/four_rooms.html</loc>
          <lastmod>2026-09-02</lastmod>
     </url>
@@ -145,11 +149,23 @@
          <lastmod>2026-09-02</lastmod>
     </url>
     <url>
+         <loc>https://epignatelli/navix/api/environments/go_to_object.html</loc>
+         <lastmod>2026-09-02</lastmod>
+    </url>
+    <url>
          <loc>https://epignatelli/navix/api/environments/key_corridor.html</loc>
          <lastmod>2026-09-02</lastmod>
     </url>
     <url>
          <loc>https://epignatelli/navix/api/environments/lava_gap.html</loc>
+         <lastmod>2026-09-02</lastmod>
+    </url>
+    <url>
+         <loc>https://epignatelli/navix/api/environments/put_near.html</loc>
+         <lastmod>2026-09-02</lastmod>
+    </url>
+    <url>
+         <loc>https://epignatelli/navix/api/environments/red_blue_doors.html</loc>
          <lastmod>2026-09-02</lastmod>
     </url>
     <url>

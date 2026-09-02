@@ -1917,6 +1917,34 @@
   
   
     <li class="md-nav__item">
+      <a href="fetch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="four_rooms.html" class="md-nav__link">
         
   
@@ -1973,6 +2001,34 @@
   
   
     <li class="md-nav__item">
+      <a href="go_to_object.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go to object
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="key_corridor.html" class="md-nav__link">
         
   
@@ -2009,6 +2065,62 @@
     
   
     Lava gap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="put_near.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Put near
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="red_blue_doors.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red blue doors
   
 
     
@@ -2117,6 +2229,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-module"></code>&nbsp;unlock
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.unlock.BlockedUnlockPickup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BlockedUnlockPickup
       
     </span>
   </a>
@@ -2498,6 +2621,66 @@ needed for either of these two environments, so this file builds the
 
 
 
+<h3 id="navix.environments.unlock.BlockedUnlockPickup" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>BlockedUnlockPickup</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>UnlockPickup</code> (#176), plus a <code>Ball</code> placed directly in front of
+the door on the first room's side, obstructing the direct approach
+(#181). Unlike a Key/Box, picking the ball up doesn't need to be
+followed by carrying it anywhere in particular - <code>actions.pickup</code>
+moves it straight to the discard pile, so the blocked cell is clear
+the instant it's picked up. It does need to be <em>dropped</em> again
+before the key can be picked up, though (the player's pocket only
+holds one id at a time) - "step around it" isn't a real option: the
+door, like every <code>Openable</code>, can only be toggled from the one exact
+cell directly in front of it, which is exactly where the ball
+sits. Reuses <code>two_equal_rooms_with_door(block_door=True)</code> directly -
+no <code>RoomGrid</code> (#174) needed, despite this issue's own header
+suggesting otherwise.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h3 id="navix.environments.unlock.Unlock" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Unlock</code>
 
@@ -2602,7 +2785,7 @@ termination on picking up the box (see <code>rewards.on_box_pickup</code>/
 
 
 <h3 id="navix.environments.unlock.two_equal_rooms_with_door" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">two_equal_rooms_with_door</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">two_equal_rooms_with_door</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">block_door</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 </h3>
 
@@ -2678,6 +2861,30 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
                 <em>required</em>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>block_door</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (used by <code>BlockedUnlockPickup</code>, #181),
+also places a <code>Ball</code> directly in front of the door on the
+first room's side, and excludes that cell from player/key
+placement - a static Python bool (not a traced value), so
+this branches at trace-construction time, not runtime; the
+door's position is already known at this point inside the
+function (unlike a caller trying to add a blocking ball
+afterwards, which would risk colliding with an
+already-randomly-placed player/key).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -2717,7 +2924,7 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
             </td>
             <td>
               <div class="doc-md-description">
-                <p>already batched (<code>[None]</code>-indexed) and ready to merge into a</p>
+                <p>(and <code>Entities.BALL</code> if <code>block_door</code>) already batched</p>
               </div>
             </td>
           </tr>
@@ -2727,7 +2934,7 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>State</code>; <code>first_room</code> (the left room's own <code>grid</code>-shaped mask,</p>
+                <p>(<code>[None]</code>-indexed) and ready to merge into a <code>State</code>; <code>first_room</code></p>
               </div>
             </td>
           </tr>
@@ -2737,7 +2944,7 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
             </td>
             <td>
               <div class="doc-md-description">
-                <p>walls everywhere outside it) is returned too, so <code>UnlockPickup</code></p>
+                <p>(the left room's own <code>grid</code>-shaped mask, walls everywhere outside</p>
               </div>
             </td>
           </tr>
@@ -2747,7 +2954,7 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
             </td>
             <td>
               <div class="doc-md-description">
-                <p>can build its own <code>second_room</code> mask from the same <code>wall_col</code></p>
+                <p>it) is returned too, so <code>UnlockPickup</code> can build its own</p>
               </div>
             </td>
           </tr>
@@ -2757,7 +2964,17 @@ MiniGrid's <code>RoomGrid(room_size=height, num_rows=1, num_cols=2)</code> -
             </td>
             <td>
               <div class="doc-md-description">
-                <p>without recomputing the base grid.</p>
+                <p><code>second_room</code> mask from the same <code>wall_col</code> without recomputing</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="jax.Array">Array</span>, <span title="jax.Array">Array</span>, <span title="int">int</span>, <span title="typing.Dict">Dict</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="../entities.html#navix.entities.Entity">Entity</a>], <span title="jax.Array">Array</span>, <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the base grid.</p>
               </div>
             </td>
           </tr>

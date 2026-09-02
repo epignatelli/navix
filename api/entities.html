@@ -2190,6 +2190,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/fetch.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fetch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/four_rooms.html" class="md-nav__link">
         
   
@@ -2246,6 +2274,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/go_to_object.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Go to object
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/key_corridor.html" class="md-nav__link">
         
   
@@ -2282,6 +2338,62 @@
     
   
     Lava gap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/put_near.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Put near
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/red_blue_doors.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red blue doors
   
 
     
@@ -2643,11 +2755,27 @@
 
     <div class="doc doc-contents ">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="#navix.entities.Entity">Entity</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;HasColour&lt;/code&gt; (&lt;code&gt;navix.components.HasColour&lt;/code&gt;)" href="components.html#navix.components.HasColour">HasColour</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Stochastic&lt;/code&gt; (&lt;code&gt;navix.components.Stochastic&lt;/code&gt;)" href="components.html#navix.components.Stochastic">Stochastic</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="#navix.entities.Entity">Entity</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Pickable&lt;/code&gt; (&lt;code&gt;navix.components.Pickable&lt;/code&gt;)" href="components.html#navix.components.Pickable">Pickable</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;HasColour&lt;/code&gt; (&lt;code&gt;navix.components.HasColour&lt;/code&gt;)" href="components.html#navix.components.HasColour">HasColour</a></code>, <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Stochastic&lt;/code&gt; (&lt;code&gt;navix.components.Stochastic&lt;/code&gt;)" href="components.html#navix.components.Stochastic">Stochastic</a></code></p>
 
 
 
-        <p>Goals are entities that can be reached by the player</p>
+        <p>A pickable obstacle - <code>id</code> (from <code>Pickable</code>) identifies this ball
+instance for <code>actions.pickup</code>/<code>actions.drop</code>, the same way <code>Key.id</code>/
+<code>Box.id</code> do. <code>probability</code> (from <code>Stochastic</code>, pre-existing) is
+unrelated to pickup - unused by <code>Ball</code> itself; every <code>Ball</code>
+instance actually moves unconditionally each step under the default
+<code>transitions.stochastic_transition</code> (<code>transitions.update_balls</code>,
+regardless of <code>probability</code>'s value), which is why any environment
+wanting a static <code>Ball</code> (a pickup target/decoy, not a wandering
+obstacle) must register with <code>transitions_fn=transitions.
+deterministic_transition</code> instead - see <code>GoToObject</code>/<code>Fetch</code>/
+<code>PutNear</code>/<code>BlockedUnlockPickup</code>.</p>
+<p>BREAKING CHANGE: <code>Ball</code> becoming <code>Pickable</code> means <code>actions.pickup</code>
+no longer no-ops facing a <code>Ball</code> in any environment whose
+action_set includes <code>pickup</code> and whose transitions_fn is the
+default <code>stochastic_transition</code> - concretely, this changes
+<code>Navix-Dynamic-Obstacles-*</code>'s existing dynamics: <code>pickup</code> now
+removes the faced obstacle from play instead of doing nothing.</p>
 
 
 
