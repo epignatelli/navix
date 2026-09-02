@@ -370,8 +370,12 @@ class Lava(Entity):
         return jnp.broadcast_to(0, self.shape)
 
 
-class Ball(Entity, HasColour, Stochastic):
-    """Goals are entities that can be reached by the player"""
+class Ball(Entity, Pickable, HasColour, Stochastic):
+    """A pickable, stochastic obstacle - `id` (from `Pickable`) identifies
+    this ball instance for `actions.pickup`/`actions.drop`, the same way
+    `Key.id`/`Box.id` do; `probability` (from `Stochastic`, pre-existing)
+    is unrelated to pickup and is used elsewhere (e.g. `DynamicObstacles`'
+    random movement)."""
 
     @classmethod
     def create(
@@ -379,8 +383,10 @@ class Ball(Entity, HasColour, Stochastic):
         position: Array,
         colour: Array,
         probability: Array,
+        id: Array,
     ) -> Ball:
-        return cls(position=position, colour=colour, probability=probability)
+        colour = jnp.asarray(colour, dtype=jnp.uint8)
+        return cls(position=position, colour=colour, probability=probability, id=id)
 
     @property
     def walkable(self) -> Array:

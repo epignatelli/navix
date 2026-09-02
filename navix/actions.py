@@ -170,32 +170,31 @@ def left(state: State) -> State:
 
 
 def pickup(state: State) -> State:
-    """Picks up an item (`Key` or `Box`) in front of the player and puts
-    it in the pocket.
+    """Picks up an item (`Key`, `Box`, or `Ball`) in front of the player
+    and puts it in the pocket.
     Args:
         state (State): The current state.
     Returns:
         State: The new state with the player entity having the item in the pocket."""
 
-    def pickup_entity(state: State, entity_enum: str, entity, setter) -> State:
-        """Shared logic for one pickable entity type (`Key`/`Box`): if the
-        player is facing an instance of `entity`, discard it and put its
-        `id` in the player's pocket. A closure (not a module-level
-        function) specifically so it stays out of `actions.py`'s public
-        surface, where every other name is a real `State -> State`
-        action - unlike those, this needs `entity_enum`/`entity`/
+    def pickup_entity(state: State, entity, setter) -> State:
+        """Shared logic for one pickable entity type (`Key`/`Box`/
+        `Ball`): if the player is facing an instance of `entity`,
+        discard it and put its `id` in the player's pocket. A closure
+        (not a module-level function) specifically so it stays out of
+        `actions.py`'s public surface, where every other name is a real
+        `State -> State` action - unlike those, this needs `entity`/
         `setter` too, to stay parametrized over which pickable entity
-        type `pickup`'s two call sites (`Key`, `Box`) are handling.
+        type `pickup`'s call sites are handling.
 
         Args:
             state (State): The current state.
-            entity_enum (str): The entity type's `Entities.*` string,
-                used to dispatch to the matching `EventsManager.
-                record_*_pickup`.
             entity: Every instance of this entity type in the
-                environment (`state.get_keys()`/`state.get_boxes()`).
+                environment (`state.get_keys()`/`state.get_boxes()`/
+                `state.get_balls()`).
             setter (Callable[[Any], State]): `state.set_keys`/
-                `state.set_boxes` - writes the updated entity batch back.
+                `state.set_boxes`/`state.set_balls` - writes the updated
+                entity batch back.
 
         Returns:
             State: The new state with the item picked up, if the player
@@ -207,15 +206,13 @@ def pickup(state: State) -> State:
 
         # update events - before entity is moved to the discard pile
         # below, so the recorded event keeps the item's real pickup
-        # position, not DISCARD_PILE_COORDS.
-        record = (
-            state.events.record_key_pickup
-            if entity_enum == Entities.KEY
-            else state.events.record_box_pickup
-        )
+        # position, not DISCARD_PILE_COORDS. record_pickup already
+        # dispatches on isinstance(entity, Key/Box/Ball) internally, so
+        # this stays correct for any Pickable type without needing a
+        # per-type branch here.
         events = jax.lax.cond(
             jnp.any(found),
-            lambda: record(entity, found),
+            lambda: state.events.record_pickup(entity, position_in_front),
             lambda: state.events,
         )
 
@@ -235,9 +232,11 @@ def pickup(state: State) -> State:
         return state
 
     if Entities.KEY in state.entities:
-        state = pickup_entity(state, Entities.KEY, state.get_keys(), state.set_keys)
+        state = pickup_entity(state, state.get_keys(), state.set_keys)
     if Entities.BOX in state.entities:
-        state = pickup_entity(state, Entities.BOX, state.get_boxes(), state.set_boxes)
+        state = pickup_entity(state, state.get_boxes(), state.set_boxes)
+    if Entities.BALL in state.entities:
+        state = pickup_entity(state, state.get_balls(), state.set_balls)
     return state
 
 

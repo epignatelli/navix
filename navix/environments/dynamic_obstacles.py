@@ -72,6 +72,13 @@ class DynamicObstacles(Environment):
             position=ball_pos,
             colour=jnp.tile(PALETTE.BLUE, (self.n_obstacles,)),
             probability=jnp.ones(self.n_obstacles),
+            # Ball became Pickable so Fetch/PutNear/BlockedUnlockPickup can
+            # use it - ids just need to be unique per instance here, they
+            # play no role in this env (DynamicObstacles relies on
+            # walk-into collision via on_ball_hit, not pickup, for its
+            # termination; see PR description for the resulting narrow
+            # behavior change: pickup() no longer no-ops on these balls).
+            id=jnp.arange(1, self.n_obstacles + 1, dtype=jnp.int32),
         )
 
         entities = {
