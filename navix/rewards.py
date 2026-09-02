@@ -169,5 +169,68 @@ def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_box_pickup(state), dtype=jnp.float32)
 
 
+def on_ordered_doors_success(prev_state: State, action: Array, state: State) -> Array:
+    """`RedBlueDoors`' reward: 1 if the blue door was opened this step
+    while red was already open, 0 otherwise (including the failure case
+    of opening blue first).
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]`."""
+    return jnp.asarray(
+        events.on_ordered_doors_success(prev_state, state), dtype=jnp.float32
+    )
+
+
+def on_target_done(prev_state: State, action: Array, state: State) -> Array:
+    """`GoToObject`'s reward: 1 if `done` was called while facing the
+    mission target, 0 otherwise.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]`."""
+    return jnp.asarray(events.on_target_done(action, state), dtype=jnp.float32)
+
+
+def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
+    """`Fetch`'s reward: 1 if the mission's target object was the one
+    picked up this step, 0 otherwise (including picking up the wrong
+    one, which still ends the episode via `terminations.
+    on_any_target_pickup`).
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]`."""
+    return jnp.asarray(events.on_target_fetched(state), dtype=jnp.float32)
+
+
+def on_put_near_success(prev_state: State, action: Array, state: State) -> Array:
+    """`PutNear`'s reward: 1 if the carried object was dropped within
+    Chebyshev distance 1 of the second mission target, 0 otherwise.
+
+    Args:
+        prev_state (State): The previous state of the game.
+        action (Array): The action taken by the player.
+        state (State): The current state of the game.
+
+    Returns:
+        Array: A scalar array `f32[]`."""
+    return jnp.asarray(
+        events.on_put_near_success(prev_state, action, state), dtype=jnp.float32
+    )
+
+
 DEFAULT_TASK = compose(on_goal_reached, action_cost)
 """The default task for the game, composed of the `on_goal_reached` and `action_cost` reward functions."""

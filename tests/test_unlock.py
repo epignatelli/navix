@@ -45,8 +45,11 @@ layout has two real obstacles a naive walk can collide with:
 
 from __future__ import annotations
 
+from collections import deque
+
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 import navix as nx
 from navix.components import EMPTY_POCKET_ID
@@ -57,7 +60,7 @@ from navix.states import EventType
 EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
 
 # navix.actions.DEFAULT_ACTION_SET = (rotate_ccw, rotate_cw, forward, pickup, drop, toggle, done)
-ROTATE_CW, FORWARD, PICKUP, TOGGLE = 1, 2, 3, 5
+ROTATE_CW, FORWARD, PICKUP, DROP, TOGGLE = 1, 2, 3, 4, 5
 
 N_SEEDS = 10
 
@@ -385,3 +388,201 @@ def test_unlock_and_unlockpickup_jit_vmap_compatible():
         for action in range(len(nx.actions.DEFAULT_ACTION_SET)):
             timestep = jax.vmap(step, in_axes=(0, None))(timestep, jnp.asarray(action))
         jax.block_until_ready(timestep)
+
+
+def test_blocked_unlock_pickup_structure():
+    env = nx.make("Navix-BlockedUnlockPickup-v0")
+    for seed in range(N_SEEDS):
+        state = env.reset(jax.random.PRNGKey(seed)).state
+        assert Entities.BALL in state.entities
+        assert Entities.BOX in state.entities
+
+        balls = state.get_balls()
+        doors = state.get_doors()
+        door_row, door_col = int(doors.position[0, 0]), int(doors.position[0, 1])
+        assert int(balls.position[0, 0]) == door_row, "ball must be on the door's row"
+        assert int(balls.position[0, 1]) == door_col - 1, (
+            "ball must be directly in front of the door, on the first room's side"
+        )
+
+        player = state.get_player()
+        keys = state.get_keys()
+        assert not jnp.array_equal(player.position, balls.position[0]), (
+            f"seed={seed}: player overlaps the blocking ball"
+        )
+        assert not jnp.array_equal(keys.position[0], balls.position[0]), (
+            f"seed={seed}: key overlaps the blocking ball"
+        )
+
+
+def bfs_blocked_mask(state) -> np.ndarray:
+    """Like the BFS helpers in test_go_to_object.py/test_fetch.py/
+    test_put_near.py (a `(height, width)` boolean array of cells the
+    player can't step onto) - separate from this file's own `walk_to`/
+    `navigate_adjacent_and_face` heuristics, which were tuned for
+    Unlock/UnlockPickup's exact 2-obstacle (Key, Box) layout and don't
+    know about BlockedUnlockPickup's extra, position-varying `Ball`.
+    Recomputed fresh whenever the door might have opened, since `Door.
+    walkable` depends on its own `open` state, unlike Key/Box/Ball."""
+    blocked = np.asarray(state.grid) == -1
+    for entity_enum, entity in state.entities.items():
+        if entity_enum == Entities.PLAYER:
+            continue
+        walkable = np.asarray(entity.walkable)
+        positions = np.asarray(entity.position)
+        if positions.ndim == 1:
+            positions = positions[None]
+            walkable = walkable.reshape(1)
+        for (row, col), w in zip(positions, walkable):
+            if not w:
+                blocked[row, col] = True
+    return blocked
+
+
+def bfs_path(blocked: np.ndarray, start: tuple, goal: tuple):
+    height, width = blocked.shape
+    prev = {start: None}
+    queue = deque([start])
+    while queue:
+        current = queue.popleft()
+        if current == goal:
+            break
+        row, col = current
+        for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            nxt = (row + dr, col + dc)
+            if (
+                0 <= nxt[0] < height
+                and 0 <= nxt[1] < width
+                and not blocked[nxt]
+                and nxt not in prev
+            ):
+                prev[nxt] = current
+                queue.append(nxt)
+    if goal not in prev:
+        return None
+    path = [goal]
+    while path[-1] != start:
+        path.append(prev[path[-1]])
+    path.reverse()
+    return path
+
+
+def bfs_direction_between(a: tuple, b: tuple) -> int:
+    dr, dc = b[0] - a[0], b[1] - a[1]
+    if dr == 1:
+        return SOUTH
+    if dr == -1:
+        return NORTH
+    if dc == 1:
+        return EAST
+    if dc == -1:
+        return WEST
+    raise AssertionError(f"{a} -> {b} is not a single orthogonal step")
+
+
+def bfs_walk_path_via_step(env, timestep, path):
+    for a, b in zip(path[:-1], path[1:]):
+        timestep = face_via_step(env, timestep, bfs_direction_between(a, b))
+        timestep = env.step(timestep, jnp.asarray(FORWARD))
+    return timestep
+
+
+def bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row: int, target_col: int):
+    state = timestep.state
+    blocked = bfs_blocked_mask(state)
+    start = (int(state.get_player().position[0]), int(state.get_player().position[1]))
+    target = (target_row, target_col)
+
+    for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+        candidate = (target[0] + dr, target[1] + dc)
+        if not (0 <= candidate[0] < blocked.shape[0] and 0 <= candidate[1] < blocked.shape[1]):
+            continue
+        if blocked[candidate]:
+            continue
+        if candidate == start:
+            return face_via_step(env, timestep, bfs_direction_between(candidate, target))
+        path = bfs_path(blocked, start, candidate)
+        if path is not None:
+            timestep = bfs_walk_path_via_step(env, timestep, path)
+            return face_via_step(env, timestep, bfs_direction_between(candidate, target))
+    raise AssertionError(f"no reachable approach cell for target {target}")
+
+
+def test_blocked_unlock_pickup_gameplay_and_reward_termination():
+    # real env.step() cycle throughout, matching test_unlock_gameplay_
+    # and_reward_termination's convention. Uses the BFS helpers above,
+    # not this file's walk_to/navigate_adjacent_and_face heuristics -
+    # those were tuned for exactly two static obstacles (Key, Box) and
+    # don't know about the extra Ball, which (once dropped somewhere
+    # after clearing it) could sit anywhere and confuse a blind
+    # row-then-column walk (confirmed directly: seed 0 failed this way
+    # with the heuristic navigation).
+    #
+    # Solve order matters: pickup() overwrites whatever's already in
+    # the player's pocket, so the ball must be cleared *and dropped*
+    # (freeing the pocket again) before the key can be picked up -
+    # picking up the key first, then the ball, would silently lose the
+    # key (still at the discard pile, but no longer referenced by
+    # player.pocket).
+    for seed in GAMEPLAY_SEEDS:
+        env = nx.make("Navix-BlockedUnlockPickup-v0")
+        timestep = env.reset(jax.random.PRNGKey(seed))
+        state = timestep.state
+        doors = state.get_doors()
+        door_row, door_col = int(doors.position[0, 0]), int(doors.position[0, 1])
+        keys = state.get_keys()
+        key_row, key_col = int(keys.position[0, 0]), int(keys.position[0, 1])
+        balls = state.get_balls()
+        ball_row, ball_col = int(balls.position[0, 0]), int(balls.position[0, 1])
+        boxes = state.get_boxes()
+        box_row, box_col = int(boxes.position[0, 0]), int(boxes.position[0, 1])
+
+        # clear the blocking ball: pick it up (moves it straight to the
+        # discard pile - the cell is clear immediately)...
+        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, ball_row, ball_col)
+        timestep = env.step(timestep, jnp.asarray(PICKUP))
+        assert int(timestep.state.get_player().pocket) != int(EMPTY_POCKET_ID), (
+            f"seed={seed}: ball not picked up"
+        )
+        # ...then step into the now-vacated cell and drop facing further
+        # into the room (not back at the door's own interaction cell,
+        # which dropping in place would immediately re-block).
+        timestep = env.step(timestep, jnp.asarray(FORWARD))
+        timestep = face_via_step(env, timestep, WEST)
+        timestep = env.step(timestep, jnp.asarray(DROP))
+        assert int(timestep.state.get_player().pocket) == int(EMPTY_POCKET_ID), (
+            f"seed={seed}: pocket not freed after dropping the ball"
+        )
+
+        # now proceed like UnlockPickup: key -> unlock -> cross -> box
+        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, key_row, key_col)
+        timestep = env.step(timestep, jnp.asarray(PICKUP))
+        assert int(timestep.state.get_player().pocket) != int(EMPTY_POCKET_ID), (
+            f"seed={seed}: key not picked up"
+        )
+
+        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, door_row, door_col)
+        timestep = env.step(timestep, jnp.asarray(TOGGLE))
+        assert bool(timestep.state.get_doors().open[0]), f"seed={seed}: door not opened"
+        assert timestep.step_type == 0, f"seed={seed}: episode ended before picking up the box"
+
+        timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, box_row, box_col)
+        timestep = env.step(timestep, jnp.asarray(PICKUP))
+        assert int(timestep.state.get_player().pocket) == int(boxes.id[0]), (
+            f"seed={seed}: box not picked up"
+        )
+        assert timestep.step_type == 2, (
+            f"seed={seed}: expected termination on picking up the box"
+        )
+        assert float(timestep.reward) > 0, f"seed={seed}: expected positive reward"
+
+
+def test_blocked_unlock_pickup_jit_vmap_compatible():
+    env = nx.make("Navix-BlockedUnlockPickup-v0")
+    keys = jax.random.split(jax.random.PRNGKey(0), 4)
+    reset = jax.jit(env.reset)
+    step = jax.jit(env.step)
+    timestep = jax.vmap(reset)(keys)
+    for action in range(len(nx.actions.DEFAULT_ACTION_SET)):
+        timestep = jax.vmap(step, in_axes=(0, None))(timestep, jnp.asarray(action))
+    jax.block_until_ready(timestep)

@@ -316,6 +316,56 @@ def test_pickup():
     ), "Expected key to be at {}, got {}".format(DISCARD_PILE_COORDS, keys.position)
 
 
+def test_pickup_with_exactly_two_instances_of_a_type():
+    # PR #191 review: pickup_entity's `jnp.where(found, DISCARD_PILE_
+    # COORDS, entity.position)` used an unreshaped `found` (shape
+    # (n_instances,)) against entity.position (shape (n_instances, 2)) -
+    # when n_instances == 2, found's shape collides with the trailing
+    # (row, col) axis, so JAX broadcasts it against the wrong axis
+    # entirely (aligning from the right: (2,) matches position's last
+    # axis, not its instance axis). Reproduced directly: with two Ball
+    # instances and only the first one in front of the player, the old
+    # code corrupted *both* balls' rows to the discard row while
+    # leaving both columns untouched, instead of moving only the first
+    # ball to DISCARD_PILE_COORDS entirely. Two Ball instances
+    # specifically (not Key/Box) since this is what actually exposed
+    # the bug - every existing Key/Box usage only ever has one instance.
+    heigh, width = 5, 5
+    grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)
+    grid = jnp.pad(grid, pad_width=1, mode="constant", constant_values=1)
+    key = jax.random.PRNGKey(0)
+    player = nx.entities.Player(
+        position=jnp.asarray((1, 1)), direction=jnp.asarray(0), pocket=EMPTY_POCKET_ID
+    )
+    balls = nx.entities.Ball(
+        position=jnp.asarray([[1, 2], [3, 3]]),
+        colour=jnp.asarray([PALETTE.BLUE, PALETTE.RED]),
+        probability=jnp.asarray([1.0, 1.0]),
+        id=jnp.asarray([1, 2]),
+    )
+    cache = nx.rendering.cache.RenderingCache.init(grid)
+    entities = {Entities.PLAYER: player[None], Entities.BALL: balls}
+    state = State(key=key, grid=grid, cache=cache, entities=entities)
+
+    state = nx.actions.pickup(state)
+
+    balls = state.get_balls()
+    assert jnp.array_equal(
+        balls.position[0], DISCARD_PILE_COORDS
+    ), "Expected the picked-up ball (id=1) to be at {}, got {}".format(
+        DISCARD_PILE_COORDS, balls.position[0]
+    )
+    assert jnp.array_equal(
+        balls.position[1], jnp.asarray([3, 3])
+    ), "Expected the other ball (id=2) to stay untouched at (3, 3), got {}".format(
+        balls.position[1]
+    )
+    player = state.get_player()
+    assert jnp.array_equal(
+        player.pocket, jnp.asarray(1)
+    ), "Expected pocket to hold the picked-up ball's id (1), got {}".format(player.pocket)
+
+
 def test_drop():
     heigh, width = 5, 5
     grid = jnp.zeros((heigh - 2, width - 2), dtype=jnp.int32)

@@ -212,6 +212,28 @@ class EventsManager(struct.PyTreeNode):
             return jnp.asarray(False)
         return jnp.any(event.happened)
 
+    def happened_at(self, key: Tuple[str, str], position: Array) -> Array:
+        """Whether `key`'s slot fired this step for the specific instance
+        that was at `position` when recorded - `Event.position` keeps the
+        firing instance's own position even after game logic later moves
+        the entity itself (e.g. to the discard pile on pickup), so this
+        can identify *which* instance fired, not just whether any did
+        (see `happened`). `False` (not a `KeyError`) if this
+        environment's `entities` never included that entity type at all.
+
+        Args:
+            key (Tuple[str, str]): The `(entity_type, event_type)` slot to
+                check.
+            position (Array): The position to match against.
+
+        Returns:
+            Array: A boolean scalar."""
+        event = self.events.get(key)
+        if event is None:
+            return jnp.asarray(False)
+        at_position = jnp.all(event.position == position, axis=-1)
+        return jnp.any(jnp.logical_and(event.happened, at_position))
+
     def merge_event(
         self, key: Tuple[str, str], hit: Array, position: Array, colour: Array
     ) -> EventsManager:
@@ -446,7 +468,15 @@ class State(struct.PyTreeNode):
     goal is reached, or the player is hit by a ball. Left at its default (empty)
     here - `__post_init__` populates it from `entities` via `EventsManager.create`,
     since a `struct.PyTreeNode` field's default can't see its sibling fields."""
-    mission: Event | None = None
+    mission: Tuple[Event, ...] = ()
+    """The environment's mission target(s), if any - e.g. `(door,)` in
+    `GoToDoor`, `(target,)` in `GoToObject`/`Fetch`, `(carry, drop_near)`
+    in `PutNear` (index 0 is always the "primary"/carry target; index 1,
+    where present, is a second, independently-tracked target - only
+    `PutNear` needs two today). Empty for an environment with no mission
+    at all. A tuple, not a fixed number of separate fields, so a future
+    environment needing a third simultaneous target is just a longer
+    tuple, not another numbered field."""
 
     def __post_init__(self) -> None:
         # events.events is only ever empty right after construction with no

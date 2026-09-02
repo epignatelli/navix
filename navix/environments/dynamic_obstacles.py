@@ -39,6 +39,36 @@ from .registry import register_env
 
 
 class DynamicObstacles(Environment):
+    """A room with `n_obstacles` `Ball`s that each take one random step
+    every turn; reach the goal without touching one.
+
+    Deliberately differs from real MiniGrid's `DynamicObstaclesEnv` in
+    one place: real MiniGrid removes `pickup`/`drop`/`toggle`/`done`
+    from this environment's action space entirely (`Discrete(3)`
+    instead of the usual `Discrete(7)`), since none of them mean
+    anything here. Navix keeps the full default action set instead, so
+    that an agent trained across the whole navix suite sees one
+    uniform action interface everywhere - and since `Ball` is
+    `Pickable` (needed elsewhere, for `Fetch`/`PutNear`/`GoToObject`/
+    `BlockedUnlockPickup`), picking one up here ends the episode the
+    same way walking into it already does (`termination_fn` composes
+    `on_ball_pickup` alongside `on_ball_hit`), rather than either
+    silently removing it from play or being unavailable.
+
+    To instantiate the exact MiniGrid-equivalent `Discrete(3)` action
+    space instead, pass `action_set` explicitly:
+
+    ```python
+    env = navix.make(
+        "Navix-Dynamic-Obstacles-5x5-v0",
+        action_set=(navix.actions.rotate_ccw, navix.actions.rotate_cw, navix.actions.forward),
+    )
+    ```
+
+    (verified directly: `env.action_set`/`env.action_space` both come
+    out as length/`Discrete(3)`, matching real MiniGrid, and
+    `env.step()` works normally with action indices `0`/`1`/`2`)."""
+
     random_start: bool = struct.field(pytree_node=False, default=False)
     n_obstacles: int = struct.field(pytree_node=False, default=2)
 
@@ -72,6 +102,13 @@ class DynamicObstacles(Environment):
             position=ball_pos,
             colour=jnp.tile(PALETTE.BLUE, (self.n_obstacles,)),
             probability=jnp.ones(self.n_obstacles),
+            # Ball became Pickable so Fetch/PutNear/BlockedUnlockPickup can
+            # use it - ids just need to be unique per instance here, they
+            # play no role in this env (DynamicObstacles relies on
+            # walk-into collision via on_ball_hit, not pickup, for its
+            # termination; see PR description for the resulting narrow
+            # behavior change: pickup() no longer no-ops on these balls).
+            id=jnp.arange(1, self.n_obstacles + 1, dtype=jnp.int32),
         )
 
         entities = {
@@ -107,6 +144,18 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),
@@ -120,6 +169,18 @@ register_env(
         random_start=True,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),
@@ -133,6 +194,18 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),
@@ -146,6 +219,18 @@ register_env(
         random_start=True,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),
@@ -159,6 +244,18 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),
@@ -172,6 +269,18 @@ register_env(
         random_start=False,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
         reward_fn=kwargs.pop("reward_fn", rewards.on_goal_reached),
+        # picking up a ball now ends the episode the same way walking
+        # into one already does (rather than silently removing it from
+        # play), now that Ball is Pickable - see PR #191's review.
+        termination_fn=kwargs.pop(
+            "termination_fn",
+            terminations.compose(
+                terminations.on_goal_reached,
+                terminations.on_lava_fall,
+                terminations.on_ball_hit,
+                terminations.on_ball_pickup,
+            ),
+        ),
         *args,
         **kwargs,
     ),

@@ -254,6 +254,82 @@ def random_positions(
     return position.squeeze()
 
 
+def random_distinct_positions(
+    key: Array, grid: Array, n: int, exclude: Array = jnp.asarray((-1, -1))
+) -> Array:
+    """Generates `n` *mutually distinct* random positions in the grid,
+    each also excluding `exclude` - unlike `random_positions(..., n=n)`,
+    whose `n` draws are i.i.d. (`jax.random.categorical` samples with
+    replacement) and so can collide with each other (see issue #172's
+    PR: GoToObject/Fetch/PutNear all need genuinely distinct object
+    positions to track a mission by position alone). Draws sequentially,
+    each excluding every position drawn so far in addition to `exclude` -
+    `n` is a small static Python int in every current caller, so the
+    unrolled loop is fine under jit (same pattern as `jax.random.split`
+    being called with a static count elsewhere in this codebase).
+
+    Args:
+        key (Array): A random key.
+        grid (Array): A 2D grid of shape (height, width).
+        n (int): The number of distinct positions to generate.
+        exclude (Array, optional): Position(s) to also exclude, shape
+            `(2,)` or `(k, 2)`. Defaults to `jnp.asarray((-1, -1))`.
+
+    Returns:
+        Array: `n` mutually distinct positions of shape `i32[n, 2]`."""
+    exclude = jnp.atleast_2d(exclude)
+    keys = jax.random.split(key, n)
+    positions = []
+    for i in range(n):
+        excluded_so_far = jnp.concatenate([exclude, *positions], axis=0)
+        pos = random_positions(keys[i], grid, n=1, exclude=excluded_so_far)
+        positions.append(jnp.reshape(pos, (1, 2)))
+    return jnp.concatenate(positions, axis=0)
+
+
+def random_position_far_from(
+    key: Array,
+    grid: Array,
+    reference: Array,
+    min_distance: int = 2,
+    exclude: Array = jnp.asarray((-1, -1)),
+) -> Array:
+    """Generates one random position at Chebyshev distance `>=
+    min_distance` from `reference`, also excluding `exclude`.
+
+    For `PutNear`-style tasks: quantified directly (500 seeds each),
+    `random_distinct_positions` alone let 36% of `Navix-PutNear-6x6-N2-v0`
+    episodes spawn with the "move" object already within Chebyshev
+    distance 1 of the "drop near" target - trivially "solved" with no
+    real navigation needed, unlike real MiniGrid's `PutNearEnv`, which
+    explicitly rejects that via `reject_fn=near_obj` (see PR #191
+    review's "New risks" section).
+
+    Args:
+        key (Array): A random key.
+        grid (Array): A 2D grid of shape (height, width).
+        reference (Array): The `(row, col)` position to stay away from.
+        min_distance (int, optional): Minimum Chebyshev distance from
+            `reference`. Defaults to 2 (i.e. not orthogonally/
+            diagonally adjacent, and not the same cell).
+        exclude (Array, optional): Position(s) to also exclude, shape
+            `(2,)` or `(k, 2)`. Defaults to `jnp.asarray((-1, -1))`.
+
+    Returns:
+        Array: A position of shape `i32[2]`."""
+    mesh_row, mesh_col = jnp.mgrid[0 : grid.shape[0], 0 : grid.shape[1]]
+    chebyshev = jnp.maximum(jnp.abs(mesh_row - reference[0]), jnp.abs(mesh_col - reference[1]))
+    too_close = (chebyshev < min_distance).reshape(-1)
+
+    probs = grid.reshape(-1)
+    exclude = jnp.atleast_2d(exclude)
+    exclude_idx = idx_from_coordinates(grid, exclude)
+    probs = probs.at[exclude_idx].set(-1)
+    probs = jnp.where(too_close, -1, probs) + 1.0
+    idx = jax.random.categorical(key, jnp.log(probs), shape=(1,))
+    return coordinates_from_idx(grid, idx).squeeze()
+
+
 def random_directions(key: Array, n=1) -> Array:
     """Generates `n` random directions in the range [0, 1, 2, 3] representing the \
         cardinal directions [east, south, west, north].
