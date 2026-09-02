@@ -1404,6 +1404,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.terminations.on_target_fetched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;on_target_fetched
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.terminations.on_wrong_toggle" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2332,6 +2343,34 @@
     
   
     Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="environments/obstructed_maze.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Obstructed maze
   
 
     
@@ -4294,6 +4333,114 @@ picked up this step.</p>
 
         <p><code>GoToObject</code>'s success termination: <code>done</code> was called while
 facing the mission target.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prev_state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The previous state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The action taken by the player.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A boolean array.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.terminations.on_target_fetched" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">on_target_fetched</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>ObstructedMaze</code>'s termination: only picking up the <em>specific</em>
+mission-target <code>Key</code>/<code>Ball</code> ends the episode - unlike <code>Fetch</code>'s
+<code>on_any_target_pickup</code>, a wrong pickup (the blocking <code>Ball</code>, say)
+does not end it here, matching MiniGrid's actual <code>ObstructedMazeEnv</code>
+(reward + termination only on picking up the target).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>

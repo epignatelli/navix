@@ -2386,6 +2386,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/obstructed_maze.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Obstructed maze
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/put_near.html" class="md-nav__link">
         
   
@@ -2856,6 +2884,17 @@ instance the same way <code>Key.id</code> does, for <code>actions.pickup</code> 
 against <code>player.pocket</code>; <code>pocket</code> (from <code>Holder</code>) is a <em>different</em>
 field, for whatever item is hidden inside the box (e.g. a <code>Key</code>'s
 id), unrelated to the box's own pickup-identity.</p>
+<p>BREAKING CHANGE: <code>actions.open</code> (the <code>toggle</code> action) now also
+handles <code>Box</code> - toggling one removes it from play and, if its
+<code>pocket</code> held a <code>Key</code>'s id, reveals that <code>Key</code> at the box's former
+position (verified against MiniGrid's actual <code>Box.toggle</code>: <code>env.
+grid.set(pos, self.contains)</code>). Previously boxes were inert to
+<code>toggle</code> in every environment. This changes the dynamics of any
+existing environment whose <code>action_set</code> includes <code>toggle</code> and
+which places a <code>Box</code> (<code>GoToObject</code>, <code>PutNear</code>, <code>Unlock</code>/
+<code>UnlockPickup</code>/<code>BlockedUnlockPickup</code>'s decoy box) - the box can now
+be made to disappear by toggling it, where it previously could
+not.</p>
 
 
 

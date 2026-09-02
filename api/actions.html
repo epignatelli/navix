@@ -1019,6 +1019,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.actions.open_box" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;open_box
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.actions.pickup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2319,6 +2330,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/obstructed_maze.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Obstructed maze
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/put_near.html" class="md-nav__link">
         
   
@@ -3196,7 +3235,8 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>Unlocks and opens an openable object (like a door) if possible.</p>
+        <p>Unlocks and opens an openable object (like a door), or opens a
+box to reveal what it contains, if possible.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3246,6 +3286,111 @@ This action does not terminate the episode, unless the termination function expl
             <td>
               <div class="doc-md-description">
                 <p>The new state with the openable object opened.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.actions.open_box" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">open_box</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">position_in_front</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Opens the <code>Box</code> in front of the player, if any (verified against
+MiniGrid's actual <code>Box.toggle</code>: <code>env.grid.set(pos, self.contains)</code>
+- the box is removed and, if it held something, that object takes
+its place at the same position). Currently only <code>Key</code> boxes are
+supported (<code>Box.pocket</code> stores the id of a <code>Key</code> instance, the same
+way <code>player.pocket</code> does) - <code>ObstructedMaze</code>'s only real user of
+this, keys hidden inside boxes.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current state.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>position_in_front</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The position directly in front of
+the player.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>State</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The new state, with any opened box removed and its</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>contents (if any) revealed at its former position.</p>
               </div>
             </td>
           </tr>
