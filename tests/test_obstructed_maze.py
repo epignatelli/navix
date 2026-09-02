@@ -175,7 +175,7 @@ def test_obstructed_maze_1dlhb_gameplay_and_reward_termination():
         timestep = env.reset(jax.random.PRNGKey(seed))
         state = timestep.state
         doors = state.get_doors()
-        door_row, door_col = int(doors.position[0]), int(doors.position[1])
+        door_row, door_col = int(doors.position[0, 0]), int(doors.position[0, 1])
         boxes = state.get_boxes()
         box_row, box_col = int(boxes.position[0, 0]), int(boxes.position[0, 1])
         balls = state.get_balls()
