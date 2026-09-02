@@ -18,13 +18,21 @@
 # under the License.
 
 """`GoToObject` (issue #173): a single room scattered with `n_objects`
-`Key`/`Ball` instances of distinct colours; one is chosen as the
+`Key`/`Ball`/`Box` instances of distinct colours; one is chosen as the
 per-episode target via `State.mission` (same pattern `GoToDoor` already
 uses). Success requires calling `done` while facing the target (verified
 against MiniGrid's actual `GoToObjectEnv.step` - not just proximity, and
 calling `toggle` at all immediately fails), unlike the already-shipped
 `GoToDoor`/`events.on_door_done`, which doesn't check the action at all
 (a pre-existing gap, left as-is here - see PR description).
+
+Each object's type is drawn independently (matching MiniGrid's own
+`types = ["key", "ball", "box"]` sampled per object, checked directly
+against source - not a fixed split), so the actual per-type counts vary
+by episode; implemented by always allocating `n_objects` Key/Ball/Box
+slots and pushing every slot not assigned that episode's type to
+`DISCARD_PILE_COORDS` - the same padding-sentinel pattern
+`LavaCrossing` already uses for its own variable-count entities.
 
 Registers with `transitions_fn=transitions.deterministic_transition`,
 overriding the default `stochastic_transition` - the latter
@@ -45,8 +53,8 @@ from flax import struct
 
 from navix import observations, rewards, terminations, transitions
 
-from ..components import EMPTY_POCKET_ID
-from ..entities import Ball, Entities, Key, Player
+from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
+from ..entities import Ball, Box, Entities, Key, Player
 from ..grid import random_colour, random_directions, random_distinct_positions, random_positions, room
 from ..rendering.cache import RenderingCache
 from ..states import Event, State
@@ -58,7 +66,7 @@ class GoToObject(Environment):
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
-        k_pos, k_dir, k_obj_pos, k_colour, k_target = jax.random.split(key, 5)
+        k_pos, k_dir, k_obj_pos, k_colour, k_target, k_types = jax.random.split(key, 6)
 
         grid = room(self.height, self.width)
 
@@ -69,37 +77,48 @@ class GoToObject(Environment):
             pocket=EMPTY_POCKET_ID,
         )
 
-        # n_objects distinct colours, split as evenly as possible between
-        # Key and Ball (n_objects=2 -> one of each, matching the
-        # registered sizes below); positions mutually distinct and
-        # excluding the player (random_positions(..., n=n) alone would
-        # allow two objects to land on the same cell - see #172's PR).
-        colours = random_colour(k_colour, n=self.n_objects)
-        colours = jnp.reshape(colours, (self.n_objects,))
+        # n_objects distinct colours and positions - random_positions(...,
+        # n=n) alone would allow two objects to land on the same cell
+        # (see #172's PR).
+        colours = jnp.reshape(random_colour(k_colour, n=self.n_objects), (self.n_objects,))
         positions = random_distinct_positions(
             k_obj_pos, grid, n=self.n_objects, exclude=player_pos
         )
-        n_keys = self.n_objects // 2
-        n_balls = self.n_objects - n_keys
 
-        entities = {Entities.PLAYER: player[None]}
-        if n_keys > 0:
-            keys = Key.create(
-                position=positions[:n_keys],
-                colour=colours[:n_keys],
-                id=jnp.arange(1, n_keys + 1, dtype=jnp.int32),
-            )
-            entities[Entities.KEY] = keys
-        if n_balls > 0:
-            balls = Ball.create(
-                position=positions[n_keys:],
-                colour=colours[n_keys:],
-                probability=jnp.ones(n_balls),
-                id=jnp.arange(n_keys + 1, self.n_objects + 1, dtype=jnp.int32),
-            )
-            entities[Entities.BALL] = balls
+        # each object's type drawn independently, 0=Key/1=Ball/2=Box -
+        # see module docstring for why every slot is allocated for every
+        # type, with non-matching slots pushed off-grid.
+        type_idx = jax.random.randint(k_types, (self.n_objects,), 0, 3)
+        is_key, is_ball, is_box = type_idx == 0, type_idx == 1, type_idx == 2
+        key_pos = jnp.where(is_key[:, None], positions, DISCARD_PILE_COORDS)
+        ball_pos = jnp.where(is_ball[:, None], positions, DISCARD_PILE_COORDS)
+        box_pos = jnp.where(is_box[:, None], positions, DISCARD_PILE_COORDS)
+
+        keys = Key.create(
+            position=key_pos, colour=colours, id=jnp.arange(1, self.n_objects + 1, dtype=jnp.int32)
+        )
+        balls = Ball.create(
+            position=ball_pos,
+            colour=colours,
+            probability=jnp.ones(self.n_objects),
+            id=jnp.arange(self.n_objects + 1, 2 * self.n_objects + 1, dtype=jnp.int32),
+        )
+        boxes = Box.create(
+            position=box_pos,
+            colour=colours,
+            id=jnp.arange(2 * self.n_objects + 1, 3 * self.n_objects + 1, dtype=jnp.int32),
+            pocket=jnp.full((self.n_objects,), -1, dtype=jnp.int32),
+        )
+        entities = {
+            Entities.PLAYER: player[None],
+            Entities.KEY: keys,
+            Entities.BALL: balls,
+            Entities.BOX: boxes,
+        }
 
         # target: one of the n_objects positions/colours, chosen uniformly
+        # - position alone identifies the target regardless of which
+        # type ended up there, so no further change needed here.
         target_idx = jax.random.randint(k_target, (), 0, self.n_objects)
         mission = Event(
             position=positions[target_idx],

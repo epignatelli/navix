@@ -38,6 +38,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import navix as nx
+from navix.components import DISCARD_PILE_COORDS
 from navix.entities import Entities
 
 
@@ -150,23 +151,31 @@ def navigate_adjacent_and_face(env, timestep):
 
 
 def test_go_to_object_structure():
+    # Key/Ball/Box each always have n_objects slots (see module
+    # docstring's padding-sentinel design) - only the ones not pushed to
+    # DISCARD_PILE_COORDS are "real" objects for this episode.
     for env_id in ("Navix-GoToObject-6x6-N2-v0", "Navix-GoToObject-8x8-N2-v0"):
         env = nx.make(env_id)
         for seed in range(N_SEEDS):
             state = env.reset(jax.random.PRNGKey(seed)).state
             assert state.mission is not None, f"{env_id} seed={seed}: expected a mission"
 
-            positions = []
-            if Entities.KEY in state.entities:
-                positions.append(state.get_keys().position)
-            if Entities.BALL in state.entities:
-                positions.append(state.get_balls().position)
-            positions = jnp.concatenate(positions, axis=0)
-            assert positions.shape[0] == 2, f"{env_id} seed={seed}: expected 2 objects total"
+            positions = jnp.concatenate(
+                [
+                    state.get_keys().position,
+                    state.get_balls().position,
+                    state.get_boxes().position,
+                ],
+                axis=0,
+            )
+            on_grid = jnp.any(positions != DISCARD_PILE_COORDS, axis=-1)
+            assert int(jnp.sum(on_grid)) == env.n_objects, (
+                f"{env_id} seed={seed}: expected {env.n_objects} real objects total"
+            )
 
-            matches = jnp.all(positions == state.mission.position, axis=-1)
+            matches = jnp.all(positions == state.mission.position, axis=-1) & on_grid
             assert int(jnp.sum(matches)) == 1, (
-                f"{env_id} seed={seed}: mission.position must match exactly one object"
+                f"{env_id} seed={seed}: mission.position must match exactly one real object"
             )
 
 
