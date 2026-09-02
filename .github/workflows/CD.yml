@@ -3,7 +3,7 @@ name: CD
 on:
   workflow_dispatch:
   schedule:
-    # weekly, Monday 09:00 UTC - batches every commit merged to main
+    # weekly, Monday 05:00 UTC - batches every commit merged to main
     # since the last release into one version bump/changelog/PyPI
     # publish, instead of releasing on every single push (previously
     # `on: push: branches: [main]` here) - conventional-changelog-action
@@ -11,7 +11,7 @@ on:
     # needs no changes beyond the trigger and skip-on-empty below.
     # workflow_dispatch above still allows an out-of-cycle release
     # (e.g. an urgent fix) without waiting for the next Monday.
-    - cron: "0 9 * * 1"
+    - cron: "0 5 * * 1"
 
 jobs:
   release:
