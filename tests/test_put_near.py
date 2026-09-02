@@ -192,6 +192,31 @@ def test_put_near_structure():
             assert int(jnp.sum(target_matches)) == 1
 
 
+def test_put_near_never_spawns_already_solved():
+    # PR #191 review "New risks": random_distinct_positions alone lets
+    # the move/target pair spawn already within "near" (Chebyshev <= 1)
+    # of each other, trivially solvable with no navigation - quantified
+    # directly at 36% of seeds for the 6x6 size before this was fixed.
+    # A larger seed count than the other structural tests specifically
+    # because this is a statistical claim ("never"), not a per-seed
+    # structural invariant - passing on N_SEEDS wouldn't rule out a
+    # residual few-percent chance the earlier bug allowed.
+    n_stat_seeds = 500
+    for env_id in ("Navix-PutNear-6x6-N2-v0", "Navix-PutNear-8x8-N3-v0"):
+        env = nx.make(env_id)
+        too_close = 0
+        for seed in range(n_stat_seeds):
+            state = env.reset(jax.random.PRNGKey(seed)).state
+            move, target = state.mission.position, state.mission2.position
+            chebyshev = jnp.maximum(jnp.abs(move[0] - target[0]), jnp.abs(move[1] - target[1]))
+            if int(chebyshev) <= 1:
+                too_close += 1
+        assert too_close == 0, (
+            f"{env_id}: {too_close}/{n_stat_seeds} seeds spawned with the move "
+            f"object already within Chebyshev-1 of the target (already \"solved\")"
+        )
+
+
 def test_put_near_wrong_pickup_fails_immediately():
     env = nx.make("Navix-PutNear-6x6-N2-v0")
     for seed in range(GAMEPLAY_SEEDS):

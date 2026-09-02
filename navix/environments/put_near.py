@@ -45,7 +45,14 @@ from navix import observations, rewards, terminations, transitions
 
 from ..components import EMPTY_POCKET_ID
 from ..entities import Ball, Entities, Key, Player
-from ..grid import random_colour, random_directions, random_distinct_positions, random_positions, room
+from ..grid import (
+    random_colour,
+    random_directions,
+    random_distinct_positions,
+    random_position_far_from,
+    random_positions,
+    room,
+)
 from ..rendering.cache import RenderingCache
 from ..states import Event, State
 from . import Environment, Timestep
@@ -56,7 +63,7 @@ class PutNear(Environment):
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
-        k_pos, k_dir, k_obj_pos, k_colour, k_targets = jax.random.split(key, 5)
+        k_pos, k_dir, k_obj_pos, k_colour, k_targets, k_target_pos = jax.random.split(key, 6)
 
         grid = room(self.height, self.width)
 
@@ -73,6 +80,38 @@ class PutNear(Environment):
         positions = random_distinct_positions(
             k_obj_pos, grid, n=self.n_objects, exclude=player_pos
         )
+
+        # two distinct objects: move (to carry) and target (to drop near).
+        # Determined before building entities, since the target's
+        # position may need correcting below.
+        move_idx, target_idx = jax.random.choice(
+            k_targets, self.n_objects, shape=(2,), replace=False
+        )
+
+        # random_distinct_positions alone doesn't stop the move/target
+        # pair from spawning already within "near" (Chebyshev <= 1) of
+        # each other - trivially "solved" with no real navigation
+        # needed (quantified: 36% of Navix-PutNear-6x6-N2-v0 episodes,
+        # see grid.random_position_far_from's docstring). If so,
+        # re-place just the target object, far enough from the move
+        # object and clear of every other already-placed position.
+        move_pos = positions[move_idx]
+        target_pos = positions[target_idx]
+        chebyshev = jnp.maximum(
+            jnp.abs(move_pos[0] - target_pos[0]), jnp.abs(move_pos[1] - target_pos[1])
+        )
+        too_close = chebyshev <= 1
+        resampled_target_pos = random_position_far_from(
+            k_target_pos,
+            grid,
+            reference=move_pos,
+            min_distance=2,
+            exclude=jnp.concatenate([positions, player_pos[None]], axis=0),
+        )
+        positions = positions.at[target_idx].set(
+            jnp.where(too_close, resampled_target_pos, target_pos)
+        )
+
         n_keys = self.n_objects // 2
         n_balls = self.n_objects - n_keys
 
@@ -93,10 +132,6 @@ class PutNear(Environment):
             )
             entities[Entities.BALL] = balls
 
-        # two distinct objects: move (to carry) and target (to drop near)
-        move_idx, target_idx = jax.random.choice(
-            k_targets, self.n_objects, shape=(2,), replace=False
-        )
         mission = Event(
             position=positions[move_idx],
             colour=colours[move_idx],
