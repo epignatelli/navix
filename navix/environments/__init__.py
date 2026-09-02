@@ -31,7 +31,7 @@ from .crossings import Crossings
 from .dynamic_obstacles import DynamicObstacles
 from .dist_shift import DistShift
 from .go_to_door import GoToDoor
-from .unlock import Unlock, UnlockPickup
+from .unlock import Unlock, UnlockPickup, BlockedUnlockPickup
 from .red_blue_doors import RedBlueDoors
 from .go_to_object import GoToObject
 from .fetch import Fetch

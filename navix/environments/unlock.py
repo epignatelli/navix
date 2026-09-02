@@ -32,8 +32,8 @@ from jax import Array
 
 from navix import observations, rewards, terminations
 
-from ..components import EMPTY_POCKET_ID
-from ..entities import Box, Door, Entities, Entity, Key, Player
+from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
+from ..entities import Ball, Box, Door, Entities, Entity, Key, Player
 from ..grid import mask_by_coordinates, random_colour, random_directions, random_positions
 from ..rendering.cache import RenderingCache
 from ..states import State
@@ -42,7 +42,7 @@ from .registry import register_env
 
 
 def two_equal_rooms_with_door(
-    key: Array, height: int, width: int
+    key: Array, height: int, width: int, block_door: bool = False
 ) -> Tuple[Array, Array, int, Dict[str, Entity], Array, Array]:
     """Builds the shared layout `Unlock`/`UnlockPickup` both start from:
     two `height x height`-square rooms side by side (`wall_col =
@@ -57,15 +57,25 @@ def two_equal_rooms_with_door(
         key (Array): PRNG key.
         height (int): Height of each room (MiniGrid's `room_size`).
         width (int): Must be `2 * (height - 1) + 1`.
+        block_door (bool): If True (used by `BlockedUnlockPickup`, #181),
+            also places a `Ball` directly in front of the door on the
+            first room's side, and excludes that cell from player/key
+            placement - a static Python bool (not a traced value), so
+            this branches at trace-construction time, not runtime; the
+            door's position is already known at this point inside the
+            function (unlike a caller trying to add a blocking ball
+            afterwards, which would risk colliding with an
+            already-randomly-placed player/key).
 
     Returns:
         Tuple[Array, ...]: `(key, grid, wall_col, entities_dict, first_room,
         door_colour)` - `entities_dict` has `Entities.PLAYER`/`KEY`/`DOOR`
-        already batched (`[None]`-indexed) and ready to merge into a
-        `State`; `first_room` (the left room's own `grid`-shaped mask,
-        walls everywhere outside it) is returned too, so `UnlockPickup`
-        can build its own `second_room` mask from the same `wall_col`
-        without recomputing the base grid.
+        (and `Entities.BALL` if `block_door`) already batched
+        (`[None]`-indexed) and ready to merge into a `State`; `first_room`
+        (the left room's own `grid`-shaped mask, walls everywhere outside
+        it) is returned too, so `UnlockPickup` can build its own
+        `second_room` mask from the same `wall_col` without recomputing
+        the base grid.
     """
     assert (
         width == 2 * (height - 1) + 1
@@ -104,13 +114,16 @@ def two_equal_rooms_with_door(
     )
     first_room = jnp.where(first_room_mask, grid, -1)
 
-    player_pos = random_positions(k_player_pos, first_room)
+    block_pos = jnp.asarray([door_row, wall_col - 1])
+    player_exclude = block_pos if block_door else DISCARD_PILE_COORDS
+    player_pos = random_positions(k_player_pos, first_room, exclude=player_exclude)
     player_dir = random_directions(k_player_dir)
     player = Player.create(
         position=player_pos, direction=player_dir, pocket=EMPTY_POCKET_ID
     )
 
-    key_pos = random_positions(k_key_pos, first_room, exclude=player_pos)
+    key_exclude = jnp.stack([player_pos, block_pos]) if block_door else player_pos
+    key_pos = random_positions(k_key_pos, first_room, exclude=key_exclude)
     keys = Key.create(position=key_pos, id=jnp.asarray(1), colour=door_colour)
 
     entities = {
@@ -118,6 +131,14 @@ def two_equal_rooms_with_door(
         Entities.KEY: keys[None],
         Entities.DOOR: doors[None],
     }
+    if block_door:
+        blocker = Ball.create(
+            position=block_pos,
+            colour=door_colour,
+            probability=jnp.asarray(1.0),
+            id=jnp.asarray(3),
+        )
+        entities[Entities.BALL] = blocker[None]
     return key, grid, wall_col, entities, first_room, door_colour
 
 
@@ -190,6 +211,51 @@ class UnlockPickup(Environment):
         )
 
 
+class BlockedUnlockPickup(Environment):
+    """`UnlockPickup` (#176), plus a `Ball` placed directly in front of
+    the door on the first room's side, obstructing the direct approach
+    (#181) - the agent must move it out of the way (pick it up and
+    carry it elsewhere, or step around it if the room is wide enough)
+    before it can reach and unlock the door. Reuses
+    `two_equal_rooms_with_door(block_door=True)` directly - no
+    `RoomGrid` (#174) needed, despite this issue's own header
+    suggesting otherwise."""
+
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+        key, grid, wall_col, entities, _, _ = two_equal_rooms_with_door(
+            key, self.height, self.width, block_door=True
+        )
+
+        key, k_box_pos, k_box_colour = jax.random.split(key, 3)
+        second_room_mask = mask_by_coordinates(
+            grid, (jnp.asarray(0), jnp.asarray(wall_col)), jnp.greater
+        )
+        second_room = jnp.where(second_room_mask, grid, -1)
+        box_pos = random_positions(k_box_pos, second_room)
+        boxes = Box.create(
+            position=box_pos,
+            colour=random_colour(k_box_colour),
+            id=jnp.asarray(2),
+            pocket=jnp.asarray(-1),
+        )
+        entities[Entities.BOX] = boxes[None]
+
+        state = State(
+            key=key,
+            grid=grid,
+            cache=cache or RenderingCache.init(grid),
+            entities=entities,
+        )
+        return Timestep(
+            t=jnp.asarray(0, dtype=jnp.int32),
+            observation=self.observation_fn(state),
+            action=jnp.asarray(-1, dtype=jnp.int32),
+            reward=jnp.asarray(0.0, dtype=jnp.float32),
+            step_type=jnp.asarray(0, dtype=jnp.int32),
+            state=state,
+        )
+
+
 register_env(
     "Navix-Unlock-v0",
     lambda *args, **kwargs: Unlock.create(
@@ -205,6 +271,18 @@ register_env(
 register_env(
     "Navix-UnlockPickup-v0",
     lambda *args, **kwargs: UnlockPickup.create(
+        height=6,
+        width=11,
+        observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        reward_fn=kwargs.pop("reward_fn", rewards.on_box_pickup),
+        termination_fn=kwargs.pop("termination_fn", terminations.on_box_pickup),
+        *args,
+        **kwargs,
+    ),
+)
+register_env(
+    "Navix-BlockedUnlockPickup-v0",
+    lambda *args, **kwargs: BlockedUnlockPickup.create(
         height=6,
         width=11,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
