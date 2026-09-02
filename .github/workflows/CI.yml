@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v10.0.1
       - name: PEP8 Compliance
         run: |
           uv pip install --system pylint
