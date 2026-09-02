@@ -19,13 +19,14 @@
 
 """`PutNear` (issue #178): a single room scattered with `n_objects`
 `Key`/`Ball`/`Box` instances; two distinct ones are chosen as the
-per-episode "move" (`State.mission` - the object to carry) and "target"
-(`State.mission2` - the object to drop near) objects. The agent must
-pick up the move object and drop it within Chebyshev distance 1 of the
-target. Verified against MiniGrid's actual `PutNearEnv.step`: picking
-up the wrong object ends the episode immediately (0 reward); any
-genuine drop attempt (was holding something) also ends the episode,
-success determined by whether it landed near the target.
+per-episode "move" (`State.mission[0]` - the object to carry) and
+"target" (`State.mission[1]` - the object to drop near) objects. The
+agent must pick up the move object and drop it within Chebyshev
+distance 1 of the target. Verified against MiniGrid's actual
+`PutNearEnv.step`: picking up the wrong object ends the episode
+immediately (0 reward); any genuine drop attempt (was holding
+something) also ends the episode, success determined by whether it
+landed near the target.
 
 Each object's type is drawn independently (matching MiniGrid's own
 `types = ["key", "ball", "box"]` sampled per object, checked directly
@@ -150,12 +151,14 @@ class PutNear(Environment):
             Entities.BOX: boxes,
         }
 
-        mission = Event(
+        # state.mission[0] = move (to carry), state.mission[1] = target
+        # (to drop near) - see states.py's State.mission docstring.
+        move = Event(
             position=positions[move_idx],
             colour=colours[move_idx],
             happened=jnp.asarray(False),
         )
-        mission2 = Event(
+        target = Event(
             position=positions[target_idx],
             colour=colours[target_idx],
             happened=jnp.asarray(False),
@@ -166,8 +169,7 @@ class PutNear(Environment):
             grid=grid,
             cache=cache or RenderingCache.init(grid),
             entities=entities,
-            mission=mission,
-            mission2=mission2,
+            mission=(move, target),
         )
         return Timestep(
             t=jnp.asarray(0, dtype=jnp.int32),

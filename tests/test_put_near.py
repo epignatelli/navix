@@ -18,7 +18,7 @@
 # under the License.
 
 """`PutNear` (issue #178): structural checks against the live reset
-state (`mission`/`mission2` distinct, each matching a real object),
+state (`mission[0]`/`mission[1]` distinct, each matching a real object),
 plus real `env.step()` gameplay covering picking up the wrong object
 (immediate failure), and picking up the right one and dropping it near
 - vs. not near - the target."""
@@ -185,15 +185,15 @@ def test_put_near_structure():
         env = nx.make(env_id)
         for seed in range(N_SEEDS):
             state = env.reset(jax.random.PRNGKey(seed)).state
-            assert state.mission is not None and state.mission2 is not None, (
+            assert len(state.mission) == 2, (
                 f"{env_id} seed={seed}: expected both mission targets"
             )
-            assert not jnp.array_equal(state.mission.position, state.mission2.position), (
+            assert not jnp.array_equal(state.mission[0].position, state.mission[1].position), (
                 f"{env_id} seed={seed}: move and target objects must be distinct"
             )
             positions = all_object_positions(state)
-            move_matches = jnp.all(positions == state.mission.position, axis=-1)
-            target_matches = jnp.all(positions == state.mission2.position, axis=-1)
+            move_matches = jnp.all(positions == state.mission[0].position, axis=-1)
+            target_matches = jnp.all(positions == state.mission[1].position, axis=-1)
             assert int(jnp.sum(move_matches)) == 1
             assert int(jnp.sum(target_matches)) == 1
 
@@ -213,7 +213,7 @@ def test_put_near_never_spawns_already_solved():
         too_close = 0
         for seed in range(n_stat_seeds):
             state = env.reset(jax.random.PRNGKey(seed)).state
-            move, target = state.mission.position, state.mission2.position
+            move, target = state.mission[0].position, state.mission[1].position
             chebyshev = jnp.maximum(jnp.abs(move[0] - target[0]), jnp.abs(move[1] - target[1]))
             if int(chebyshev) <= 1:
                 too_close += 1
@@ -229,7 +229,7 @@ def test_put_near_wrong_pickup_fails_immediately():
         timestep = env.reset(jax.random.PRNGKey(seed))
         state = timestep.state
         positions = all_object_positions(state)
-        is_move = jnp.all(positions == state.mission.position, axis=-1)
+        is_move = jnp.all(positions == state.mission[0].position, axis=-1)
         wrong_idx = int(jnp.argmin(is_move.astype(jnp.int32)))
         assert not bool(is_move[wrong_idx]), f"seed={seed}: expected a non-move object to exist"
         wrong_row, wrong_col = int(positions[wrong_idx, 0]), int(positions[wrong_idx, 1])
@@ -245,8 +245,8 @@ def test_put_near_success():
         env = nx.make("Navix-PutNear-6x6-N2-v0")
         timestep = env.reset(jax.random.PRNGKey(seed))
         state = timestep.state
-        move_row, move_col = int(state.mission.position[0]), int(state.mission.position[1])
-        target_row, target_col = int(state.mission2.position[0]), int(state.mission2.position[1])
+        move_row, move_col = int(state.mission[0].position[0]), int(state.mission[0].position[1])
+        target_row, target_col = int(state.mission[1].position[0]), int(state.mission[1].position[1])
 
         timestep = navigate_adjacent_and_face(env, timestep, move_row, move_col)
         timestep = env.step(timestep, jnp.asarray(PICKUP))
@@ -264,14 +264,14 @@ def test_put_near_drop_far_from_target_gives_no_reward():
     for seed in range(GAMEPLAY_SEEDS):
         timestep = env.reset(jax.random.PRNGKey(seed))
         state = timestep.state
-        move_row, move_col = int(state.mission.position[0]), int(state.mission.position[1])
+        move_row, move_col = int(state.mission[0].position[0]), int(state.mission[0].position[1])
 
         timestep = navigate_adjacent_and_face(env, timestep, move_row, move_col)
         timestep = env.step(timestep, jnp.asarray(PICKUP))
         assert timestep.step_type == 0
 
         # drop right where we stand (facing away from the move object's
-        # old cell), almost certainly not near mission2's target. The
+        # old cell), almost certainly not near mission[1]'s target. The
         # drop itself lands on translate(player.position, player.
         # direction) - one cell *in front of* the player, not the
         # player's own cell (PR #191 review: computing distance from
@@ -279,7 +279,7 @@ def test_put_near_drop_far_from_target_gives_no_reward():
         # bug - a layout with Chebyshev(player, target) == 2 but
         # Chebyshev(front, target) == 1 would wrongly expect reward 0).
         state = timestep.state
-        target_row, target_col = int(state.mission2.position[0]), int(state.mission2.position[1])
+        target_row, target_col = int(state.mission[1].position[0]), int(state.mission[1].position[1])
         player = state.get_player()
         drop_pos = nx.grid.translate(player.position, player.direction)
         drop_row, drop_col = int(drop_pos[0]), int(drop_pos[1])
