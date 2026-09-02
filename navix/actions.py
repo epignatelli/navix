@@ -216,8 +216,17 @@ def pickup(state: State) -> State:
             lambda: state.events,
         )
 
-        # discard the picked-up instance
-        positions = jnp.where(found, DISCARD_PILE_COORDS, entity.position)
+        # discard the picked-up instance - found[:, None], not found:
+        # found has shape (n_instances,), and entity.position/
+        # DISCARD_PILE_COORDS both end in a (2,) row/col axis, so an
+        # unreshaped `found` broadcasts against the wrong axis whenever
+        # n_instances == 2 (JAX aligns trailing dims: (2,) vs (n,2)
+        # matches (2,) against the row/col axis, not the instance axis) -
+        # confirmed directly: with 2 balls, picking up one corrupted
+        # both balls' rows to the discard row while leaving both
+        # columns untouched, instead of moving only the picked one to
+        # DISCARD_PILE_COORDS entirely (see PR #191 review).
+        positions = jnp.where(found[:, None], DISCARD_PILE_COORDS, entity.position)
         entity = entity.replace(position=positions)
 
         # update player's pocket, if the pocket has something else, we overwrite it
