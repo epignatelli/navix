@@ -30,7 +30,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from navix import observations, rewards, terminations
+from navix import observations, rewards, terminations, transitions
 
 from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
 from ..entities import Ball, Box, Door, Entities, Entity, Key, Player
@@ -214,11 +214,16 @@ class UnlockPickup(Environment):
 class BlockedUnlockPickup(Environment):
     """`UnlockPickup` (#176), plus a `Ball` placed directly in front of
     the door on the first room's side, obstructing the direct approach
-    (#181) - the agent must move it out of the way (pick it up and
-    carry it elsewhere, or step around it if the room is wide enough)
-    before it can reach and unlock the door. Reuses
-    `two_equal_rooms_with_door(block_door=True)` directly - no
-    `RoomGrid` (#174) needed, despite this issue's own header
+    (#181). Unlike a Key/Box, picking the ball up doesn't need to be
+    followed by carrying it anywhere in particular - `actions.pickup`
+    moves it straight to the discard pile, so the blocked cell is clear
+    the instant it's picked up. It does need to be *dropped* again
+    before the key can be picked up, though (the player's pocket only
+    holds one id at a time) - "step around it" isn't a real option: the
+    door, like every `Openable`, can only be toggled from the one exact
+    cell directly in front of it, which is exactly where the ball
+    sits. Reuses `two_equal_rooms_with_door(block_door=True)` directly -
+    no `RoomGrid` (#174) needed, despite this issue's own header
     suggesting otherwise."""
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
@@ -286,6 +291,11 @@ register_env(
         height=6,
         width=11,
         observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+        # the default stochastic_transition would otherwise move the
+        # blocking Ball a random step each turn (transitions.
+        # update_balls, meant for DynamicObstacles) - real MiniGrid's
+        # Ball is static outside that one environment.
+        transitions_fn=kwargs.pop("transitions_fn", transitions.deterministic_transition),
         reward_fn=kwargs.pop("reward_fn", rewards.on_box_pickup),
         termination_fn=kwargs.pop("termination_fn", terminations.on_box_pickup),
         *args,
