@@ -35,3 +35,4 @@ from .unlock import Unlock, UnlockPickup
 from .red_blue_doors import RedBlueDoors
 from .go_to_object import GoToObject
 from .fetch import Fetch
+from .put_near import PutNear
