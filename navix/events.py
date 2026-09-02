@@ -212,11 +212,16 @@ def on_ordered_doors_failure(prev_state: State, state: State) -> Array:
 
 
 def on_target_done(action: Array, state: State) -> Array:
-    """`GoToObject`'s real win condition (verified against MiniGrid's
-    `GoToObjectEnv.step`): the `done` action was called while facing
-    `state.mission`'s target position - unlike `on_door_done` (kept
-    as-is for `GoToDoor`'s existing, already-shipped behavior), this
-    actually checks `action`, matching MiniGrid precisely.
+    """`GoToObject`'s real win condition (verified directly against
+    MiniGrid's actual `GoToObjectEnv.step` source): the `done` action
+    was called while orthogonally adjacent to `state.mission`'s target -
+    NOT while facing it. An earlier version of this function required
+    facing too, which was a misreading of the source: real MiniGrid's
+    check is pure position, `(ax==tx and abs(ay-ty)==1) or (ay==ty and
+    abs(ax-tx)==1)`, with no facing/direction test at all (PR #191
+    review caught this - reproduced directly: with the player adjacent
+    but facing perpendicular to the target, this function used to
+    return `False` where real MiniGrid rewards it).
 
     Args:
         action (Array): The action taken by the player.
@@ -229,10 +234,14 @@ def on_target_done(action: Array, state: State) -> Array:
     ), "on_target_done requires the state to specify a mission."
     player = state.entities[Entities.PLAYER][0]
     assert isinstance(player, Player)
-    fwd_pos = translate(player.position, player.direction)
-    facing_target = jnp.array_equal(fwd_pos, state.mission.position)
+    row_diff = player.position[0] - state.mission.position[0]
+    col_diff = player.position[1] - state.mission.position[1]
+    adjacent = jnp.logical_or(
+        jnp.logical_and(row_diff == 0, jnp.abs(col_diff) == 1),
+        jnp.logical_and(col_diff == 0, jnp.abs(row_diff) == 1),
+    )
     called_done = jnp.asarray(action == DONE_ACTION)
-    return jnp.logical_and(facing_target, called_done)
+    return jnp.logical_and(adjacent, called_done)
 
 
 def on_wrong_toggle(action: Array) -> Array:

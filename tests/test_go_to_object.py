@@ -188,6 +188,27 @@ def test_go_to_object_success_on_done():
             assert float(timestep.reward) > 0, f"{env_id} seed={seed}: expected positive reward"
 
 
+def test_go_to_object_success_without_facing():
+    # PR #191 review: on_target_done used to also require facing the
+    # target, which real MiniGrid's GoToObjectEnv.step doesn't check at
+    # all - pure orthogonal adjacency is enough. Face away from the
+    # target (still adjacent) before calling done, specifically to
+    # exercise that facing is no longer required.
+    env = nx.make("Navix-GoToObject-6x6-N2-v0")
+    for seed in range(GAMEPLAY_SEEDS):
+        timestep = env.reset(jax.random.PRNGKey(seed))
+        timestep = navigate_adjacent_and_face(env, timestep)
+
+        away_direction = (int(timestep.state.get_player().direction) + 2) % 4
+        timestep = face(env, timestep, away_direction)
+
+        timestep = env.step(timestep, jnp.asarray(DONE))
+        assert timestep.step_type == 2, (
+            f"seed={seed}: expected termination on done while adjacent but not facing the target"
+        )
+        assert float(timestep.reward) > 0, f"seed={seed}: expected positive reward"
+
+
 def test_go_to_object_toggle_fails_immediately():
     env = nx.make("Navix-GoToObject-6x6-N2-v0")
     for seed in range(N_SEEDS):
