@@ -22,10 +22,18 @@ into two chambers, with a red and a blue `Door` both embedded in that
 same wall (at two distinct rows) - both reachable from the left chamber
 alone, no need to ever cross into the right one. Reward + termination on
 opening blue while red is already open; opening blue first ends the
-episode with no reward. Verified against MiniGrid's actual
-`RedBlueDoorEnv._gen_grid`/`step` (both doors sit in the dividing wall,
-agent spawns in the left chamber, order - not position - determines
-success), not assumed."""
+episode with no reward.
+
+Deliberately simplified from MiniGrid's actual `RedBlueDoorEnv._gen_grid`
+(checked directly, after PR #191's review caught an earlier, incorrect
+claim of an exact match here): real MiniGrid places the agent in a
+*third*, middle chamber, with red and blue on two *different* walls
+leading to two separate outer chambers, not one shared wall - but since
+`toggle` only needs the player adjacent-and-facing a door (never
+actually walking through one), and termination fires the instant blue
+opens (before either outer chamber could ever be reached), the two
+layouts are behaviourally indistinguishable through gameplay: order,
+not position, is all that determines success either way."""
 
 from __future__ import annotations
 from typing import Union
