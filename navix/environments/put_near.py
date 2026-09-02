@@ -18,14 +18,19 @@
 # under the License.
 
 """`PutNear` (issue #178): a single room scattered with `n_objects`
-`Key`/`Ball` instances; two distinct ones are chosen as the per-episode
-"move" (`State.mission` - the object to carry) and "target" (`State.
-mission2` - the object to drop near) objects. The agent must pick up the
-move object and drop it within Chebyshev distance 1 of the target.
-Verified against MiniGrid's actual `PutNearEnv.step`: picking up the
-wrong object ends the episode immediately (0 reward); any genuine drop
-attempt (was holding something) also ends the episode, success
-determined by whether it landed near the target.
+`Key`/`Ball`/`Box` instances; two distinct ones are chosen as the
+per-episode "move" (`State.mission` - the object to carry) and "target"
+(`State.mission2` - the object to drop near) objects. The agent must
+pick up the move object and drop it within Chebyshev distance 1 of the
+target. Verified against MiniGrid's actual `PutNearEnv.step`: picking
+up the wrong object ends the episode immediately (0 reward); any
+genuine drop attempt (was holding something) also ends the episode,
+success determined by whether it landed near the target.
+
+Each object's type is drawn independently (matching MiniGrid's own
+`types = ["key", "ball", "box"]` sampled per object, checked directly
+against source) - see go_to_object.py's module docstring for the
+padding-sentinel implementation this shares.
 
 Registers with `transitions_fn=transitions.deterministic_transition` -
 see go_to_object.py's module docstring for why (the default
@@ -43,8 +48,8 @@ from flax import struct
 
 from navix import observations, rewards, terminations, transitions
 
-from ..components import EMPTY_POCKET_ID
-from ..entities import Ball, Entities, Key, Player
+from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
+from ..entities import Ball, Box, Entities, Key, Player
 from ..grid import (
     random_colour,
     random_directions,
@@ -63,7 +68,9 @@ class PutNear(Environment):
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
-        k_pos, k_dir, k_obj_pos, k_colour, k_targets, k_target_pos = jax.random.split(key, 6)
+        k_pos, k_dir, k_obj_pos, k_colour, k_targets, k_target_pos, k_types = jax.random.split(
+            key, 7
+        )
 
         grid = room(self.height, self.width)
 
@@ -112,25 +119,36 @@ class PutNear(Environment):
             jnp.where(too_close, resampled_target_pos, target_pos)
         )
 
-        n_keys = self.n_objects // 2
-        n_balls = self.n_objects - n_keys
+        # each object's type drawn independently, 0=Key/1=Ball/2=Box -
+        # every slot is allocated for every type, with non-matching
+        # slots pushed off-grid (see module docstring).
+        type_idx = jax.random.randint(k_types, (self.n_objects,), 0, 3)
+        is_key, is_ball, is_box = type_idx == 0, type_idx == 1, type_idx == 2
+        key_pos = jnp.where(is_key[:, None], positions, DISCARD_PILE_COORDS)
+        ball_pos = jnp.where(is_ball[:, None], positions, DISCARD_PILE_COORDS)
+        box_pos = jnp.where(is_box[:, None], positions, DISCARD_PILE_COORDS)
 
-        entities = {Entities.PLAYER: player[None]}
-        if n_keys > 0:
-            keys = Key.create(
-                position=positions[:n_keys],
-                colour=colours[:n_keys],
-                id=jnp.arange(1, n_keys + 1, dtype=jnp.int32),
-            )
-            entities[Entities.KEY] = keys
-        if n_balls > 0:
-            balls = Ball.create(
-                position=positions[n_keys:],
-                colour=colours[n_keys:],
-                probability=jnp.ones(n_balls),
-                id=jnp.arange(n_keys + 1, self.n_objects + 1, dtype=jnp.int32),
-            )
-            entities[Entities.BALL] = balls
+        keys = Key.create(
+            position=key_pos, colour=colours, id=jnp.arange(1, self.n_objects + 1, dtype=jnp.int32)
+        )
+        balls = Ball.create(
+            position=ball_pos,
+            colour=colours,
+            probability=jnp.ones(self.n_objects),
+            id=jnp.arange(self.n_objects + 1, 2 * self.n_objects + 1, dtype=jnp.int32),
+        )
+        boxes = Box.create(
+            position=box_pos,
+            colour=colours,
+            id=jnp.arange(2 * self.n_objects + 1, 3 * self.n_objects + 1, dtype=jnp.int32),
+            pocket=jnp.full((self.n_objects,), -1, dtype=jnp.int32),
+        )
+        entities = {
+            Entities.PLAYER: player[None],
+            Entities.KEY: keys,
+            Entities.BALL: balls,
+            Entities.BOX: boxes,
+        }
 
         mission = Event(
             position=positions[move_idx],

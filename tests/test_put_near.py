@@ -32,6 +32,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import navix as nx
+from navix.components import DISCARD_PILE_COORDS
 from navix.entities import Entities
 
 
@@ -166,12 +167,17 @@ def navigate_to_drop_near(env, timestep, target_row: int, target_col: int):
 
 
 def all_object_positions(state):
-    positions = []
-    if Entities.KEY in state.entities:
-        positions.append(state.get_keys().position)
-    if Entities.BALL in state.entities:
-        positions.append(state.get_balls().position)
-    return jnp.concatenate(positions, axis=0)
+    # Key/Ball/Box each always have n_objects slots (see
+    # navix/environments/go_to_object.py's module docstring for the
+    # padding-sentinel design put_near.py shares) - filtered down to
+    # just the n_objects real ones, matching this helper's pre-Box
+    # contract exactly so every caller keeps working unchanged.
+    positions = jnp.concatenate(
+        [state.get_keys().position, state.get_balls().position, state.get_boxes().position],
+        axis=0,
+    )
+    on_grid = jnp.any(positions != DISCARD_PILE_COORDS, axis=-1)
+    return positions[on_grid]
 
 
 def test_put_near_structure():
