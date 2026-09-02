@@ -240,11 +240,18 @@ def test_put_near_drop_far_from_target_gives_no_reward():
         assert timestep.step_type == 0
 
         # drop right where we stand (facing away from the move object's
-        # old cell), almost certainly not near mission2's target
+        # old cell), almost certainly not near mission2's target. The
+        # drop itself lands on translate(player.position, player.
+        # direction) - one cell *in front of* the player, not the
+        # player's own cell (PR #191 review: computing distance from
+        # the player's own position instead was a latent flaky-test
+        # bug - a layout with Chebyshev(player, target) == 2 but
+        # Chebyshev(front, target) == 1 would wrongly expect reward 0).
         state = timestep.state
         target_row, target_col = int(state.mission2.position[0]), int(state.mission2.position[1])
         player = state.get_player()
-        drop_row, drop_col = int(player.position[0]), int(player.position[1])
+        drop_pos = nx.grid.translate(player.position, player.direction)
+        drop_row, drop_col = int(drop_pos[0]), int(drop_pos[1])
         far_from_target = max(abs(drop_row - target_row), abs(drop_col - target_col)) > 1
         if not far_from_target:
             continue  # rare layouts where the player already ended up near the target
