@@ -212,6 +212,28 @@ class EventsManager(struct.PyTreeNode):
             return jnp.asarray(False)
         return jnp.any(event.happened)
 
+    def happened_at(self, key: Tuple[str, str], position: Array) -> Array:
+        """Whether `key`'s slot fired this step for the specific instance
+        that was at `position` when recorded - `Event.position` keeps the
+        firing instance's own position even after game logic later moves
+        the entity itself (e.g. to the discard pile on pickup), so this
+        can identify *which* instance fired, not just whether any did
+        (see `happened`). `False` (not a `KeyError`) if this
+        environment's `entities` never included that entity type at all.
+
+        Args:
+            key (Tuple[str, str]): The `(entity_type, event_type)` slot to
+                check.
+            position (Array): The position to match against.
+
+        Returns:
+            Array: A boolean scalar."""
+        event = self.events.get(key)
+        if event is None:
+            return jnp.asarray(False)
+        at_position = jnp.all(event.position == position, axis=-1)
+        return jnp.any(jnp.logical_and(event.happened, at_position))
+
     def merge_event(
         self, key: Tuple[str, str], hit: Array, position: Array, colour: Array
     ) -> EventsManager:
@@ -447,6 +469,14 @@ class State(struct.PyTreeNode):
     here - `__post_init__` populates it from `entities` via `EventsManager.create`,
     since a `struct.PyTreeNode` field's default can't see its sibling fields."""
     mission: Event | None = None
+    """The environment's primary mission target, if any (e.g. the door to
+    open in `GoToDoor`, the object to reach in `GoToObject`, the object to
+    carry in `Fetch`/`PutNear`)."""
+    mission2: Event | None = None
+    """A second, independently-tracked mission target, if any - only
+    `PutNear` needs this today (the object to drop *near*, distinct from
+    `mission`'s "object to carry"); every other environment leaves this
+    at its default `None`."""
 
     def __post_init__(self) -> None:
         # events.events is only ever empty right after construction with no
