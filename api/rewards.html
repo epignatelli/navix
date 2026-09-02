@@ -1232,6 +1232,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.rewards.on_memory_success" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;on_memory_success
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.rewards.on_ordered_doors_success" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2291,6 +2302,34 @@
   
   
     <li class="md-nav__item">
+      <a href="environments/memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="environments/put_near.html" class="md-nav__link">
         
   
@@ -3280,6 +3319,116 @@ target is needed; any door opening counts.</p>
             <td>
               <div class="doc-md-description">
                 <p>A scalar array <code>f32[]</code> with value 1 if the goal is reached, and 0 otherwise.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.rewards.on_memory_success" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">on_memory_success</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>Memory</code>'s reward: 1 if the player reached the target position,
+0 otherwise (including on failure). Deliberately flat, not
+MiniGrid's step-count-shaped <code>1 - 0.9 * (step_count / max_steps)</code> -
+matches navix's existing <code>on_goal_reached</code> convention, itself
+already the same simplification versus real MiniGrid's <code>Goal</code>
+reward, kept here for consistency rather than a one-off shaped
+reward unique to this environment.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prev_state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The previous state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The action taken by the player.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The current state of the game.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A scalar array <code>f32[]</code>.</p>
               </div>
             </td>
           </tr>
