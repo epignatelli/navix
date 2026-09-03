@@ -30,6 +30,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from navix.agents.models import (
+    Encoder,
     MLPEncoder,
     ConvEncoder,
     TransformerBlock,
@@ -53,6 +54,22 @@ def _transformer(**overrides) -> TransformerEncoder:
     )
     kwargs.update(overrides)
     return TransformerEncoder(**kwargs)
+
+
+# --------------------------------------------------------------------------
+# the Encoder base: shared carry contract
+# --------------------------------------------------------------------------
+
+
+def test_all_feature_encoders_subclass_encoder():
+    for cls in (MLPEncoder, ConvEncoder, TransformerEncoder):
+        assert issubclass(cls, Encoder)
+
+
+def test_encoder_base_default_carry_is_stateless():
+    # subclasses that don't override initial_carry get `()` for free.
+    assert MLPEncoder().initial_carry((7, 7, 3)) == ()
+    assert ConvEncoder().initial_carry((7, 7, 3)) == ()
 
 
 # --------------------------------------------------------------------------
@@ -232,6 +249,8 @@ def test_actor_critic_with_transformer_encoders_threads_one_shared_window_carry(
 
 
 if __name__ == "__main__":
+    test_all_feature_encoders_subclass_encoder()
+    test_encoder_base_default_carry_is_stateless()
     test_stateless_encoders_carry_is_empty_and_passes_through()
     test_stateless_encoder_output_matches_plain_sequential()
     test_transformer_block_preserves_shape()

@@ -11,13 +11,14 @@ algorithms these latter components implement.
 
 ## The encoder contract (carry-based)
 
-Every PPO encoder (`MLPEncoder`, `ConvEncoder`, `TransformerEncoder`, and
-anything a caller substitutes for them) implements the same two-method
-interface, so an agent's training loop is written once and works for both
-fully- and partially-observable settings by swapping only the encoder:
+Every PPO/PQN feature extractor subclasses `Encoder` and implements the
+same two-method interface, so an agent's training loop is written once and
+works for both fully- and partially-observable settings by swapping only
+the encoder:
 
 - `initial_carry(obs_shape) -> carry` - the encoder's hidden state at an
-  episode boundary. Stateless encoders return `()`.
+  episode boundary. `Encoder`'s default is stateless (`()`); a stateful
+  encoder overrides it.
 - `__call__(carry, obs, is_first) -> (carry, features)` - consume one
   observation, emit the next carry and a feature vector. `is_first` (a
   bool, broadcast per batch element) marks `obs` as the first frame of a
@@ -25,13 +26,15 @@ fully- and partially-observable settings by swapping only the encoder:
   rather than reading history that belongs to the episode that just
   ended.
 
-Stateless encoders (`MLPEncoder`, `ConvEncoder`) carry `()` and ignore
-`is_first`: threading a carry through an agent that uses them is inert,
-and their output is identical to the pre-carry versions. `TransformerEncoder`
-is the stateful one (issue #169): its carry is a raw window of the last
-`context` frames, so a `pomdp` observation function's single-frame stream
-becomes a history-conditioned feature without the agent, the environment,
-or the observation function changing."""
+The stateless encoders (`MLPEncoder`, `ConvEncoder`, and PQN's
+`QMLPEncoder`/`QConvEncoder`) carry `()` and ignore `is_first`: threading
+a carry through an agent that uses them is inert, and their output is
+identical to the pre-carry versions. `TransformerEncoder` is the stateful
+one (issue #169): its carry is a raw window of the last `context` frames,
+so a `pomdp` observation function's single-frame stream becomes a
+history-conditioned feature without the agent, the environment, or the
+observation function changing. (Dreamer's RSSM encoder, `SymlogEncoder`,
+is a separate thing - different `__call__` shape, no carry.)"""
 
 from functools import partial
 from typing import Any, Callable, Sequence, Tuple
@@ -44,12 +47,27 @@ import flax.linen as nn
 from flax.linen.initializers import constant, orthogonal
 
 
-class MLPEncoder(nn.Module):
-    hidden_size: int = 64
+class Encoder(nn.Module):
+    """Base for the PPO/PQN feature extractors - the carry-based encoder
+    contract (see this module's docstring). Subclasses implement
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
-        """Stateless: no history to carry between steps."""
+        __call__(carry, obs, is_first) -> (carry, features)
+
+    and, if they hold history across steps, override `initial_carry`. The
+    default here is stateless: an empty carry, so threading it through an
+    agent is inert. Not an `nn.Module` you instantiate directly."""
+
+    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
+        """The carry at an episode boundary. Stateless by default (`()`);
+        `TransformerEncoder` overrides this with a zeroed frame window."""
         return ()
+
+    def __call__(self, carry: Any, obs: Array, is_first: Array):
+        raise NotImplementedError
+
+
+class MLPEncoder(Encoder):
+    hidden_size: int = 64
 
     @nn.compact
     def __call__(self, carry, x, is_first):
@@ -67,7 +85,7 @@ class MLPEncoder(nn.Module):
         return carry, features
 
 
-class ConvEncoder(nn.Module):
+class ConvEncoder(Encoder):
     """`strides=(2, 2)` on every layer, not flax's `nn.Conv` default of
     1 (full-resolution, no downsampling) - an RL rollout batch is huge
     (`num_steps * num_envs` samples backprop'd through at once), and
@@ -82,10 +100,6 @@ class ConvEncoder(nn.Module):
     instead of constant-times-growing-channels."""
 
     hidden_size: int = 64
-
-    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
-        """Stateless: no history to carry between steps."""
-        return ()
 
     @nn.compact
     def __call__(self, carry, x, is_first):
@@ -132,7 +146,7 @@ class TransformerBlock(nn.Module):
         return x
 
 
-class TransformerEncoder(nn.Module):
+class TransformerEncoder(Encoder):
     """Issue #169: a `pomdp`-mode observation function (`rgb_first_person`/
     `categorical_first_person`/`symbolic_first_person`) returns a single
     current-step frame - no history. A lone frame doesn't disambiguate
@@ -224,8 +238,8 @@ class TransformerEncoder(nn.Module):
 
 class ActorCritic(nn.Module):
     action_dim: int
-    actor_encoder: nn.Module = MLPEncoder()
-    critic_encoder: nn.Module = MLPEncoder()
+    actor_encoder: Encoder = MLPEncoder()
+    critic_encoder: Encoder = MLPEncoder()
 
     def initial_carry(self, obs_shape: Sequence[int]) -> Any:
         """A single carry, shared by the actor and critic encoders. This

@@ -20,6 +20,7 @@
 
 from .ppo import PPO, PPOHparams as PPOHparams
 from .models import (
+    Encoder,
     MLPEncoder,
     ConvEncoder,
     TransformerBlock,
