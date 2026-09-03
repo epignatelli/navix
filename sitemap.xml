@@ -161,6 +161,10 @@
          <lastmod>2026-09-03</lastmod>
     </url>
     <url>
+         <loc>https://epignatelli/navix/api/environments/locked_room.html</loc>
+         <lastmod>2026-09-03</lastmod>
+    </url>
+    <url>
          <loc>https://epignatelli/navix/api/environments/memory.html</loc>
          <lastmod>2026-09-03</lastmod>
     </url>
@@ -170,6 +174,10 @@
     </url>
     <url>
          <loc>https://epignatelli/navix/api/environments/obstructed_maze.html</loc>
+         <lastmod>2026-09-03</lastmod>
+    </url>
+    <url>
+         <loc>https://epignatelli/navix/api/environments/playground.html</loc>
          <lastmod>2026-09-03</lastmod>
     </url>
     <url>
