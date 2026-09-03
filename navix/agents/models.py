@@ -396,7 +396,13 @@ class TwoHotHead(nn.Module):
 # -------------------------
 
 
-class Encoder(nn.Module):
+class SymlogEncoder(nn.Module):
+    """Dreamer's RSSM observation encoder: a symlog-input MLP mapping a
+    raw observation to a `embed_size` embedding for the posterior. Named
+    for its distinctive `rlax.signed_logp1` (symlog) input transform -
+    not part of the PPO/PQN `Encoder` carry-contract family above (it has
+    a different `__call__` shape and no carry)."""
+
     hidden_size: int
     embed_size: int
 

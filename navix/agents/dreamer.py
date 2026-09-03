@@ -26,7 +26,7 @@ implementation (github.com/danijar/dreamerv3, dreamerv3/rssm.py and
 embodied/jax/agent.py) rather than assumed from the paper text alone:
 
   1. Symlog inputs/reconstruction (`rlax.signed_logp1`/`signed_expm1`,
-     used by the `Encoder` and `TwoHotHead` in `.models`).
+     used by the `SymlogEncoder` and `TwoHotHead` in `.models`).
   2. Categorical latents (`num_latents` independent categoricals of
      `num_classes` each, "stoch"/"classes" in the official
      implementation) with straight-through gradients and 1% "unimix" -
@@ -94,7 +94,7 @@ from .models import (
     straight_through_sample,
     categorical_kl,
     TwoHotHead,
-    Encoder,
+    SymlogEncoder,
     Decoder,
     RSSM,
     PriorNet,
@@ -257,7 +257,7 @@ class WorldModel(nn.Module):
 
     def setup(self):
         hp = self.hparams
-        self.encoder = Encoder(hp.hidden_size, hp.embed_size)
+        self.encoder = SymlogEncoder(hp.hidden_size, hp.embed_size)
         self.rssm = RSSM(hp.recurrent_size)
         self.prior = PriorNet(hp.hidden_size, hp.num_latents, hp.num_classes)
         self.post = PostNet(hp.hidden_size, hp.num_latents, hp.num_classes)
@@ -458,7 +458,7 @@ class WorldModel(nn.Module):
     ) -> Tuple[Array, Array]:
         """One environment-collection step: advances the RSSM's belief with
         the previous action, then updates it to the posterior given the new
-        observation. Encoder/RSSM/posterior are submodules bound to this
+        observation. SymlogEncoder/RSSM/posterior are submodules bound to this
         WorldModel instance, so - unlike a bare Dense/Sequential module -
         they can only be called from inside a WorldModel.apply() trace,
         which is what this method (called via `self.world.apply(...,
