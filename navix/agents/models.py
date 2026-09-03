@@ -52,7 +52,7 @@ class MLPEncoder(nn.Module):
         return ()
 
     @nn.compact
-    def __call__(self, carry, x, is_first=None):
+    def __call__(self, carry, x, is_first):
         # Stateless: `carry` (always `()`) passes straight through and
         # `is_first` is ignored, so this is identical to the pre-carry
         # `MLPEncoder(x)` for any agent that threads a carry.
@@ -88,7 +88,7 @@ class ConvEncoder(nn.Module):
         return ()
 
     @nn.compact
-    def __call__(self, carry, x, is_first=None):
+    def __call__(self, carry, x, is_first):
         # Stateless (see `MLPEncoder.__call__`).
         features = nn.Sequential(
             [
@@ -196,8 +196,16 @@ class TransformerEncoder(nn.Module):
         fresh = jnp.broadcast_to(obs, carry.shape)
         window = jnp.where(is_first, fresh, rolled)
 
+        # `frame_encoder` follows the same encoder contract: a stateless
+        # spatial encoder, called per frame with its own blank carry and
+        # no reset flag.
+        fe_carry = self.frame_encoder.initial_carry(window.shape[1:])
+        not_first = jnp.asarray(False)
         embed = jnp.stack(
-            [self.frame_encoder((), window[t])[1] for t in range(self.context)],
+            [
+                self.frame_encoder(fe_carry, window[t], not_first)[1]
+                for t in range(self.context)
+            ],
             axis=0,
         )  # (context, hidden_size) - shared frame_encoder, one call per frame
         pos_embedding = self.param(
