@@ -517,7 +517,7 @@ class PostNet(nn.Module):
 # -------------------------
 
 
-class QMLPEncoder(nn.Module):
+class QMLPEncoder(Encoder):
     """`QNetwork`'s default (MDP, fully-observable/flattened) feature
     extractor: Dense/LayerNorm/ReLU stacked twice. LayerNorm after every
     hidden layer is not incidental here the way it might be in `MLPEncoder`
@@ -526,12 +526,12 @@ class QMLPEncoder(nn.Module):
     (see `navix.agents.pqn`'s module docstring) - so unlike `ActorCritic`'s
     encoders, `QNetwork`'s own encoders (this and `QConvEncoder`) always
     keep it, rather than leaving it out like the shared `MLPEncoder`/
-    `ConvEncoder` do."""
+    `ConvEncoder` do. Stateless (`Encoder`'s `()` carry)."""
 
     hidden_size: int = 64
 
     @nn.compact
-    def __call__(self, x: Array) -> Array:
+    def __call__(self, carry, x, is_first):
         # navix observations can be any shape (a (H, W) grid, (H, W, 3)
         # RGB/symbolic, ...) and this is always called on one example at
         # a time (the caller vmaps over the env/batch axis - PQN never
@@ -539,8 +539,9 @@ class QMLPEncoder(nn.Module):
         # here means PQN's own env doesn't need external wrapping (e.g.
         # `examples/ppo.py`'s FlattenObsWrapper) the way PPO's does -
         # same ergonomics as Dreamer's `_flatten_obs`.
+        # Stateless: `carry` (`()`) passes through, `is_first` is ignored.
         x = jnp.ravel(x)
-        return nn.Sequential(
+        features = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_size,
@@ -558,22 +559,25 @@ class QMLPEncoder(nn.Module):
                 nn.relu,
             ]
         )(x)
+        return carry, features
 
 
-class QConvEncoder(nn.Module):
+class QConvEncoder(Encoder):
     """`QNetwork`'s POMDP (partially-observable pixel) feature extractor:
     same strided-downsampling conv stack as `ConvEncoder` (see its
     docstring for why the stride matters), projected through a Dense/
     LayerNorm/ReLU head to match `QMLPEncoder`'s regularization - PQN's
     LayerNorm-for-stability argument applies to the features `QNetwork`
     regresses Q-values from regardless of whether they came from a Dense
-    or Conv stack, so this keeps it rather than dropping it for pixels."""
+    or Conv stack, so this keeps it rather than dropping it for pixels.
+    Stateless (`Encoder`'s `()` carry)."""
 
     hidden_size: int = 64
 
     @nn.compact
-    def __call__(self, x: Array) -> Array:
-        return nn.Sequential(
+    def __call__(self, carry, x, is_first):
+        # Stateless: `carry` (`()`) passes through, `is_first` is ignored.
+        features = nn.Sequential(
             [
                 nn.Conv(16, kernel_size=(2, 2), strides=(2, 2)),
                 nn.relu,
@@ -591,29 +595,36 @@ class QConvEncoder(nn.Module):
                 nn.relu,
             ]
         )(x)
+        return carry, features
 
 
 class QNetwork(nn.Module):
     """The Q-network PQN regresses towards Q(lambda) targets - a
-    pluggable feature extractor (`encoder`, `QMLPEncoder` by default for
+    pluggable `Encoder` feature extractor (`QMLPEncoder` by default for
     MDP/flattened observations, swappable for `QConvEncoder` for POMDP/
-    pixel observations, same `actor_encoder`/`critic_encoder` pattern
-    `ActorCritic` uses) followed by a linear head over `action_dim` raw
-    Q-values (no output activation)."""
+    pixel observations, or `TransformerEncoder` for frame history - same
+    encoder-swap pattern `ActorCritic` uses) followed by a linear head
+    over `action_dim` raw Q-values (no output activation). Threads the
+    encoder carry through like `ActorCritic`."""
 
     action_dim: int
-    encoder: nn.Module = QMLPEncoder()
+    encoder: Encoder = QMLPEncoder()
+
+    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
+        """The encoder's carry (`()` for the stateless Q-encoders)."""
+        return self.encoder.initial_carry(obs_shape)
 
     @nn.compact
-    def __call__(self, x: Array) -> Array:
-        x = self.encoder(x)
+    def __call__(self, carry: Any, x: Array, is_first: Array) -> Tuple[Any, Array]:
+        carry, feat = self.encoder(carry, x, is_first)
         # Unlike PPO's actor head (small-std output init) or Dreamer's
         # zero-init heads, the reference PQN implementation uses the
         # same orthogonal(sqrt(2)) init on the output layer as every
         # hidden layer - no special small-scale treatment for the
         # Q-value outputs.
-        return nn.Dense(
+        q = nn.Dense(
             self.action_dim,
             kernel_init=orthogonal(jnp.sqrt(2.0)),
             bias_init=constant(0.0),
-        )(x)  # raw Q-values, (action_dim,)
+        )(feat)  # raw Q-values, (action_dim,)
+        return carry, q

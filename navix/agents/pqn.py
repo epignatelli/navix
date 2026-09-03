@@ -102,7 +102,7 @@ same); `rejax`'s adaptation caches `Q` at the state the transition
 backward recursion. This module's `evaluate_experience` follows the
 official convention, not rejax's.
 """
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import distrax
 import jax
@@ -162,6 +162,12 @@ class PQNHparams(HParams):
 
 
 class Buffer(struct.PyTreeNode):
+    carry: Any
+    """The encoder carry (`navix.agents.models.Encoder`) that went *into*
+    the network at this step - the pre-step state, as in
+    `navix.agents.ppo.Buffer.carry`. `()` for the stateless Q-encoders;
+    for `TransformerEncoder` it's the raw frame window, whose replay in
+    `q_loss` is exact (parameter-independent)."""
     done: jax.Array
     action: jax.Array
     reward: jax.Array
@@ -177,6 +183,10 @@ class TrainingState(TrainState):
     rng: jax.Array
     frames: jax.Array
     epoch: jax.Array
+    carry: Any
+    """The live encoder carry for the `num_envs` running envs, threaded
+    across `collect_experience` like `env_state`; also the pre-step carry
+    for the post-rollout bootstrap. `()` for the stateless Q-encoders."""
 
 
 class PQN(Agent):
@@ -195,9 +205,9 @@ class PQN(Agent):
         self, train_state: TrainingState
     ) -> Tuple[TrainingState, Buffer]:
         def _env_step(
-            collection_state: Tuple[Timestep, jax.Array, jax.Array], _
-        ) -> Tuple[Tuple[Timestep, jax.Array, jax.Array], Buffer]:
-            env_state, rng, frames = collection_state
+            collection_state: Tuple[Timestep, jax.Array, jax.Array, Any], _
+        ) -> Tuple[Tuple[Timestep, jax.Array, jax.Array, Any], Buffer]:
+            env_state, rng, frames, carry = collection_state
             frames = frames + self.hparams.num_envs
 
             # SELECT ACTION: epsilon-greedy over the online network's own
@@ -205,11 +215,14 @@ class PQN(Agent):
             # `train_state.params` the previous update just trained.
             # `distrax.EpsilonGreedy`, not `rlax.epsilon_greedy` - rlax's
             # own docstring flags that one as pending deprecation in
-            # favor of this.
+            # favor of this. `is_first` (`t == 0`) lets a stateful encoder
+            # reset its carry at an episode boundary.
             rng, _rng = jax.random.split(rng)
-            q_values = jnp.asarray(
-                train_state.apply_fn(train_state.params, env_state.observation)
+            is_first = env_state.is_start()
+            new_carry, q_values = train_state.apply_fn(
+                train_state.params, carry, env_state.observation, is_first
             )
+            q_values = jnp.asarray(q_values)
             action = jnp.asarray(
                 distrax.EpsilonGreedy(q_values, self.epsilon(frames)).sample(
                     seed=_rng
@@ -220,6 +233,7 @@ class PQN(Agent):
             # STEP ENV
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
+                carry=carry,  # carry INTO o_t (pre-step) - see Buffer.carry
                 done=new_env_state.is_done(),  # done(o_{t+1})
                 action=action,  # a_t
                 reward=new_env_state.reward,  # R(o_t, a_t)
@@ -229,15 +243,22 @@ class PQN(Agent):
                 t=env_state.t,  # t
                 state=env_state.state,  # s_t
             )
-            return (new_env_state, rng, frames), transition
+            return (new_env_state, rng, frames, new_carry), transition
 
-        (env_state, rng, frames), experience = jax.lax.scan(
+        (env_state, rng, frames, carry), experience = jax.lax.scan(
             _env_step,
-            (train_state.env_state, train_state.rng, train_state.frames),
+            (
+                train_state.env_state,
+                train_state.rng,
+                train_state.frames,
+                train_state.carry,
+            ),
             None,
             self.hparams.num_steps,
         )
-        train_state = train_state.replace(env_state=env_state, rng=rng, frames=frames)
+        train_state = train_state.replace(
+            env_state=env_state, rng=rng, frames=frames, carry=carry
+        )
         return train_state, experience
 
     def evaluate_experience(
@@ -249,12 +270,13 @@ class PQN(Agent):
         (`Buffer.value`); the one bootstrap not already cached is
         `max_a Q(o_T, a)` at the post-rollout observation, under the
         same (not-yet-updated-this-round) params."""
-        last_q = jnp.asarray(
-            train_state.apply_fn(
-                train_state.params, train_state.env_state.observation
-            )
+        _, last_q = train_state.apply_fn(
+            train_state.params,
+            train_state.carry,
+            train_state.env_state.observation,
+            train_state.env_state.is_start(),
         )
-        last_val = jnp.max(last_q, axis=-1)
+        last_val = jnp.max(jnp.asarray(last_q), axis=-1)
         next_values = jnp.concatenate(
             [experience.value[1:], last_val[None]], axis=0
         )  # max_a Q(o_{t+1}, a), (T, N)
@@ -270,9 +292,16 @@ class PQN(Agent):
         transition_batch: Buffer,
         targets: Array,
     ) -> Tuple[Array, Dict]:
-        # already vmapped over the minibatch
-        q_values = jax.vmap(self.network.apply, in_axes=(None, 0))(
-            params, transition_batch.obs
+        # already vmapped over the minibatch. The carry stored at
+        # collection time is replayed as a constant (exact for a
+        # parameter-independent carry like TransformerEncoder's frame
+        # window); `t == 0` reproduces the `is_first` the behaviour
+        # policy saw.
+        _, q_values = jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0))(
+            params,
+            transition_batch.carry,
+            transition_batch.obs,
+            transition_batch.t == 0,
         )
         q_taken = rlax.batched_index(q_values, transition_batch.action.astype(jnp.int32))
         # rlax.l2_loss carries the conventional 1/2 factor (its own
@@ -372,7 +401,8 @@ class PQN(Agent):
         # INIT NETWORK
         rng, _rng = jax.random.split(rng)
         init_x = self.env.observation_space.sample(_rng)
-        params = self.network.init(_rng, init_x)
+        carry_single = self.network.initial_carry(init_x.shape)
+        params = self.network.init(_rng, carry_single, init_x, jnp.asarray(False))
 
         num_updates = self.hparams.budget // (
             self.hparams.num_steps * self.hparams.num_envs
@@ -399,13 +429,19 @@ class PQN(Agent):
         rng, _rng = jax.random.split(rng)
         reset_rng = jax.random.split(_rng, self.hparams.num_envs)
         env_state = jax.vmap(self.env.reset)(reset_rng)
+        # One live encoder carry per parallel env (stateless -> `()`).
+        carry = jax.tree.map(
+            lambda c: jnp.broadcast_to(c, (self.hparams.num_envs, *c.shape)),
+            carry_single,
+        )
 
         train_state = TrainingState.create(
-            apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0)),
+            apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0)),
             params=params,
             tx=tx,
             env_state=env_state,
             rng=rng,
+            carry=carry,
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
         )
