@@ -18,6 +18,16 @@
 # under the License.
 
 
+"""The rendering cache and the patch <-> image plumbing behind `rgb`
+observations.
+
+An `rgb` observation is the grid drawn as `TILE_SIZE x TILE_SIZE`
+sprites. The static parts (walls, floor, grid lines) never change during
+an episode, so they are rendered once into a flat list of tile
+`patches`, stored on `State.cache`, and only the cells holding moving
+entities are re-drawn each step.
+"""
+
 from __future__ import annotations
 
 from typing import Dict, Tuple
@@ -32,11 +42,25 @@ from .registry import TILE_SIZE, SPRITES_REGISTRY
 
 
 class RenderingCache(struct.PyTreeNode):
+    """The pre-rendered background, carried on `State.cache` so `rgb`
+    observations are cheap. Build one with `RenderingCache.init`; it is
+    valid for any state on the same-shaped grid."""
+
     patches: Array
-    """A flat set of patches representing the RGB values of each tile in the base map"""
+    """`u8[H * W + 1, TILE_SIZE, TILE_SIZE, 3]` - one RGB tile per grid
+    cell (row-major), plus a trailing all-zero "discard pile" tile that
+    off-grid entities render into and that `rgb` slices off."""
 
     @classmethod
     def init(cls, grid: Array) -> RenderingCache:
+        """Renders `grid`'s static background (walls / floor / grid lines)
+        once into the flat patch list.
+
+        Args:
+            grid (Array): `i32[H, W]` base map (`0` floor, `-1` wall).
+
+        Returns:
+            RenderingCache: the cache for that grid shape."""
         background = render_background(grid)
         patches = flatten_patches(background)
 
@@ -54,6 +78,17 @@ class RenderingCache(struct.PyTreeNode):
 def render_background(
     grid: Array, sprites_registry: Dict[str, Array] = SPRITES_REGISTRY
 ) -> Array:
+    """Draws the static layer of an `rgb` frame: a wall sprite on every
+    `-1` cell, a floor sprite (with MiniGrid-matched grid lines) on every
+    `0` cell. No entities.
+
+    Args:
+        grid (Array): `i32[H, W]` base map.
+        sprites_registry (dict): sprite lookup; defaults to the global
+            `SPRITES_REGISTRY`.
+
+    Returns:
+        Array: `u8[H * TILE_SIZE, W * TILE_SIZE, 3]`."""
     image_width = grid.shape[0] * TILE_SIZE
     image_height = grid.shape[1] * TILE_SIZE
     n_channels = 3
@@ -99,6 +134,17 @@ def tile_grid(grid: Array, tile: Array) -> Array:
 def flatten_patches(
     image: Array, patch_size: Tuple[int, int] = (TILE_SIZE, TILE_SIZE)
 ) -> Array:
+    """Splits an image into a row-major list of fixed-size tiles - the
+    inverse of `unflatten_patches`.
+
+    Args:
+        image (Array): `(H, W, C)`, with `H`/`W` multiples of
+            `patch_size`.
+        patch_size (tuple[int, int]): tile `(height, width)`; defaults to
+            `(TILE_SIZE, TILE_SIZE)`.
+
+    Returns:
+        Array: `(H//ph * W//pw, ph, pw, C)`."""
     height = image.shape[0] // patch_size[0]
     width = image.shape[1] // patch_size[1]
     n_channels = image.shape[2]
@@ -115,6 +161,16 @@ def flatten_patches(
 
 
 def unflatten_patches(patches: Array, image_size: Tuple[int, int]) -> Array:
+    """Reassembles a row-major list of tiles into an image - the inverse
+    of `flatten_patches`.
+
+    Args:
+        patches (Array): `(n_tiles, ph, pw, C)`.
+        image_size (tuple[int, int]): the target `(H, W)`;
+            `H * W == n_tiles * ph * pw`.
+
+    Returns:
+        Array: `(H, W, C)`."""
     image_height = image_size[0]
     image_width = image_size[1]
     patch_height = patches.shape[1]

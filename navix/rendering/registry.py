@@ -18,6 +18,11 @@
 # under the License.
 
 
+"""The colour palette and the on-disk sprite tiles used to render `rgb`
+observations. Everything is loaded once at import into the module-level
+`SPRITES_REGISTRY`.
+"""
+
 from __future__ import annotations
 
 import os
@@ -31,17 +36,22 @@ import jax.numpy as jnp
 SPRITES_DIR = os.path.normpath(
     os.path.join(__file__, "..", "..", "..", "assets", "sprites")
 )
+"""Directory the `.png` sprite files are loaded from."""
 MIN_TILE_SIZE = 8
+"""Smallest supported tile edge, in pixels."""
 TILE_SIZE = MIN_TILE_SIZE
+"""Edge length (pixels) of one rendered grid cell. An `rgb` observation
+of an `H x W` grid is `H * TILE_SIZE` by `W * TILE_SIZE`."""
 
 
 def load_sprite(name: str) -> Array:
-    """Loads an image from disk in RGB space.
+    """Loads `assets/sprites/<name>.png`, resized to `TILE_SIZE`.
+
     Args:
-        path(str): the filepath of the image on disk
+        name (str): sprite basename without extension, e.g. `"key_red"`.
 
     Returns:
-        (Array): a jax.Array of shape (H, W, C)"""
+        Array: `u8[TILE_SIZE, TILE_SIZE, 3]`."""
     path = os.path.join(SPRITES_DIR, f"{name}.png")
     image = Image.open(path)
     array = jnp.asarray(image)
@@ -50,6 +60,10 @@ def load_sprite(name: str) -> Array:
 
 
 class PALETTE:
+    """The six entity colours, as `uint8` indices. `HasColour.colour`
+    holds one of these; it is the `colour` channel of a `symbolic`
+    observation and selects the coloured sprite variant for `rgb`."""
+
     RED: Array = jnp.asarray(0, dtype=jnp.uint8)
     GREEN: Array = jnp.asarray(1, dtype=jnp.uint8)
     BLUE: Array = jnp.asarray(2, dtype=jnp.uint8)
@@ -57,23 +71,37 @@ class PALETTE:
     YELLOW: Array = jnp.asarray(4, dtype=jnp.uint8)
     GREY: Array = jnp.asarray(5, dtype=jnp.uint8)
     UNSET: Array = jnp.asarray(255, dtype=jnp.uint8)
+    """Sentinel for "no colour" - used by colourless entities and empty
+    event slots. Not a real palette index."""
 
     @classmethod
     def as_string(cls):
+        """The colour names in index order: `["red", "green", "blue",
+        "purple", "yellow", "grey"]`. Sprite files are named
+        `<entity>_<name>.png`."""
         return ["red", "green", "blue", "purple", "yellow", "grey"]
 
     @classmethod
     def as_array(cls):
+        """`[RED, GREEN, BLUE, PURPLE, YELLOW, GREY]` - the index values
+        in the same order as `as_string`."""
         return [cls.RED, cls.GREEN, cls.BLUE, cls.PURPLE, cls.YELLOW, cls.GREY]
 
 
 class SpritesRegistry:
+    """Loads every entity sprite from disk into a `dict` keyed by
+    `Entities` name. Coloured / directional entities map to a stacked
+    array (leading axis = colour, or direction, or `(colour, state)` for
+    doors). Instantiated once at import as `SPRITES_REGISTRY`."""
+
     def __init__(self):
+        """Builds the registry immediately (reads the PNG files)."""
         self.registry = {}
         self.build_registry()
 
     def build_registry(self):
-        """Populates the sprites registry for all entities."""
+        """Loads and stores the sprite array for every entity type. Each
+        `set_*_sprite` helper populates one `registry` key."""
         self.set_wall_sprite()
         self.set_floor_sprite()
         self.set_goal_sprite()
@@ -135,5 +163,6 @@ class SpritesRegistry:
         self.registry["box"] = jnp.stack(box_coloured, axis=0)
 
 
-# initialise sprites registry
 SPRITES_REGISTRY = SpritesRegistry().registry
+"""The loaded sprites: `dict` from an `Entities` name (`"wall"`, `"key"`,
+`"door"`, ...) to a `uint8` sprite array. `State.get_sprites` reads it."""

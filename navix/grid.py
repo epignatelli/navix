@@ -18,6 +18,31 @@
 # under the License.
 
 
+"""Array helpers for grid geometry - the low-level toolkit the
+environments, `navix.actions` and `navix.observations` are built from.
+
+Everything here is a pure JAX function over plain arrays; nothing knows
+about `State` or `Entity`. Groups:
+
+- coordinate <-> flat-index conversion (`coordinates`,
+  `idx_from_coordinates`, ...);
+- movement and rotation of a `(row, col)` position or a direction
+  (`translate`, `rotate`, `translate_forward/left/right`);
+- rotating an image patch to align it with a direction (`align`,
+  `rotate_tile`);
+- random placement (`random_positions`, `random_distinct_positions`,
+  `random_position_far_from`, `random_directions`, `random_colour`);
+- building maps (`room`, `two_rooms`, `vertical_wall`, `horizontal_wall`,
+  `from_ascii_map`) and the multi-room grid helpers (`room_grid*`,
+  `room_*`, `RoomsGrid`);
+- cropping and first-person rendering (`crop`, `view_cone`,
+  `draw_grid_lines`, `apply_minigrid_opacity`).
+
+Convention: positions are `(row, col)`, directions are `0` east, `1`
+south, `2` west, `3` north, and a "grid" is `i32[H, W]` with `0` = floor
+and `-1` = wall.
+"""
+
 from __future__ import annotations
 from functools import partial
 import math
@@ -32,6 +57,8 @@ from navix.rendering.registry import TILE_SIZE
 
 
 Coordinates = Tuple[Array, Array]
+"""A `(rows, cols)` pair of index arrays, as returned by `coordinates` -
+the shape `jnp.where` / advanced indexing expect."""
 
 
 def coordinates(grid: Array) -> Coordinates:

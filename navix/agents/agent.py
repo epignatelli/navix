@@ -1,3 +1,13 @@
+"""`Agent`: the common interface `Experiment` trains, and `HParams`: the
+base its per-algorithm hyperparameter structs extend.
+
+The concrete agents - `PPO`, `PQN`, `Dreamer` - each subclass `Agent`,
+implement `train`, and carry their own `HParams` subclass. This module
+also holds the shared logging helpers (`masked_mean`,
+`derive_episodic_metrics`) and the `agent/train/*` metric contract every
+agent's `train` must return.
+"""
+
 from dataclasses import dataclass
 import time
 import warnings
@@ -97,11 +107,21 @@ def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
 
 
 class HParams(struct.PyTreeNode):
+    """Base for every agent's hyperparameter struct (`PPOHparams`,
+    `PQNHparams`, `DreamerHparams`). Holds only the fields common to all;
+    each subclass adds its own (learning rate, rollout length, ...).
+    Frozen - use `.replace(...)` for a modified copy (this is what the
+    hyperparameter search does)."""
+
     debug: bool = struct.field(pytree_node=False, default=False)
-    """Whether to run in debug mode."""
+    """If `True`, agents run extra `jax.debug` callbacks and per-step
+    wandb logging. Slow; off by default."""
     log_frequency: int = struct.field(pytree_node=False, default=1)
-    """How often to log results."""
+    """Log to wandb every `log_frequency` training updates (`1` = every
+    update)."""
     log_render: bool = struct.field(pytree_node=False, default=False)
+    """If `True`, agents also emit an `rgb` rollout video under
+    `render/human` in their logs."""
 
 
 class Agent(struct.PyTreeNode):
