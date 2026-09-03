@@ -257,8 +257,14 @@ class ObstructedMazeFull(Environment):
         covering it and making the episode unsolvable. navix implements
         only the fixed behaviour and registers it under the plain `-v0`
         name - blocking-ball cells are computed first (they follow
-        deterministically from the doors) and then excluded from every
-        subsequent player/key/box draw, so a key can never be covered.
+        deterministically from the doors) and then excluded, *along
+        with their own orthogonal neighbours*, from every subsequent
+        player/key/box draw. Excluding only a blocker's own cell (not
+        its neighbourhood) still let a key/box land on every remaining
+        side of a blocker sitting at a room-interior corner, fully
+        enclosing it - a real, ~1-4%-of-seeds bug on the multi-box
+        variants, found by review and fixed here (see
+        `test_obstructed_maze_full_blocking_balls_never_enclosed`).
         `2Dl`/`2Dlh` have no `-v1` upstream and port across unchanged.
 
     | navix id     | MiniGrid id     | `num_quarters` | `key_in_box` | `blocked` |
@@ -353,10 +359,30 @@ class ObstructedMazeFull(Environment):
             return jnp.where(room_mask(grid, ROOM_SIZE, *room), grid, -1)
 
         def keep_clear(room: Tuple[int, int]) -> Array:
+            # excludes each blocker's own cell *and* its 4 orthogonal
+            # neighbours, not just its own cell - a blocker only ever
+            # needs one of those neighbours free to be reachable at all
+            # (the others are already structurally non-walkable: one is
+            # its own door, closed until the blocker is cleared; any
+            # facing the room's outer wall are off the floor grid
+            # entirely), but excluding only its own cell left every
+            # neighbour open to a box - two boxes in the same room
+            # could (rarely) both land adjacent to the same blocker and
+            # fully enclose it, an unsolvable episode with no crash.
+            # Found by review on #199, quantified at ~1-4% of seeds on
+            # the variants with more than one box/blocker per room -
+            # verified absent on the already-shipped `Navix-
+            # ObstructedMaze-1Dlhb-v0` (0/1000 seeds), which only ever
+            # has one of each per room.
             cells = blockers.get(room, []) if self.blocked else []
             if not cells:
                 return DISCARD_PILE_COORDS[None]  # off-grid: excludes nothing
-            return jnp.stack(cells)
+            neighbours = [
+                cell + jnp.asarray(delta)
+                for cell in cells
+                for delta in ((0, 1), (0, -1), (1, 0), (-1, 0))
+            ]
+            return jnp.stack([*cells, *neighbours])
 
         # --- player ------------------------------------------------
         player_pos = random_positions(

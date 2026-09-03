@@ -240,6 +240,40 @@ def test_obstructed_maze_full_structure():
                     occupied[cell] = name
 
 
+def test_obstructed_maze_full_blocking_balls_never_enclosed():
+    # a real, reproducible bug found by an independent review of #199:
+    # excluding only a blocker's own cell (not its neighbourhood) from
+    # box/key placement let a box land on every remaining side of a
+    # blocker sitting at a room-interior corner, leaving it with zero
+    # walkable orthogonal neighbours - permanently unreachable, so the
+    # episode silently truncates at max_steps with zero reward, never
+    # crashes. Quantified at the time: 2Dlhb 4/300, 1Q 5/300, 2Q 5/300,
+    # Full 11/300 (reset-only, no BFS/gameplay needed to catch it - the
+    # review's own "broader opportunities" suggestion). More than 3
+    # seeds deliberately: the bug is low-probability (~1-4% of seeds),
+    # so a 3-seed budget would have roughly even odds of missing it -
+    # this is reset-only (cheap) not a real env.step() gameplay cost.
+    for env_id in ("Navix-ObstructedMaze-2Dlhb-v0", "Navix-ObstructedMaze-1Q-v0",
+                   "Navix-ObstructedMaze-2Q-v0", "Navix-ObstructedMaze-Full-v0"):
+        env = nx.make(env_id)
+        for seed in range(300):
+            state = env.reset(jax.random.PRNGKey(seed)).state
+            blocked = bfs_blocked_mask(state)
+            balls = np.asarray(state.get_balls().position)
+            for row, col in balls[:-1]:  # every ball but the target is a blocker
+                row, col = int(row), int(col)
+                reachable = any(
+                    0 <= row + dr < blocked.shape[0]
+                    and 0 <= col + dc < blocked.shape[1]
+                    and not blocked[row + dr, col + dc]
+                    for dr, dc in ((0, 1), (0, -1), (1, 0), (-1, 0))
+                )
+                assert reachable, (
+                    f"{env_id} seed={seed}: blocker at ({row},{col}) has no "
+                    f"reachable neighbour - unsolvable episode"
+                )
+
+
 def test_obstructed_maze_full_target_corner_varies():
     # only Full has all 4 corners reachable - the single/double-quarter
     # variants necessarily always land in the same 1 or 2 corners
