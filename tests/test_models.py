@@ -28,6 +28,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from navix.agents.models import (
     Encoder,
@@ -70,6 +71,31 @@ def test_encoder_base_default_carry_is_stateless():
     # subclasses that don't override initial_carry get `()` for free.
     assert MLPEncoder().initial_carry((7, 7, 3)) == ()
     assert ConvEncoder().initial_carry((7, 7, 3)) == ()
+    # the dtype arg is accepted and ignored by the stateless default
+    assert MLPEncoder().initial_carry((7, 7, 3), jnp.uint8) == ()
+
+
+def test_transformer_carry_keeps_the_observation_dtype():
+    # the window stores raw frames - forcing float32 would make
+    # Buffer.carry 4x wider than the uint8 observations navix produces.
+    enc = _transformer()
+    carry = enc.initial_carry(FRAME, jnp.uint8)
+    assert carry.dtype == jnp.uint8
+    obs = jnp.zeros(FRAME, dtype=jnp.uint8)
+    params = enc.init(jax.random.PRNGKey(0), carry, obs, jnp.asarray(False))
+    next_carry, feats = enc.apply(params, carry, obs, jnp.asarray(False))
+    assert next_carry.dtype == jnp.uint8  # storage stays uint8
+    assert feats.dtype == jnp.float32  # features are float
+
+
+def test_actor_critic_rejects_mismatched_encoder_carries():
+    net = ActorCritic(
+        action_dim=4,
+        actor_encoder=MLPEncoder(),  # stateless -> ()
+        critic_encoder=_transformer(),  # stateful -> (context, *obs)
+    )
+    with pytest.raises(ValueError, match="same carry shape"):
+        net.initial_carry(FRAME)
 
 
 # --------------------------------------------------------------------------
@@ -251,6 +277,8 @@ def test_actor_critic_with_transformer_encoders_threads_one_shared_window_carry(
 if __name__ == "__main__":
     test_all_feature_encoders_subclass_encoder()
     test_encoder_base_default_carry_is_stateless()
+    test_transformer_carry_keeps_the_observation_dtype()
+    test_actor_critic_rejects_mismatched_encoder_carries()
     test_stateless_encoders_carry_is_empty_and_passes_through()
     test_stateless_encoder_output_matches_plain_sequential()
     test_transformer_block_preserves_shape()

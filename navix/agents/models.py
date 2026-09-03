@@ -16,9 +16,11 @@ same two-method interface, so an agent's training loop is written once and
 works for both fully- and partially-observable settings by swapping only
 the encoder:
 
-- `initial_carry(obs_shape) -> carry` - the encoder's hidden state at an
-  episode boundary. `Encoder`'s default is stateless (`()`); a stateful
-  encoder overrides it.
+- `initial_carry(obs_shape, dtype=float32) -> carry` - the encoder's
+  hidden state at an episode boundary. `Encoder`'s default is stateless
+  (`()`, ignoring both args); a stateful encoder overrides it. `dtype` is
+  the observation's own dtype, so a raw-frame carry isn't silently upcast
+  (`uint8` pixels -> `float32`).
 - `__call__(carry, obs, is_first) -> (carry, features)` - consume one
   observation, emit the next carry and a feature vector. `is_first` (a
   bool, broadcast per batch element) marks `obs` as the first frame of a
@@ -55,11 +57,25 @@ class Encoder(nn.Module):
 
     and, if they hold history across steps, override `initial_carry`. The
     default here is stateless: an empty carry, so threading it through an
-    agent is inert. Not an `nn.Module` you instantiate directly."""
+    agent is inert. Not an `nn.Module` you instantiate directly.
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
-        """The carry at an episode boundary. Stateless by default (`()`);
-        `TransformerEncoder` overrides this with a zeroed frame window."""
+    The agents that store a per-step carry and replay it in their loss
+    (`PPO`, `PQN` - "Option 1") rely on the carry being a pure function of
+    the observation stream, *independent of the encoder's parameters* - as
+    `TransformerEncoder`'s raw-frame window is. An encoder whose carry is
+    a learned state (a GRU/SSM hidden state) breaks that: the stored carry
+    was produced under stale parameters, so replaying it is no longer what
+    the current network would compute. Such an encoder needs the agent to
+    recompute the carry over the sequence in the loss instead."""
+
+    def initial_carry(
+        self, obs_shape: Sequence[int], dtype: Any = jnp.float32
+    ) -> Any:
+        """The carry at an episode boundary. Stateless by default (`()`,
+        ignoring both args); `TransformerEncoder` overrides this with a
+        zeroed frame window of shape `(context, *obs_shape)` and dtype
+        `dtype` - callers pass the observation's own dtype so the window
+        isn't silently upcast (e.g. `uint8` pixels -> `float32`)."""
         return ()
 
     def __call__(self, carry: Any, obs: Array, is_first: Array):
@@ -191,33 +207,43 @@ class TransformerEncoder(Encoder):
     num_layers: int = 2
     context: int = 4
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Array:
-        """The frame window at an episode boundary: `context` zero
-        frames. `obs_shape` is a single observation's shape (no batch
-        axis) - the caller `vmap`s `__call__` over the batch, so it
-        `vmap`s an `initial_carry`-shaped leaf the same way."""
-        return jnp.zeros((self.context, *tuple(obs_shape)), dtype=jnp.float32)
+    def initial_carry(
+        self, obs_shape: Sequence[int], dtype: Any = jnp.float32
+    ) -> Array:
+        """The frame window at an episode boundary: `context` zero frames,
+        `(context, *obs_shape)`. `obs_shape` is a single observation's
+        shape (no batch axis) - the caller `vmap`s `__call__` over the
+        batch, so it `vmap`s an `initial_carry`-shaped leaf the same way.
+        `dtype` is the observation's own dtype: the window stores raw
+        frames, so keeping it (e.g. `uint8` for navix's first-person
+        pixel/symbolic observations) rather than upcasting to `float32`
+        keeps `Buffer.carry` from being `context`-frames-wide *and* 4x
+        per element."""
+        return jnp.zeros((self.context, *tuple(obs_shape)), dtype=dtype)
 
     @nn.compact
     def __call__(
         self, carry: Array, obs: Array, is_first: Array
     ) -> Tuple[Array, Array]:
-        # carry: (context, *frame_shape), oldest first. Roll `obs` in at
-        # the end; on a fresh episode, refill the window with `obs` so no
-        # position holds a frame from the previous episode.
+        # carry: (context, *frame_shape), oldest first, in the
+        # observation's own dtype. Roll `obs` in at the end; on a fresh
+        # episode, refill the window with `obs` so no position holds a
+        # frame from the previous episode.
         obs = obs.astype(carry.dtype)
         rolled = jnp.concatenate([carry[1:], obs[None]], axis=0)
         fresh = jnp.broadcast_to(obs, carry.shape)
-        window = jnp.where(is_first, fresh, rolled)
+        window = jnp.where(is_first, fresh, rolled)  # next carry, obs dtype
 
         # `frame_encoder` follows the same encoder contract: a stateless
         # spatial encoder, called per frame with its own blank carry and
-        # no reset flag.
-        fe_carry = self.frame_encoder.initial_carry(window.shape[1:])
+        # no reset flag. Cast to float here (not in the stored window) so
+        # `nn.Dense`/`nn.Conv` see floats without widening what's buffered.
+        frames = window.astype(jnp.float32)
+        fe_carry = self.frame_encoder.initial_carry(frames.shape[1:])
         not_first = jnp.asarray(False)
         embed = jnp.stack(
             [
-                self.frame_encoder(fe_carry, window[t], not_first)[1]
+                self.frame_encoder(fe_carry, frames[t], not_first)[1]
                 for t in range(self.context)
             ],
             axis=0,
@@ -241,7 +267,9 @@ class ActorCritic(nn.Module):
     actor_encoder: Encoder = MLPEncoder()
     critic_encoder: Encoder = MLPEncoder()
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
+    def initial_carry(
+        self, obs_shape: Sequence[int], dtype: Any = jnp.float32
+    ) -> Any:
         """A single carry, shared by the actor and critic encoders. This
         assumes the two encoders derive their carry the same way from the
         same observation stream - true for the encoders here (a stateless
@@ -250,8 +278,24 @@ class ActorCritic(nn.Module):
         advancing it once per step is correct and avoids the actor's and
         critic's windows drifting apart when only one of `policy`/`value`
         runs (as in `PPO.collect_experience`, which calls `policy` only).
-        `()` for the stateless encoders."""
-        return self.actor_encoder.initial_carry(obs_shape)
+        `()` for the stateless encoders.
+
+        Raises `ValueError` if the actor and critic encoders don't agree
+        on the carry (e.g. a stateless actor with a stateful critic, or
+        two `TransformerEncoder`s with different `context`) - otherwise
+        the mismatch only surfaces as an opaque shape error deep in a
+        later `.apply()` trace."""
+        actor_carry = self.actor_encoder.initial_carry(obs_shape, dtype)
+        critic_carry = self.critic_encoder.initial_carry(obs_shape, dtype)
+        a_shapes = [x.shape for x in jax.tree_util.tree_leaves(actor_carry)]
+        c_shapes = [x.shape for x in jax.tree_util.tree_leaves(critic_carry)]
+        if a_shapes != c_shapes:
+            raise ValueError(
+                "ActorCritic threads one shared encoder carry, so "
+                "actor_encoder and critic_encoder must produce the same "
+                f"carry shape - got actor {a_shapes}, critic {c_shapes}."
+            )
+        return actor_carry
 
     def setup(self):
         # `layers_0` is an identity passthrough, not the encoder: the
@@ -610,9 +654,11 @@ class QNetwork(nn.Module):
     action_dim: int
     encoder: Encoder = QMLPEncoder()
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
+    def initial_carry(
+        self, obs_shape: Sequence[int], dtype: Any = jnp.float32
+    ) -> Any:
         """The encoder's carry (`()` for the stateless Q-encoders)."""
-        return self.encoder.initial_carry(obs_shape)
+        return self.encoder.initial_carry(obs_shape, dtype)
 
     @nn.compact
     def __call__(self, carry: Any, x: Array, is_first: Array) -> Tuple[Any, Array]:

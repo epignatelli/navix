@@ -344,7 +344,7 @@ class PPO(Agent):
         # INIT NETWORK
         rng, _rng = jax.random.split(rng)
         init_x = self.env.observation_space.sample(_rng)
-        carry_single = self.network.initial_carry(init_x.shape)
+        carry_single = self.network.initial_carry(init_x.shape, init_x.dtype)
         params = self.network.init(_rng, carry_single, init_x, jnp.asarray(False))
 
         def linear_schedule(count):

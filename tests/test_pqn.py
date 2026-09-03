@@ -57,7 +57,7 @@ def _init_train_state(pqn: PQN, rng: jax.Array) -> TrainingState:
 
     rng, rng_init, rng_env = jax.random.split(rng, 3)
     init_x = pqn.env.observation_space.sample(rng_init)
-    carry_single = pqn.network.initial_carry(init_x.shape)
+    carry_single = pqn.network.initial_carry(init_x.shape, init_x.dtype)
     params = pqn.network.init(rng_init, carry_single, init_x, jnp.asarray(False))
     tx = optax.chain(
         optax.clip_by_global_norm(pqn.hparams.max_grad_norm),

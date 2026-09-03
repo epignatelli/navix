@@ -162,7 +162,7 @@ def _init_state(ppo: PPO, rng):
 
     rng, rng_init, rng_env = jax.random.split(rng, 3)
     init_x = ppo.env.observation_space.sample(rng_init)
-    carry_single = ppo.network.initial_carry(init_x.shape)
+    carry_single = ppo.network.initial_carry(init_x.shape, init_x.dtype)
     params = ppo.network.init(rng_init, carry_single, init_x, jnp.asarray(False))
     tx = optax.chain(
         optax.clip_by_global_norm(ppo.hparams.max_grad_norm),
