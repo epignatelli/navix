@@ -93,6 +93,14 @@ def room_layout(height: int, width: int) -> Tuple[Array, Array, Array, int, int]
 
 
 class LockedRoom(Environment):
+    """`Navix-LockedRoom-v0`. Six rooms lining a central hallway, each
+    with its own coloured door onto the hallway. One room is locked and
+    holds the goal; the matching key is hidden in one of the other five.
+    The agent must find the key, unlock that door, and reach the goal.
+    Room geometry is a fixed function of the grid size; which room is
+    locked, the door colours, the key's room and every exact position
+    are randomised."""
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         tops, sizes, doors_pos, left_wall, right_wall = room_layout(self.height, self.width)
 

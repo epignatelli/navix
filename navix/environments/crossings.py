@@ -201,6 +201,20 @@ def _crossings_grid(key: Array, H: int, W: int, n: int) -> Array:
 
 
 class Crossings(Environment):
+    """`Navix-SimpleCrossing-*` / `Navix-LavaCrossing-*`. A square room
+    crossed by `n_crossings` full-width "rivers" of obstacle cells, each
+    with one gap; the gaps sit on a guaranteed-solvable monotone path
+    from the top-left (player) to the bottom-right (goal). Same
+    river-placement as MiniGrid's `CrossingEnv`.
+
+    Attributes:
+        n_crossings: number of rivers. More rivers -> harder.
+        obstacle_type: `"wall"` (`SimpleCrossing` - rivers merely block
+            movement) or `"lava"` (`LavaCrossing` - the river is
+            walkable but stepping in ends the episode via
+            `on_lava_fall`).
+    """
+
     n_crossings: int = struct.field(pytree_node=False, default=1)
     obstacle_type: str = struct.field(pytree_node=False, default="wall")
     """`"wall"` (`SimpleCrossing` - the obstacle blocks movement, no

@@ -52,6 +52,17 @@ from .registry import register_env
 
 
 class Fetch(Environment):
+    """`Navix-Fetch-*`. A room scattered with `n_objects` coloured
+    `Key`/`Ball` objects; one is named as the target in `State.mission`.
+    Picking up *any* object ends the episode - reward `1` only if it was
+    the target, `0` otherwise. See the module docstring for MiniGrid
+    parity notes.
+
+    Attributes:
+        n_objects: how many objects to scatter (split roughly half keys,
+            half balls).
+    """
+
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
