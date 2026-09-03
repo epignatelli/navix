@@ -2190,6 +2190,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.obstructed_maze.ObstructedMazeFull" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ObstructedMazeFull
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2662,16 +2673,183 @@ to end.</p>
 
 
         <p>A 1x2 <code>room_grid</code>: the agent starts in the left room, a target
-<code>Ball</code> sits in the right room, behind a locked <code>Door</code>. The door's
-key is hidden inside a <code>Box</code> in the left room (must be opened with
-<code>toggle</code> to reveal it), and a second <code>Ball</code> blocks the door on the
-player's own side (verified against MiniGrid's actual
-<code>ObstructedMaze_1Dlhb</code>: <code>room_size=6</code>, <code>key_in_box=True</code>,
-<code>blocked=True</code>). Reward + termination only on picking up the
-<em>target</em> ball - the blocking ball can be picked up too (nothing in
-<code>actions.pickup</code> prevents it, matching real MiniGrid) without
-ending the episode, since <code>terminations</code>/<code>rewards.on_target_fetched</code>
-key off <code>state.mission</code>'s specific tracked position.</p>
+<code>Ball</code> sits in the right room, behind a locked <code>Door</code>. Optionally
+the door's key is hidden inside a <code>Box</code> in the left room (must be
+opened with <code>toggle</code> to reveal it), and/or a second <code>Ball</code> blocks
+the door on the player's own side.</p>
+<p>The <code>key_in_box</code>/<code>blocked</code> flags are exactly MiniGrid's own - the
+three <code>1D*</code> env ids are all the same class there too, registered
+with different values (verified against MiniGrid's actual
+registrations, <code>room_size=6</code> throughout):</p>
+<table>
+<thead>
+<tr>
+<th>env id</th>
+<th><code>key_in_box</code></th>
+<th><code>blocked</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1Dl-v0</code></td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>1Dlh-v0</code></td>
+<td><code>True</code></td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>1Dlhb-v0</code></td>
+<td><code>True</code></td>
+<td><code>True</code></td>
+</tr>
+</tbody>
+</table>
+<p>Both are static (<code>pytree_node=False</code>) fields, so they branch at
+trace-construction time - each registered id gets its own entity
+layout (no <code>Box</code> at all when <code>key_in_box=False</code>, one <code>Ball</code>
+instead of two when <code>blocked=False</code>), rather than padding unused
+slots. Same convention as <code>unlock.py</code>'s <code>block_door</code>.</p>
+<p>Reward + termination only on picking up the <em>target</em> ball - the
+blocking ball can be picked up too (nothing in <code>actions.pickup</code>
+prevents it, matching real MiniGrid) without ending the episode,
+since <code>terminations</code>/<code>rewards.on_target_fetched</code> key off
+<code>state.mission</code>'s specific tracked position.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.obstructed_maze.ObstructedMazeFull" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>ObstructedMazeFull</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p>A 3x3 <code>room_grid</code>. The centre room connects to <code>num_quarters</code>
+side rooms through <em>unlocked</em> doors; each of those side rooms
+connects on to two corner rooms through <em>locked</em> ones. Every locked
+door's key lives in the side room it is opened from - optionally
+hidden inside a <code>Box</code>, optionally with a <code>Ball</code> blocking the door.
+The target ball waits in one of the first <code>num_quarters</code> corners.</p>
+<p>Verified against MiniGrid's actual <code>ObstructedMaze_Full</code>:
+<code>room_size=6</code>, keys placed via <code>place_in_room(*side_room)</code>, blocking
+balls at <code>door_pos - DIR_TO_VEC[door_idx]</code> (i.e. backed off the door
+into the side room), corners sliced <code>[:num_quarters]</code> before one is
+drawn for the target.</p>
+<div class="admonition note">
+<p class="admonition-title">This is MiniGrid's <code>-v1</code> behaviour, under a <code>-v0</code> name</p>
+<p>MiniGrid ships both <code>-v0</code> and <code>-v1</code> of <code>2Dlhb</code>, <code>1Q</code>, <code>2Q</code> and
+<code>Full</code>. Its <code>-v1</code> fixes a placement bug in <code>-v0</code>: the blocking
+ball could be dropped onto a cell that already held a key,
+covering it and making the episode unsolvable. navix implements
+only the fixed behaviour and registers it under the plain <code>-v0</code>
+name - blocking-ball cells are computed first (they follow
+deterministically from the doors) and then excluded, <em>along
+with their own orthogonal neighbours</em>, from every subsequent
+player/key/box draw. Excluding only a blocker's own cell (not
+its neighbourhood) still let a key/box land on every remaining
+side of a blocker sitting at a room-interior corner, fully
+enclosing it - a real, ~1-4%-of-seeds bug on the multi-box
+variants, found by review and fixed here (see
+<code>test_obstructed_maze_full_blocking_balls_never_enclosed</code>).
+<code>2Dl</code>/<code>2Dlh</code> have no <code>-v1</code> upstream and port across unchanged.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>navix id</th>
+<th>MiniGrid id</th>
+<th><code>num_quarters</code></th>
+<th><code>key_in_box</code></th>
+<th><code>blocked</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2Dl-v0</code></td>
+<td><code>2Dl-v0</code></td>
+<td>1</td>
+<td><code>False</code></td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>2Dlh-v0</code></td>
+<td><code>2Dlh-v0</code></td>
+<td>1</td>
+<td><code>True</code></td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>2Dlhb-v0</code></td>
+<td><code>2Dlhb-</code><strong>v1</strong></td>
+<td>1</td>
+<td><code>True</code></td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td><code>1Q-v0</code></td>
+<td><code>1Q-</code><strong>v1</strong></td>
+<td>1</td>
+<td><code>True</code></td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td><code>2Q-v0</code></td>
+<td><code>2Q-</code><strong>v1</strong></td>
+<td>2</td>
+<td><code>True</code></td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td><code>Full-v0</code></td>
+<td><code>Full-</code><strong>v1</strong></td>
+<td>4</td>
+<td><code>True</code></td>
+<td><code>True</code></td>
+</tr>
+</tbody>
+</table>
+<p>(<code>2Dlhb</code> and <code>1Q</code> differ only by <code>agent_room</code>: <code>1Q</code> starts in the
+centre, <code>2Dlhb</code> already inside the side room.)</p>
 
 
 
