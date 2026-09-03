@@ -18,6 +18,15 @@
 # under the License.
 
 
+"""Transition functions: given `(state, action, action_set)`, produce the
+next `State`.
+
+An `Environment`'s `transitions_fn` is one of these. They all start by
+applying the agent's action (`action_set[action]`, a `state -> state`
+primitive - see `navix.actions`) and then optionally advance any
+autonomous entities. `DEFAULT_TRANSITION` is `stochastic_transition`.
+"""
+
 from __future__ import annotations
 
 from typing import Callable, Tuple
@@ -32,33 +41,37 @@ from .grid import positions_equal, translate
 def deterministic_transition(
     state: State, action: Array, actions_set: Tuple[Callable[[State], State], ...]
 ) -> State:
-    """Deterministic transition function. It selects the action from the set of actions
-    and applies it to the state.
-    
+    """Applies only the agent's action - nothing else in the world moves.
+
     Args:
-        state (State): The current state of the game.
-        action (Array): The action to be taken.
-        actions_set (Tuple[Callable[[State], State]): A set of actions that can be taken.
-    
+        state (State): the current state, $s_t$.
+        action (Array): a scalar integer action, `i32[]`, in
+            `[0, len(actions_set))`.
+        actions_set (tuple[Callable, ...]): the environment's
+            `action_set`; `actions_set[action]` is applied via
+            `jax.lax.switch`.
+
     Returns:
-        State: The new state of the game."""
+        State: $s_{t+1}$."""
     return jax.lax.switch(action, actions_set, state)
 
 
 def stochastic_transition(
     state: State, action: Array, actions_set: Tuple[Callable[[State], State], ...]
 ) -> State:
-    """Stochastic transition function. It selects the action from the set of actions
-    and applies it to the state, and updates entities that have stochastic transitions,
-    such as balls.
-    
+    """Applies the agent's action, then moves every `Ball` one random
+    step (`update_balls`). This is `DEFAULT_TRANSITION` - environments
+    without balls behave identically to `deterministic_transition`.
+
     Args:
-        state (State): The current state of the game.
-        action (Array): The action to be taken.
-        actions_set (Tuple[Callable[[State], State]): A set of actions that can be taken.
-    
+        state (State): the current state, $s_t$.
+        action (Array): a scalar integer action, `i32[]`, in
+            `[0, len(actions_set))`.
+        actions_set (tuple[Callable, ...]): the environment's
+            `action_set`.
+
     Returns:
-        State: The new state of the game."""
+        State: $s_{t+1}$, with balls advanced."""
     # actions
     state = jax.lax.switch(action, actions_set, state)
 
@@ -67,14 +80,19 @@ def stochastic_transition(
 
 
 def update_balls(state: State) -> State:
-    """Update the position of the balls in the game.
-    Balls move in a random direction if they can, otherwise they stay in place.
+    """Moves every `Ball` one cell in a uniformly random direction, or
+    leaves it in place if that cell is blocked. A ball that would move
+    onto the player instead stays put and records a
+    `(BALL, HIT)` event (used by `rewards.on_ball_hit` /
+    `terminations.on_ball_hit`).
 
     Args:
-        state (State): The current state of the game.
+        state (State): the current state. If it has no `Ball` entities
+            this is a no-op.
 
     Returns:
-        State: The new state of the game."""
+        State: the state with ball positions and ball-hit events
+        updated, and `state.key` advanced."""
     def update_one(ball: Ball, key: Array) -> Tuple[Array, Array]:
         direction = jax.random.randint(key, (), minval=0, maxval=4)
         new_position = translate(ball.position, direction)
@@ -116,3 +134,5 @@ def _can_spawn_there(state: State, ball: Ball) -> Tuple[Array, Array]:
 
 
 DEFAULT_TRANSITION = stochastic_transition
+"""The `transitions_fn` an `Environment` uses unless overridden:
+`stochastic_transition` (agent action + random ball motion)."""
