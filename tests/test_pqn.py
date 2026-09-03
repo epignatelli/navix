@@ -57,19 +57,24 @@ def _init_train_state(pqn: PQN, rng: jax.Array) -> TrainingState:
 
     rng, rng_init, rng_env = jax.random.split(rng, 3)
     init_x = pqn.env.observation_space.sample(rng_init)
-    params = pqn.network.init(rng_init, init_x)
+    carry_single = pqn.network.initial_carry(init_x.shape, init_x.dtype)
+    params = pqn.network.init(rng_init, carry_single, init_x, jnp.asarray(False))
     tx = optax.chain(
         optax.clip_by_global_norm(pqn.hparams.max_grad_norm),
         optax.inject_hyperparams(optax.radam)(learning_rate=pqn.hparams.lr),
     )
     reset_rng = jax.random.split(rng_env, pqn.hparams.num_envs)
     env_state = jax.vmap(pqn.env.reset)(reset_rng)
+    carry = jax.tree.map(
+        lambda c: jnp.broadcast_to(c, (pqn.hparams.num_envs, *c.shape)), carry_single
+    )
     return TrainingState.create(
-        apply_fn=jax.vmap(pqn.network.apply, in_axes=(None, 0)),
+        apply_fn=jax.vmap(pqn.network.apply, in_axes=(None, 0, 0, 0)),
         params=params,
         tx=tx,
         env_state=env_state,
         rng=rng,
+        carry=carry,
         frames=jnp.asarray(0, dtype=jnp.int32),
         epoch=jnp.asarray(0, dtype=jnp.int32),
     )
@@ -141,14 +146,14 @@ def test_qnetwork_has_no_output_activation_and_uses_layernorm():
     # actually there, and that the output head is raw Q-values (no
     # squashing activation that would cap achievable Q-values).
     net = QNetwork(action_dim=3, encoder=QMLPEncoder(hidden_size=8))
-    params = net.init(jax.random.PRNGKey(0), jnp.zeros((5,)))
+    params = net.init(jax.random.PRNGKey(0), (), jnp.zeros((5,)), jnp.asarray(False))
     flat = jax.tree_util.tree_leaves_with_path(params)
     layer_norm_scales = [
         p for path, p in flat if any("LayerNorm" in str(k) for k in path)
     ]
     assert len(layer_norm_scales) > 0, "QNetwork has no LayerNorm parameters"
 
-    q_values = net.apply(params, jnp.ones((5,)) * 1e3)
+    _, q_values = net.apply(params, (), jnp.ones((5,)) * 1e3, jnp.asarray(False))
     assert q_values.shape == (3,)
     # with a large-magnitude input, a bounded output activation (tanh,
     # sigmoid, ...) would saturate near +-1; raw Dense output has no such
@@ -172,8 +177,11 @@ def test_collect_experience_caches_greedy_value_at_collection_time():
     # order that the two legitimately diverge at the ~1e-3 relative level
     # on GPU - same class of cross-compilation float divergence as
     # elsewhere in this codebase, not a sign the cached value is wrong.
-    q_values = jax.vmap(jax.vmap(pqn.network.apply, in_axes=(None, 0)), in_axes=(None, 0))(
-        ts.params, experience.obs
+    apply2 = jax.vmap(
+        jax.vmap(pqn.network.apply, in_axes=(None, 0, 0, 0)), in_axes=(None, 0, 0, 0)
+    )
+    _, q_values = apply2(
+        ts.params, experience.carry, experience.obs, experience.t == 0
     )
     expected_value = jnp.max(q_values, axis=-1)
     np.testing.assert_allclose(
@@ -201,8 +209,8 @@ def test_evaluate_experience_bootstraps_with_online_params_not_a_target_network(
     ts, experience = jax.jit(pqn.collect_experience)(ts)
     targets = jax.jit(pqn.evaluate_experience)(ts, experience)
 
-    last_q = jax.vmap(pqn.network.apply, in_axes=(None, 0))(
-        ts.params, ts.env_state.observation
+    _, last_q = jax.vmap(pqn.network.apply, in_axes=(None, 0, 0, 0))(
+        ts.params, ts.carry, ts.env_state.observation, ts.env_state.is_start()
     )
     last_val = jnp.max(last_q, axis=-1)
     # the final timestep's target must reduce to reward + discounted
@@ -280,3 +288,59 @@ def test_pqn_networks_have_no_replay_buffer_across_updates():
         f.name in ("replay", "buffer")
         for f in TrainingState.__dataclass_fields__.values()
     )
+
+
+# --------------------------------------------------------------------------
+# carry-based encoder contract (issue #169): stateless is inert, and a
+# TransformerEncoder plugs into QNetwork by swapping only the encoder
+# --------------------------------------------------------------------------
+
+
+def test_pqn_stateless_encoder_carry_is_empty_end_to_end():
+    pqn = _make_pqn()
+    ts = _init_train_state(pqn, jax.random.PRNGKey(0))
+    assert jax.tree_util.tree_leaves(ts.carry) == []
+    _, experience = jax.jit(pqn.collect_experience)(ts)
+    assert jax.tree_util.tree_leaves(experience.carry) == []
+
+
+def _transformer_qnetwork(action_dim: int, hidden: int = 8, context: int = 4):
+    from navix.agents.models import TransformerEncoder, QMLPEncoder
+
+    return QNetwork(
+        action_dim=action_dim,
+        encoder=TransformerEncoder(
+            frame_encoder=QMLPEncoder(hidden_size=hidden),
+            hidden_size=hidden,
+            num_heads=2,
+            num_layers=2,
+            context=context,
+        ),
+    )
+
+
+def test_pqn_transformer_encoder_trains_one_update_without_nans():
+    pqn = _make_pqn(budget=8 * 4)
+    pqn = pqn.replace(network=_transformer_qnetwork(len(pqn.env.action_set)))
+    ts, logs = jax.jit(pqn.train)(jax.random.PRNGKey(0))
+    for key, value in logs.items():
+        if key == "agent/train/done_mask":
+            continue
+        assert np.all(np.isfinite(np.asarray(value))), f"non-finite in logs[{key!r}]"
+    paths = [
+        "/".join(str(k.key) for k in p)
+        for p, _ in jax.tree_util.tree_leaves_with_path(ts.params)
+    ]
+    assert any("MultiHeadDotProductAttention" in p for p in paths)
+
+
+def test_pqn_transformer_encoder_buffer_carries_the_frame_window():
+    pqn = _make_pqn(num_steps=5, num_envs=3)
+    pqn = pqn.replace(
+        network=_transformer_qnetwork(len(pqn.env.action_set), context=4)
+    )
+    ts = _init_train_state(pqn, jax.random.PRNGKey(0))
+    _, experience = jax.jit(pqn.collect_experience)(ts)
+    # the window keeps each frame's native shape (QMLPEncoder flattens
+    # internally), so (T, N, context, *obs_shape).
+    assert experience.carry.shape == (5, 3, 4, *pqn.env.observation_space.shape)

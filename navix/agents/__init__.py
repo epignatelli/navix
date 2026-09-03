@@ -19,7 +19,17 @@
 
 
 from .ppo import PPO, PPOHparams as PPOHparams
-from .models import MLPEncoder, ConvEncoder, ActorCritic, QNetwork, QMLPEncoder, QConvEncoder
+from .models import (
+    Encoder,
+    MLPEncoder,
+    ConvEncoder,
+    TransformerBlock,
+    TransformerEncoder,
+    ActorCritic,
+    QNetwork,
+    QMLPEncoder,
+    QConvEncoder,
+)
 from .dreamer import (
     Dreamer,
     DreamerHparams as DreamerHparams,

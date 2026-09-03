@@ -3,7 +3,7 @@
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
 from functools import partial
-from typing import Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 import distrax
 import jax
@@ -55,6 +55,15 @@ class PPOHparams(HParams):
 
 
 class Buffer(struct.PyTreeNode):
+    carry: Any
+    """The encoder carry (`navix.agents.models`' encoder contract) that
+    went *into* the network at this step - i.e. the state produced from
+    `o_{t-1}` and earlier, before `o_t` was consumed. `()` for stateless
+    encoders. For `TransformerEncoder` it's the raw `(context, *frame)`
+    window ending at `o_{t-1}`; storing it here and replaying it in
+    `ppo_loss` (rather than re-deriving the window) is exact, because the
+    window has no dependence on the encoder's parameters (see that
+    class's docstring)."""
     done: jax.Array
     action: jax.Array
     reward: jax.Array
@@ -70,10 +79,17 @@ class TrainingState(TrainState):
     rng: jax.Array
     frames: jax.Array
     epoch: jax.Array
-    policy: Callable[[Params, Array], distrax.Distribution] = struct.field(
+    carry: Any
+    """The live encoder carry for the `num_envs` running environments,
+    threaded across `collect_experience` calls the same way `env_state`
+    is; also the pre-step carry for the post-rollout bootstrap in
+    `update`. `()` for stateless encoders."""
+    policy: Callable[
+        [Params, Any, Array, Array], Tuple[Any, distrax.Distribution]
+    ] = struct.field(pytree_node=False)
+    value_fn: Callable[[Params, Any, Array, Array], Tuple[Any, Array]] = struct.field(
         pytree_node=False
     )
-    value_fn: Callable[[Params, Array], Array] = struct.field(pytree_node=False)
 
 
 class PPO(Agent):
@@ -84,18 +100,25 @@ class PPO(Agent):
         self, train_state: TrainingState
     ) -> Tuple[TrainingState, Buffer]:
         def _env_step(
-            collection_state: Tuple[Timestep, jax.Array], _
-        ) -> Tuple[Tuple[Timestep, jax.Array], Buffer]:
-            env_state, rng = collection_state
-            # SELECT ACTION
+            collection_state: Tuple[Timestep, jax.Array, Any], _
+        ) -> Tuple[Tuple[Timestep, jax.Array, Any], Buffer]:
+            env_state, rng, carry = collection_state
+            # SELECT ACTION. `is_first` (o_t is a fresh episode's first
+            # frame) is `t == 0` - deferred-autoreset-proof, unlike a
+            # shifted `done` - so a stateful encoder re-initialises its
+            # carry here instead of reading the previous episode's frames.
             rng, _rng = jax.random.split(rng)
-            pi = train_state.policy(train_state.params, env_state.observation)
+            is_first = env_state.is_start()
+            new_carry, pi = train_state.policy(
+                train_state.params, carry, env_state.observation, is_first
+            )
             action = jnp.asarray(pi.sample(seed=_rng))
             log_prob = jnp.asarray(pi.log_prob(action))
 
             # STEP ENV
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
+                carry=carry,  # carry INTO o_t (pre-step) - see Buffer.carry
                 done=new_env_state.is_done(),  # done(o_{t+1})
                 action=action,  # a_t
                 reward=new_env_state.reward,  # R(o_t, a_t)
@@ -105,18 +128,22 @@ class PPO(Agent):
                 t=env_state.t,  # t
                 state=env_state.state,  # s_t
             )
-            return (new_env_state, rng), transition
+            # No explicit carry reset across the episode boundary here:
+            # the next step's `is_first` is True after autoreset, and the
+            # encoder discards a stale carry on `is_first` itself.
+            return (new_env_state, rng, new_carry), transition
 
         # collect experience and update env_state
-        (env_state, rng), experience = jax.lax.scan(
+        (env_state, rng, carry), experience = jax.lax.scan(
             _env_step,
-            (train_state.env_state, train_state.rng),
+            (train_state.env_state, train_state.rng, train_state.carry),
             None,
             self.hparams.num_steps,
         )
         train_state = train_state.replace(
             env_state=env_state,
             rng=rng,
+            carry=carry,
             frames=train_state.frames + self.hparams.num_steps * self.hparams.num_envs,
         )
         return train_state, experience
@@ -124,11 +151,13 @@ class PPO(Agent):
     def evaluate_experience(
         self, train_state: TrainingState, experience: Buffer, last_val: jax.Array
     ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-        values = jnp.asarray(
-            jax.vmap(train_state.value_fn, in_axes=(None, 0))(
-                train_state.params, experience.obs
-            )
-        )  # (1:T, N)
+        _, values = jax.vmap(train_state.value_fn, in_axes=(None, 0, 0, 0))(
+            train_state.params,
+            experience.carry,
+            experience.obs,
+            experience.t == 0,
+        )
+        values = jnp.asarray(values)  # (1:T, N)
         adv = jax.vmap(
             rlax.truncated_generalized_advantage_estimation,
             in_axes=(1, 1, None, 1, None),
@@ -152,9 +181,16 @@ class PPO(Agent):
         targets: Array,
         values_old: Array,
     ):
-        # this is already vmapped over the minibatches
-        pi, value = jax.vmap(self.network.apply, in_axes=(None, 0))(
-            params, transition_batch.obs
+        # this is already vmapped over the minibatches. The carry stored
+        # at collection time is replayed as a constant (no gradient
+        # through carry production) - exact for a param-independent carry
+        # like TransformerEncoder's raw-frame window; `t == 0` reproduces
+        # the same `is_first` the behaviour policy saw.
+        _, (pi, value) = jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0))(
+            params,
+            transition_batch.carry,
+            transition_batch.obs,
+            transition_batch.t == 0,
         )
         log_prob = pi.log_prob(transition_batch.action)
 
@@ -233,9 +269,12 @@ class PPO(Agent):
 
         for _ in range(self.hparams.num_epochs):
             # re-evaluate experience at every epoch as per https://arxiv.org/abs/2006.05990
-            last_val = train_state.value_fn(
-                train_state.params, train_state.env_state.observation
-            )  # boostrap
+            _, last_val = train_state.value_fn(
+                train_state.params,
+                train_state.carry,
+                train_state.env_state.observation,
+                train_state.env_state.is_start(),
+            )  # boostrap - carry is the post-rollout pre-step carry
             values, advantages, targets = self.evaluate_experience(
                 train_state, experience, last_val
             )
@@ -305,7 +344,8 @@ class PPO(Agent):
         # INIT NETWORK
         rng, _rng = jax.random.split(rng)
         init_x = self.env.observation_space.sample(_rng)
-        params = self.network.init(_rng, init_x)
+        carry_single = self.network.initial_carry(init_x.shape, init_x.dtype)
+        params = self.network.init(_rng, carry_single, init_x, jnp.asarray(False))
 
         def linear_schedule(count):
             frac = (
@@ -331,24 +371,30 @@ class PPO(Agent):
         )
         reset_rng = jax.random.split(_rng, self.hparams.num_envs)
         env_state = jax.vmap(self.env.reset)(reset_rng)
+        # One live encoder carry per parallel env (stateless -> `()`).
+        carry = jax.tree.map(
+            lambda c: jnp.broadcast_to(c, (self.hparams.num_envs, *c.shape)),
+            carry_single,
+        )
 
         # TRAIN LOOP
         num_updates = self.hparams.budget // (
             self.hparams.num_steps * self.hparams.num_envs
         )
         train_state = TrainingState.create(
-            apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0)),
+            apply_fn=jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0)),
             params=params,
             tx=tx,
             env_state=env_state,
             rng=rng,
+            carry=carry,
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
             policy=jax.vmap(
-                partial(self.network.apply, method="policy"), in_axes=(None, 0)
+                partial(self.network.apply, method="policy"), in_axes=(None, 0, 0, 0)
             ),
             value_fn=jax.vmap(
-                partial(self.network.apply, method="value"), in_axes=(None, 0)
+                partial(self.network.apply, method="value"), in_axes=(None, 0, 0, 0)
             ),
         )
         # experiment/costs/fps and experiment/costs/wall_time are NOT set
