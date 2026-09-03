@@ -31,6 +31,10 @@ from .models import ActorCritic
 
 
 class PPOHparams(HParams):
+    """Hyperparameters for `PPO`. Frozen; `.replace(...)` for a variant.
+    The per-field defaults are tuned for navix's small gridworlds, not
+    copied from a CartPole reference."""
+
     budget: int = struct.field(pytree_node=False, default=1_000_000)
     """Number of environment frames to train for."""
     num_envs: int = struct.field(pytree_node=False, default=16)

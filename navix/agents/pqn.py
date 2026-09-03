@@ -123,6 +123,11 @@ from .models import QNetwork
 
 
 class PQNHparams(HParams):
+    """Hyperparameters for `PQN`. Frozen; `.replace(...)` for a variant.
+    Several defaults (`num_epochs`, `num_minibatches`, `end_e`,
+    `exploration_fraction`) are set for navix's gridworlds and differ
+    from CleanRL's CartPole reference - see this module's docstring."""
+
     budget: int = struct.field(pytree_node=False, default=1_000_000)
     """Number of environment frames to train for."""
     num_envs: int = struct.field(pytree_node=False, default=16)

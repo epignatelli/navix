@@ -209,6 +209,19 @@ class Agent(struct.PyTreeNode):
         raise NotImplementedError
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
+        """Streams one training update's metrics to Weights & Biases,
+        deriving the `agent/episode/*` aggregates from the raw
+        `agent/train/*` buffers first. A no-op unless
+        `logs["agent/train/updates"]` is a multiple of
+        `hparams.log_frequency`. `Experiment.run` calls this; you rarely
+        call it directly.
+
+        Args:
+            logs (dict): one update's metrics (a single-update slice of
+                `Agent.train`'s output).
+            inspectable: optional extra payload for a debug callback.
+            run: an explicit `wandb.Run` to log to; defaults to the
+                module-level current run."""
         if len(logs) == 0 or logs["agent/train/updates"] % self.hparams.log_frequency != 0:
             return
 
@@ -245,6 +258,15 @@ class Agent(struct.PyTreeNode):
         (run or wandb).log(logs, step=step)
 
     def log_to_wandb_on_train_end(self, logs, run=None):
+        """Replays `log_to_wandb` for every recorded update after training
+        has finished - for when `train` ran fully inside `jax.jit` and
+        streaming live was not possible. `logs` here has a leading
+        update axis (the whole history); each kept update is logged in
+        order.
+
+        Args:
+            logs (dict): the full `Agent.train` output.
+            run: an explicit `wandb.Run`; defaults to the current run."""
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["agent/train/updates"])
         updates = logs["agent/train/updates"]

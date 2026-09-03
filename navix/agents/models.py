@@ -83,6 +83,10 @@ class Encoder(nn.Module):
 
 
 class MLPEncoder(Encoder):
+    """Two `tanh` `Dense` layers - the default `ActorCritic` encoder for
+    a flat (fully-observable / pre-flattened) observation. Stateless (see
+    `Encoder`); its output is `hidden_size`-wide."""
+
     hidden_size: int = 64
 
     @nn.compact
@@ -263,6 +267,20 @@ class TransformerEncoder(Encoder):
 
 
 class ActorCritic(nn.Module):
+    """PPO's network: two independent `Encoder` towers (actor, critic)
+    each followed by a linear head - a categorical policy over
+    `action_dim` and a scalar value. Swap `actor_encoder` /
+    `critic_encoder` to change what the agent sees (e.g.
+    `TransformerEncoder` for frame history); the training loop is
+    unchanged.
+
+    Attributes:
+        action_dim: number of discrete actions (`len(env.action_set)`).
+        actor_encoder: `Encoder` for the policy tower.
+        critic_encoder: `Encoder` for the value tower. Must produce the
+            same carry shape as `actor_encoder` (they share one carry).
+    """
+
     action_dim: int
     actor_encoder: Encoder = MLPEncoder()
     critic_encoder: Encoder = MLPEncoder()
