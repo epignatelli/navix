@@ -42,6 +42,7 @@ import numpy as np
 
 import navix as nx
 from navix.entities import Entities
+from navix.environments import multi_room
 
 
 EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
@@ -173,37 +174,121 @@ def bfs_navigate_adjacent_and_face_via_step(step_fn, timestep, target_row: int, 
     raise AssertionError(f"no reachable approach cell for target {target}")
 
 
+def assert_valid_multi_room_state(state, n: int, where: str):
+    assert state.grid.shape == (25, 25), f"{where}: grid must be 25x25"
+
+    doors = state.get_doors()
+    assert doors.position.shape[0] == n - 1, where
+    assert not bool(np.asarray(doors.open).any()), f"{where}: doors must start closed"
+    assert bool((np.asarray(doors.requires) == -1).all()), f"{where}: doors are unlocked"
+
+    player = state.get_player()
+    goal = state.get_goals()
+    grid = np.asarray(state.grid)
+    assert int(grid[player.position[0], player.position[1]]) == 0, f"{where}: player not on floor"
+    assert int(grid[goal.position[0, 0], goal.position[0, 1]]) == 0, (
+        f"{where}: goal not on floor (this exact failure mode - a degenerate room "
+        f"whose 'floor' carves to nothing - is what fallback_layout exists to "
+        f"prevent; see multi_room.py)"
+    )
+
+    # every door cell must itself be real floor (punched through
+    # the wall, not left as an orphaned -1)
+    for row, col in np.asarray(doors.position):
+        assert int(grid[row, col]) == 0, f"{where}: door at ({row},{col}) not floor"
+
+    # every door must actually be reachable from the room before it and
+    # the room after it - the exact class of bug a purely
+    # bounds/overlap-based check (the assertions above) can miss: a
+    # door landing on a room's own corner instead of its interior
+    # passes every check above but disconnects the two rooms it's
+    # supposed to join (found via direct tracing on Navix-MultiRoom-
+    # N4-S5-v0, PRNGKey(0) - see multi_room.py's _room_top_left_*
+    # docstrings).
+    blocked = np.asarray(state.grid) == -1
+    for row, col in np.asarray(doors.position):
+        neighbours = [(row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)]
+        floor_neighbours = sum(
+            1
+            for r, c in neighbours
+            if 0 <= r < grid.shape[0] and 0 <= c < grid.shape[1] and not blocked[r, c]
+        )
+        assert floor_neighbours >= 2, (
+            f"{where}: door at ({row},{col}) has only {floor_neighbours} floor "
+            f"neighbour(s) - should border a room on each side"
+        )
+
+
 def test_multi_room_structure():
     for env_id in ALL_ENV_IDS:
         n = NUM_ROOMS[env_id]
         env = nx.make(env_id)
         for seed in range(N_SEEDS):
             state = env.reset(jax.random.PRNGKey(seed)).state
-            where = f"{env_id} seed={seed}"
+            assert_valid_multi_room_state(state, n, f"{env_id} seed={seed}")
 
-            assert state.grid.shape == (25, 25), f"{where}: grid must be 25x25"
 
-            doors = state.get_doors()
-            assert doors.position.shape[0] == n - 1, where
-            assert not bool(np.asarray(doors.open).any()), f"{where}: doors must start closed"
-            assert bool((np.asarray(doors.requires) == -1).all()), f"{where}: doors are unlocked"
+def test_multi_room_fallback_layout_valid():
+    """Direct unit test of `fallback_layout` itself (the exact
+    function that shipped with a real off-grid bug for larger `n` -
+    see multi_room.py), across every real registration's room count -
+    in bounds, non-overlapping, doors on real floor once carved into a
+    grid the same way `_reset` does."""
+    for n in sorted(set(NUM_ROOMS.values())):
+        tops, sizes, door_positions, _door_colours = multi_room.fallback_layout(
+            jax.random.PRNGKey(0), n
+        )
+        tops_np, sizes_np = np.asarray(tops), np.asarray(sizes)
+        where = f"n={n}"
 
-            player = state.get_player()
-            goal = state.get_goals()
-            grid = np.asarray(state.grid)
-            assert int(grid[player.position[0], player.position[1]]) == 0, (
-                f"{where}: player not on floor"
+        for i in range(n):
+            top, size = tops_np[i], sizes_np[i]
+            assert (top >= 0).all() and (top + size <= multi_room.GRID_SIZE).all(), (
+                f"{where}: room {i} out of [0, {multi_room.GRID_SIZE}) bounds "
+                f"(top={top}, size={size})"
             )
-            assert int(grid[goal.position[0, 0], goal.position[0, 1]]) == 0, (
-                f"{where}: goal not on floor (this exact failure mode - a degenerate room "
-                f"whose 'floor' carves to nothing - is what _fallback_layout exists to "
-                f"prevent; see multi_room.py)"
+
+        grid = -np.ones((multi_room.GRID_SIZE, multi_room.GRID_SIZE), dtype=np.int32)
+        for i in range(n):
+            top, size = tops_np[i], sizes_np[i]
+            grid[top[0] + 1 : top[0] + size[0] - 1, top[1] + 1 : top[1] + size[1] - 1] = 0
+        for row, col in np.asarray(door_positions):
+            grid[row, col] = 0
+
+        n_floor = int((grid == 0).sum())
+        assert n_floor > 0, f"{where}: fallback layout carves to no floor at all"
+
+        blocked = grid == -1
+        for row, col in np.asarray(door_positions):
+            neighbours = [(row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)]
+            floor_neighbours = sum(
+                1
+                for r, c in neighbours
+                if 0 <= r < grid.shape[0] and 0 <= c < grid.shape[1] and not blocked[r, c]
+            )
+            assert floor_neighbours >= 2, (
+                f"{where}: fallback door at ({row},{col}) has only {floor_neighbours} "
+                f"floor neighbour(s)"
             )
 
-            # every door cell must itself be real floor (punched through
-            # the wall, not left as an orphaned -1)
-            for row, col in np.asarray(doors.position):
-                assert int(grid[row, col]) == 0, f"{where}: door at ({row},{col}) not floor"
+
+def test_multi_room_fallback_path_forced(monkeypatch):
+    """Forces every episode's random layout search to fail (`place_
+    room` can never succeed with 0 retries), so `_reset` always falls
+    back to `fallback_layout` - exercises the `jnp.where(valid, ...,
+    fallback...)` integration path directly through a real `env.reset`
+    call, not just `fallback_layout` in isolation, per the PR review's
+    own suggestion. Room 0 itself isn't retried (see `generate_
+    layout`), so `all_valid` is forced False by every *other* room's
+    placement failing - true for every real registration (all have
+    `n >= 2`)."""
+    monkeypatch.setattr(multi_room, "MAX_PLACEMENT_TRIES", 0)
+    for env_id in ALL_ENV_IDS:
+        n = NUM_ROOMS[env_id]
+        env = nx.make(env_id)
+        for seed in range(N_SEEDS):
+            state = env.reset(jax.random.PRNGKey(seed)).state
+            assert_valid_multi_room_state(state, n, f"{env_id} seed={seed} (forced fallback)")
 
 
 def solve_multi_room(step_fn, timestep):

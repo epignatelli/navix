@@ -46,7 +46,21 @@ set - so `N6` is genuinely, permanently more expensive to run than any
 other navix environment, not just slower to compile. Kept anyway,
 deliberately, for fidelity - see this session's own discussion on
 issue #182 for the (rejected) cheaper alternative (a straight room
-chain) and the actual cost numbers."""
+chain) and the actual cost numbers.
+
+One consequence worth calling out explicitly: `Environment.step`
+embeds a full `Environment.reset` call as its `jax.lax.cond` autoreset
+branch, so calling `env.step(...)` *un-jitted* in a Python loop
+retraces and recompiles that whole branch - reset included - on every
+single call, since eager `lax.cond` doesn't cache across separate
+top-level calls the way `jax.jit` does. For most navix environments
+that's an unnoticeable cost, because their `reset` is cheap. For
+`MultiRoom`, and especially `N6`, `reset` is exactly the heavy nested-
+retry search described above, so this pattern is a real footgun: it
+was measured to balloon to minutes of compile time and multiple GB of
+memory before crashing outright. Always `jax.jit` (or `jax.vmap` over
+a jitted function) `env.step`/`env.reset` before calling either in a
+loop against any `MultiRoom` variant."""
 
 from __future__ import annotations
 from typing import List, Tuple, Union
@@ -69,7 +83,7 @@ from .registry import register_env
 
 GRID_SIZE = 25  # fixed for every registration, matching MiniGrid's own
 MIN_ROOM_SIZE = 4  # matches MiniGrid's hardcoded minSz
-BOUNDARY_MARGIN = MIN_ROOM_SIZE - 1  # see _place_room's docstring
+BOUNDARY_MARGIN = MIN_ROOM_SIZE - 1  # see place_room's docstring
 MAX_PLACEMENT_TRIES = 64  # MiniGrid itself retries only 8 times per room,
 # but a JAX retry (one more jax.lax.while_loop iteration, already-compiled)
 # has essentially none of the real cost a Python-level retry does - bumped
@@ -79,7 +93,7 @@ MAX_PLACEMENT_TRIES = 64  # MiniGrid itself retries only 8 times per room,
 MAX_LAYOUT_RESTARTS = 32  # a single room's own retry (MAX_PLACEMENT_TRIES,
 # BOUNDARY_MARGIN) still can't always salvage a bad *earlier* room's
 # choice - MiniGrid's true backtracking can reconsider previous rooms,
-# a single room's retry loop structurally can't (see _place_room's
+# a single room's retry loop structurally can't (see place_room's
 # docstring). Confirmed necessary directly: even with the above two,
 # Navix-MultiRoom-N6-v0 PRNGKey(2) still exhausted every retry (room
 # 3's door only 4 cells from an edge - no legal room 4 size fits).
@@ -93,14 +107,14 @@ MAX_LAYOUT_RESTARTS = 32  # a single room's own retry (MAX_PLACEMENT_TRIES,
 # exhausted every restart) - good, not perfect, so a guaranteed-valid
 # deterministic fallback (see _reset) covers the remainder instead of
 # chasing a higher ceiling that's already shown real compile cost.
-# _generate_layout reports failure honestly instead of silently
+# generate_layout reports failure honestly instead of silently
 # returning an invalid layout (which previously manifested as e.g. the
 # goal defaulting to a wall corner, position (0,0)), and _reset
 # restarts the *entire* room chain from scratch with a fresh key,
 # rather than trying to locally patch just the one room that failed.
 
 
-def _room_top_left_east(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
+def room_top_left_east(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     # entered via the new room's own EAST wall -> room extends west
     top_col = entry_col - size_w + 1
     # MiniGrid samples the perpendicular offset from a half-open range
@@ -117,31 +131,31 @@ def _room_top_left_east(key: Array, entry_row: Array, entry_col: Array, size_h: 
     return jnp.asarray([top_row, top_col])
 
 
-def _room_top_left_south(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
+def room_top_left_south(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     # entered via the new room's own SOUTH wall -> room extends north
     top_row = entry_row - size_h + 1
-    # see _room_top_left_east's comment: `high` must exclude entry_col
+    # see room_top_left_east's comment: `high` must exclude entry_col
     top_col = jax.random.randint(key, (), entry_col - size_w + 2, entry_col)
     return jnp.asarray([top_row, top_col])
 
 
-def _room_top_left_west(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
+def room_top_left_west(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     # entered via the new room's own WEST wall -> room extends east
     top_col = entry_col
-    # see _room_top_left_east's comment: `high` must exclude entry_row
+    # see room_top_left_east's comment: `high` must exclude entry_row
     top_row = jax.random.randint(key, (), entry_row - size_h + 2, entry_row)
     return jnp.asarray([top_row, top_col])
 
 
-def _room_top_left_north(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
+def room_top_left_north(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     # entered via the new room's own NORTH wall -> room extends south
     top_row = entry_row
-    # see _room_top_left_east's comment: `high` must exclude entry_col
+    # see room_top_left_east's comment: `high` must exclude entry_col
     top_col = jax.random.randint(key, (), entry_col - size_w + 2, entry_col)
     return jnp.asarray([top_row, top_col])
 
 
-def _room_top_left(wall: Array, key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
+def room_top_left(wall: Array, key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     """The new room's top-left corner, positioned so its `wall` side
     touches `(entry_row, entry_col)` and it extends away from there -
     verified against MiniGrid's actual `_placeRoom`'s 4 wall-relative
@@ -150,45 +164,45 @@ def _room_top_left(wall: Array, key: Array, entry_row: Array, entry_col: Array, 
     switch` rather than a plain Python `if`."""
     return jax.lax.switch(
         wall,
-        [_room_top_left_east, _room_top_left_south, _room_top_left_west, _room_top_left_north],
+        [room_top_left_east, room_top_left_south, room_top_left_west, room_top_left_north],
         key, entry_row, entry_col, size_h, size_w,
     )
 
 
-def _exit_door_position_east(key: Array, top: Array, size: Array) -> Array:
+def exit_door_position_east(key: Array, top: Array, size: Array) -> Array:
     offset = jax.random.randint(key, (), 1, size[0] - 1)
     return jnp.asarray([top[0] + offset, top[1] + size[1] - 1])
 
 
-def _exit_door_position_south(key: Array, top: Array, size: Array) -> Array:
+def exit_door_position_south(key: Array, top: Array, size: Array) -> Array:
     offset = jax.random.randint(key, (), 1, size[1] - 1)
     return jnp.asarray([top[0] + size[0] - 1, top[1] + offset])
 
 
-def _exit_door_position_west(key: Array, top: Array, size: Array) -> Array:
+def exit_door_position_west(key: Array, top: Array, size: Array) -> Array:
     offset = jax.random.randint(key, (), 1, size[0] - 1)
     return jnp.asarray([top[0] + offset, top[1]])
 
 
-def _exit_door_position_north(key: Array, top: Array, size: Array) -> Array:
+def exit_door_position_north(key: Array, top: Array, size: Array) -> Array:
     offset = jax.random.randint(key, (), 1, size[1] - 1)
     return jnp.asarray([top[0], top[1] + offset])
 
 
-def _exit_door_position(wall: Array, key: Array, top: Array, size: Array) -> Array:
+def exit_door_position(wall: Array, key: Array, top: Array, size: Array) -> Array:
     """A random position on room `top`/`size`'s `wall` side, excluding
     the two corners (matching `grid.room_grid_door_position`'s own
     corner-excluding convention - the same reason: a door needs a real
     interior cell on both sides, not the room's own corner)."""
     return jax.lax.switch(
         wall,
-        [_exit_door_position_east, _exit_door_position_south,
-         _exit_door_position_west, _exit_door_position_north],
+        [exit_door_position_east, exit_door_position_south,
+         exit_door_position_west, exit_door_position_north],
         key, top, size,
     )
 
 
-def _interiors_overlap(top_a: Array, size_a: Array, top_b: Array, size_b: Array) -> Array:
+def interiors_overlap(top_a: Array, size_a: Array, top_b: Array, size_b: Array) -> Array:
     """Whether two rooms' *interiors* (each room's own 1-cell wall
     border excluded) overlap. Interiors, not full bounds: two rooms
     connected by a door are deliberately placed edge-to-edge, sharing
@@ -204,7 +218,7 @@ def _interiors_overlap(top_a: Array, size_a: Array, top_b: Array, size_b: Array)
     return row_overlap & col_overlap
 
 
-def _place_room(
+def place_room(
     key: Array,
     entry_wall: Array,
     entry_pos: Array,
@@ -219,7 +233,7 @@ def _place_room(
     the first that's in-bounds *with a margin* (see below) and doesn't
     overlap any already-placed room). `existing_tops`/`existing_sizes`
     are plain Python lists, not padded arrays - safe here because the
-    outer room-by-room loop in `_reset`/`_generate_layout` is itself a
+    outer room-by-room loop in `_reset`/`generate_layout` is itself a
     static Python `for` (room count is a registration-time constant),
     so each call site's list length is static, same as
     `ObstructedMazeFull`'s own `door_positions` accumulation.
@@ -242,7 +256,7 @@ def _place_room(
     salvaged locally, which a single room's own retry loop structurally
     can't replicate - so on total failure here, this function reports
     it honestly instead of silently returning an invalid placement,
-    and `_generate_layout`'s own outer retry restarts the *entire*
+    and `generate_layout`'s own outer retry restarts the *entire*
     chain with a fresh key instead - the closest JAX-traceable
     equivalent of "back up and reconsider an earlier choice", since
     which earlier room to blame isn't something this function can
@@ -258,7 +272,7 @@ def _place_room(
         key, k_h, k_w, k_pos = jax.random.split(key, 4)
         size_h = jax.random.randint(k_h, (), size_min, size_max + 1)
         size_w = jax.random.randint(k_w, (), size_min, size_max + 1)
-        top = _room_top_left(entry_wall, k_pos, entry_row, entry_col, size_h, size_w)
+        top = room_top_left(entry_wall, k_pos, entry_row, entry_col, size_h, size_w)
         size = jnp.asarray([size_h, size_w])
         in_bounds = (
             (top[0] >= BOUNDARY_MARGIN)
@@ -269,7 +283,7 @@ def _place_room(
         no_overlap = jnp.asarray(True)
         for other_top, other_size in zip(existing_tops, existing_sizes):
             no_overlap = no_overlap & jnp.logical_not(
-                _interiors_overlap(top, size, other_top, other_size)
+                interiors_overlap(top, size, other_top, other_size)
             )
         valid = in_bounds & no_overlap
         return key, attempt + 1, valid, top, size
@@ -285,7 +299,7 @@ def _place_room(
     return top, size, found
 
 
-def _fallback_layout(key: Array, n: int) -> Tuple[Array, Array, Array, Array]:
+def fallback_layout(key: Array, n: int) -> Tuple[Array, Array, Array, Array]:
     """A deterministic straight chain of `n` minimum-size rooms,
     centred as a whole and extending east - always valid by
     construction (`GRID_SIZE=25` comfortably fits the *chain's total
@@ -343,18 +357,18 @@ class MultiRoom(Environment):
     num_rooms: int = struct.field(pytree_node=False, default=2)
     max_room_size: int = struct.field(pytree_node=False, default=4)
 
-    def _generate_layout(
+    def generate_layout(
         self, key: Array
     ) -> Tuple[Array, Array, Array, Array, Array]:
         """One attempt at placing all `num_rooms` rooms - a pure
         function of `key`, returning fixed-shape stacked arrays (not
-        the growing Python lists `_place_room`'s own docstring
+        the growing Python lists `place_room`'s own docstring
         describes - those are fine *within* one room's placement,
         where the call site's list length is static per room index,
         but this function's *own* output must be a single fixed-shape
         value so `_reset` can retry it whole via `jax.lax.while_loop`).
         The last return value is `all_valid`: whether every room
-        actually found a legal placement (see `_place_room`'s
+        actually found a legal placement (see `place_room`'s
         docstring on why a single room's own retry can't always
         salvage a bad earlier choice) - `_reset` restarts this whole
         function with a fresh key when it's `False`, rather than ever
@@ -380,7 +394,7 @@ class MultiRoom(Environment):
             key, k_door, k_place, k_exit_offset, k_colour = jax.random.split(key, 5)
             prev_top, prev_size, prev_exit_wall = tops[-1], sizes[-1], exit_walls[-1]
 
-            door_pos = _exit_door_position(prev_exit_wall, k_door, prev_top, prev_size)
+            door_pos = exit_door_position(prev_exit_wall, k_door, prev_top, prev_size)
             door_positions.append(door_pos)
 
             if door_colours:
@@ -388,7 +402,7 @@ class MultiRoom(Environment):
                 # previous door's - matches MiniGrid's own "exclude
                 # the previous door's colour" rule. Adding a random
                 # nonzero offset mod 6 always lands on one of the
-                # other 5, uniformly - same trick `_place_room`'s
+                # other 5, uniformly - same trick `place_room`'s
                 # exit-wall selection uses for "exclude one value".
                 offset = jax.random.randint(k_colour, (), 1, 6)
                 colour = (door_colours[-1] + offset) % 6
@@ -397,7 +411,7 @@ class MultiRoom(Environment):
             door_colours.append(colour)
 
             entry_wall = (prev_exit_wall + 2) % 4
-            top, size, found = _place_room(
+            top, size, found = place_room(
                 k_place, entry_wall, door_pos, MIN_ROOM_SIZE, size_max, tops, sizes
             )
             tops.append(top)
@@ -425,12 +439,12 @@ class MultiRoom(Environment):
 
         def body_fn(carry):
             key, attempt, _, *_ = carry
-            tops, sizes, door_positions, door_colours, valid = self._generate_layout(
+            tops, sizes, door_positions, door_colours, valid = self.generate_layout(
                 jax.random.fold_in(key, attempt)
             )
             return key, attempt + 1, valid, tops, sizes, door_positions, door_colours
 
-        init_tops, init_sizes, init_doors, init_colours, init_valid = self._generate_layout(
+        init_tops, init_sizes, init_doors, init_colours, init_valid = self.generate_layout(
             jax.random.fold_in(k_layout, 0)
         )
         _, _, valid, tops, sizes, door_positions, door_colours = jax.lax.while_loop(
@@ -443,7 +457,7 @@ class MultiRoom(Environment):
         # where random search never found a valid layout - fall back to
         # a deterministic straight chain, guaranteed valid by
         # construction, rather than ever using a broken one
-        fallback_tops, fallback_sizes, fallback_doors, fallback_colours = _fallback_layout(
+        fallback_tops, fallback_sizes, fallback_doors, fallback_colours = fallback_layout(
             jax.random.fold_in(k_layout, MAX_LAYOUT_RESTARTS), n
         )
         tops = jnp.where(valid, tops, fallback_tops)
@@ -511,7 +525,7 @@ class MultiRoom(Environment):
         )
 
 
-def _register_multi_room(env_id: str, num_rooms: int, max_room_size: int) -> None:
+def register_multi_room(env_id: str, num_rooms: int, max_room_size: int) -> None:
     register_env(
         env_id,
         lambda *args, **kwargs: MultiRoom.create(
@@ -529,11 +543,11 @@ def _register_multi_room(env_id: str, num_rooms: int, max_room_size: int) -> Non
     )
 
 
-_register_multi_room("Navix-MultiRoom-N2-S4-v0", num_rooms=2, max_room_size=4)
+register_multi_room("Navix-MultiRoom-N2-S4-v0", num_rooms=2, max_room_size=4)
 # MiniGrid's own MultiRoom-N4-S5-v0 is a documented legacy bug (kept
 # "for backwards compatibility") - it actually uses 6 rooms, not 4;
 # MiniGrid's own -v1 fixes this to the 4 its name promises. Per this
 # session's v1-becomes-v0 convention, navix implements the fix
 # (4 rooms) under the plain -v0 navix id.
-_register_multi_room("Navix-MultiRoom-N4-S5-v0", num_rooms=4, max_room_size=5)
-_register_multi_room("Navix-MultiRoom-N6-v0", num_rooms=6, max_room_size=10)
+register_multi_room("Navix-MultiRoom-N4-S5-v0", num_rooms=4, max_room_size=5)
+register_multi_room("Navix-MultiRoom-N6-v0", num_rooms=6, max_room_size=10)
