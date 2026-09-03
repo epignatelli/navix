@@ -71,7 +71,7 @@ def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
     Returns:
         Array: A scalar array `f32[]` with value 1 if the goal is reached, and 0 otherwise.
     """
-    return jnp.asarray(events.on_goal_reached(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_goal_reached(prev_state, action, state), dtype=jnp.float32)
 
 
 def action_cost(
@@ -125,7 +125,7 @@ def wall_hit_cost(
     Returns:
         Array: A scalar array `f32[]` with value -`cost` if the agent hits a wall, \
         and 0 otherwise."""
-    return jnp.asarray(events.on_wall_hit(state), dtype=jnp.float32) * cost
+    return jnp.asarray(events.on_wall_hit(prev_state, action, state), dtype=jnp.float32) * cost
 
 
 def on_door_done(prev_state: State, action: Array, state: State) -> Array:
@@ -139,7 +139,7 @@ def on_door_done(prev_state: State, action: Array, state: State) -> Array:
         Array: A scalar array `f32[]` with value 1 if the agent uses the action `done` in \
         front of a door, and 0 otherwise."""
 
-    return jnp.asarray(events.on_door_done(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_door_done(prev_state, action, state), dtype=jnp.float32)
 
 
 def on_door_open(prev_state: State, action: Array, state: State) -> Array:
@@ -153,7 +153,7 @@ def on_door_open(prev_state: State, action: Array, state: State) -> Array:
     Returns:
         Array: A scalar array `f32[]` with value 1 if a door was opened,
         and 0 otherwise."""
-    return jnp.asarray(events.on_door_open(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_door_open(prev_state, action, state), dtype=jnp.float32)
 
 
 def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
@@ -166,7 +166,7 @@ def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
     Returns:
         Array: A scalar array `f32[]` with value 1 if a box was picked
         up, and 0 otherwise."""
-    return jnp.asarray(events.on_box_pickup(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_box_pickup(prev_state, action, state), dtype=jnp.float32)
 
 
 def on_ordered_doors_success(prev_state: State, action: Array, state: State) -> Array:
@@ -182,7 +182,7 @@ def on_ordered_doors_success(prev_state: State, action: Array, state: State) -> 
     Returns:
         Array: A scalar array `f32[]`."""
     return jnp.asarray(
-        events.on_ordered_doors_success(prev_state, state), dtype=jnp.float32
+        events.on_ordered_doors_success(prev_state, action, state), dtype=jnp.float32
     )
 
 
@@ -197,7 +197,7 @@ def on_target_done(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A scalar array `f32[]`."""
-    return jnp.asarray(events.on_target_done(action, state), dtype=jnp.float32)
+    return jnp.asarray(events.on_target_done(prev_state, action, state), dtype=jnp.float32)
 
 
 def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
@@ -213,7 +213,7 @@ def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A scalar array `f32[]`."""
-    return jnp.asarray(events.on_target_fetched(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_target_fetched(prev_state, action, state), dtype=jnp.float32)
 
 
 def on_put_near_success(prev_state: State, action: Array, state: State) -> Array:
@@ -248,7 +248,7 @@ def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A scalar array `f32[]`."""
-    return jnp.asarray(events.on_memory_success(state), dtype=jnp.float32)
+    return jnp.asarray(events.on_memory_success(prev_state, action, state), dtype=jnp.float32)
 
 
 DEFAULT_TASK = compose(on_goal_reached, action_cost)
