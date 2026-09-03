@@ -16,6 +16,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+"""Issue #192: every function in this module takes the uniform
+`(prev_state, action, state)` triple, even where its own body only
+reads a subset of it - matching the convention `rewards.py`/
+`terminations.py`'s wrapper functions already use unconditionally
+(e.g. `rewards.on_goal_reached(prev_state, action, state)` ignores the
+first two args entirely). Before this, 5 different signature shapes
+were spread across this module's functions (`(state)`, `(prev_state,
+state)`, `(action, state)`, `(action)`, `(prev_state, action)`), each
+needing its own docstring paragraph explaining why it deviated from a
+single-state "convention" that was never actually uniform. One honest,
+uniform contract instead - unused args are still named in each
+function's docstring, marked `(unused)`."""
+
 from __future__ import annotations
 
 from jax import Array
@@ -37,10 +51,12 @@ TOGGLE_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.toggle))
 DROP_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.drop))
 
 
-def on_goal_reached(state: State) -> Array:
+def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether the goal has been reached using the `goal_reached` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -49,10 +65,12 @@ def on_goal_reached(state: State) -> Array:
     return state.events.happened((Entities.GOAL, EventType.REACH))
 
 
-def on_lava_fall(state: State) -> Array:
+def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether the lava has fallen using the `lava_fall` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -61,10 +79,12 @@ def on_lava_fall(state: State) -> Array:
     return state.events.happened((Entities.LAVA, EventType.FALL))
 
 
-def on_ball_hit(state: State) -> Array:
+def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether the ball has hit something using the `ball_hit` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -73,10 +93,12 @@ def on_ball_hit(state: State) -> Array:
     return state.events.happened((Entities.BALL, EventType.HIT))
 
 
-def on_door_done(state: State) -> Array:
+def on_door_done(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether the action `done` has been called in front of a `Door` object with the correct colour.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -99,12 +121,14 @@ def on_door_done(state: State) -> Array:
     return jnp.logical_and(pos_match, colour_match)
 
 
-def on_door_open(state: State) -> Array:
+def on_door_open(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether any door was opened using the `door_opening` event -
     unlike `on_door_done`, this doesn't need a `state.mission` target;
     any door opening (unlocking or not) counts.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -113,10 +137,12 @@ def on_door_open(state: State) -> Array:
     return state.events.happened((Entities.DOOR, EventType.OPEN))
 
 
-def on_box_pickup(state: State) -> Array:
+def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether any box was picked up using the `box_pickup` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -125,12 +151,14 @@ def on_box_pickup(state: State) -> Array:
     return state.events.happened((Entities.BOX, EventType.PICKUP))
 
 
-def on_wall_hit(state: State) -> Array:
+def on_wall_hit(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether the wall has been hit using the `wall_hit` event -
     either an actual `Wall` entity, or the grid boundary/a non-walkable
     empty cell with no entity there (see `navix.states.GRID`).
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -142,10 +170,12 @@ def on_wall_hit(state: State) -> Array:
     )
 
 
-def on_key_pickup(state: State) -> Array:
+def on_key_pickup(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether any key was picked up using the `key_pickup` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -154,10 +184,12 @@ def on_key_pickup(state: State) -> Array:
     return state.events.happened((Entities.KEY, EventType.PICKUP))
 
 
-def on_ball_pickup(state: State) -> Array:
+def on_ball_pickup(prev_state: State, action: Array, state: State) -> Array:
     """Checks whether any ball was picked up using the `ball_pickup` event.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -166,20 +198,20 @@ def on_ball_pickup(state: State) -> Array:
     return state.events.happened((Entities.BALL, EventType.PICKUP))
 
 
-def on_ordered_doors_success(prev_state: State, state: State) -> Array:
+def on_ordered_doors_success(prev_state: State, action: Array, state: State) -> Array:
     """`RedBlueDoors`' win condition: `doors[1]` (blue - see
     `RedBlueDoors._reset`'s fixed construction order, no colour search
     needed) transitions closed -> open exactly this step, while
-    `doors[0]` (red) was *already* open in `prev_state`.
-
-    Unlike every other function in this module, this needs both
-    `prev_state` and `state` - the win condition is about the *order*
-    two doors were opened in, which no single state can encode on its
-    own (events are reset every step, and a `Door.open` flag alone can't
+    `doors[0]` (red) was *already* open in `prev_state`. This is why
+    `prev_state` is needed here even though most of this module's
+    functions ignore it - the win condition is about the *order* two
+    doors were opened in, which no single state can encode on its own
+    (events are reset every step, and a `Door.open` flag alone can't
     tell you whether it just changed or has been open for a while).
 
     Args:
         prev_state (State): The state before this step's action.
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -192,13 +224,14 @@ def on_ordered_doors_success(prev_state: State, state: State) -> Array:
     return jnp.logical_and(red_already_open, blue_just_opened)
 
 
-def on_ordered_doors_failure(prev_state: State, state: State) -> Array:
+def on_ordered_doors_failure(prev_state: State, action: Array, state: State) -> Array:
     """`RedBlueDoors`' fail condition: `doors[1]` (blue) transitions
     closed -> open exactly this step, while `doors[0]` (red) was *not*
     already open - i.e. blue was opened first (or simultaneously).
 
     Args:
         prev_state (State): The state before this step's action.
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -211,7 +244,7 @@ def on_ordered_doors_failure(prev_state: State, state: State) -> Array:
     return jnp.logical_and(jnp.logical_not(red_already_open), blue_just_opened)
 
 
-def on_target_done(action: Array, state: State) -> Array:
+def on_target_done(prev_state: State, action: Array, state: State) -> Array:
     """`GoToObject`'s real win condition (verified directly against
     MiniGrid's actual `GoToObjectEnv.step` source): the `done` action
     was called while orthogonally adjacent to `state.mission`'s target -
@@ -224,6 +257,7 @@ def on_target_done(action: Array, state: State) -> Array:
     return `False` where real MiniGrid rewards it).
 
     Args:
+        prev_state (State): The state before this step's action (unused).
         action (Array): The action taken by the player.
         state (State): The current state of the game.
 
@@ -244,20 +278,22 @@ def on_target_done(action: Array, state: State) -> Array:
     return jnp.logical_and(adjacent, called_done)
 
 
-def on_wrong_toggle(action: Array) -> Array:
+def on_wrong_toggle(prev_state: State, action: Array, state: State) -> Array:
     """`GoToObject`'s real fail condition (verified against MiniGrid):
     calling `toggle` at all, regardless of what's in front, immediately
     fails the episode.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
         action (Array): The action taken by the player.
+        state (State): The current state of the game (unused).
 
     Returns:
         Array: A boolean scalar."""
     return jnp.asarray(action == TOGGLE_ACTION)
 
 
-def on_target_fetched(state: State) -> Array:
+def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
     """`Fetch`'s success signal: a `Key`/`Ball` pickup event fired this
     step at `state.mission`'s tracked position - `Event.position` keeps
     the picked-up instance's real (pre-discard-pile) position, and
@@ -265,6 +301,8 @@ def on_target_fetched(state: State) -> Array:
     the *specific* target object (not just any object) was picked up.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -281,7 +319,7 @@ def on_target_fetched(state: State) -> Array:
     return jnp.logical_or(fetched_key, fetched_ball)
 
 
-def on_any_target_pickup(state: State) -> Array:
+def on_any_target_pickup(prev_state: State, action: Array, state: State) -> Array:
     """`Fetch`'s termination trigger: MiniGrid's real `FetchEnv` ends the
     episode on *any* `Key`/`Ball` pickup, right or wrong - only the
     reward differs (see `on_target_fetched`). Also reused by `PutNear`
@@ -290,20 +328,28 @@ def on_any_target_pickup(state: State) -> Array:
     never constructs any `Box` entities.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
         Array: A boolean scalar."""
-    return on_key_pickup(state) | on_ball_pickup(state) | on_box_pickup(state)
+    return (
+        on_key_pickup(prev_state, action, state)
+        | on_ball_pickup(prev_state, action, state)
+        | on_box_pickup(prev_state, action, state)
+    )
 
 
-def on_put_near_wrong_pickup(state: State) -> Array:
+def on_put_near_wrong_pickup(prev_state: State, action: Array, state: State) -> Array:
     """`PutNear`'s fail-on-pickup condition: a `Key`/`Ball`/`Box` pickup
     happened this step, but not at `state.mission`'s tracked position
     (the "object to carry") - matches MiniGrid's real `PutNearEnv`,
     which ends the episode immediately if the wrong object is picked up.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -311,7 +357,7 @@ def on_put_near_wrong_pickup(state: State) -> Array:
     assert (
         len(state.mission) > 0
     ), "on_put_near_wrong_pickup requires the state to specify a mission."
-    any_pickup = on_any_target_pickup(state)
+    any_pickup = on_any_target_pickup(prev_state, action, state)
     right_pickup = (
         state.events.happened_at((Entities.KEY, EventType.PICKUP), state.mission[0].position)
         | state.events.happened_at((Entities.BALL, EventType.PICKUP), state.mission[0].position)
@@ -320,7 +366,7 @@ def on_put_near_wrong_pickup(state: State) -> Array:
     return jnp.logical_and(any_pickup, jnp.logical_not(right_pickup))
 
 
-def on_put_near_drop_attempted(prev_state: State, action: Array) -> Array:
+def on_put_near_drop_attempted(prev_state: State, action: Array, state: State) -> Array:
     """`PutNear`'s termination trigger for a drop: MiniGrid's real
     `PutNearEnv` ends the episode on any genuine drop attempt (a `drop`
     action while actually holding something) - success or failure is
@@ -329,6 +375,7 @@ def on_put_near_drop_attempted(prev_state: State, action: Array) -> Array:
     Args:
         prev_state (State): The state before this step's action.
         action (Array): The action taken by the player.
+        state (State): The current state of the game (unused).
 
     Returns:
         Array: A boolean scalar."""
@@ -359,7 +406,7 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     assert (
         len(state.mission) > 1
     ), "on_put_near_success requires the state to specify a second mission target."
-    drop_attempted = on_put_near_drop_attempted(prev_state, action)
+    drop_attempted = on_put_near_drop_attempted(prev_state, action, state)
     drop_succeeded = jnp.logical_and(drop_attempted, state.get_player().pocket == -1)
     prev_player = prev_state.get_player()
     drop_position = translate(prev_player.position, prev_player.direction)
@@ -369,7 +416,7 @@ def on_put_near_success(prev_state: State, action: Array, state: State) -> Array
     return jnp.logical_and(drop_succeeded, near_target)
 
 
-def on_memory_success(state: State) -> Array:
+def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
     """`Memory`'s win condition (verified against MiniGrid's actual
     `MemoryEnv.step`): the player has walked onto `state.mission`'s
     target position - pure position equality, no `done` action, no
@@ -377,6 +424,8 @@ def on_memory_success(state: State) -> Array:
     adjacent to the matching object, not the object's own cell).
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:
@@ -389,7 +438,7 @@ def on_memory_success(state: State) -> Array:
     return jnp.all(player.position == state.mission[0].position)
 
 
-def on_memory_failure(state: State) -> Array:
+def on_memory_failure(prev_state: State, action: Array, state: State) -> Array:
     """`Memory`'s fail condition: the player has walked onto the cell
     adjacent to the *wrong* object. `failure_pos` is never stored as
     its own mission slot - it's always the mirror image of `state.
@@ -399,6 +448,8 @@ def on_memory_failure(state: State) -> Array:
     + 1`), so it's derived here instead.
 
     Args:
+        prev_state (State): The state before this step's action (unused).
+        action (Array): The action taken by the player (unused).
         state (State): The current state of the game.
 
     Returns:

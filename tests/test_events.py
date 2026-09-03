@@ -62,6 +62,14 @@ from navix.states import EventType, GRID
 
 EAST, SOUTH, WEST, NORTH = 0, 1, 2, 3
 
+# events.py (issue #192) now takes a uniform (prev_state, action, state)
+# triple everywhere, even though on_wall_hit/on_goal_reached/on_lava_fall/
+# on_ball_hit only ever read `state`. This file calls navix.actions
+# directly rather than through env.step (see module docstring), so there
+# is no integer action id naturally in scope at these call sites - this
+# placeholder stands in for it.
+UNUSED_ACTION = jnp.asarray(-1)
+
 
 def face(state, direction: int):
     """Rotates (0-3 times, whichever is fewer) until the player faces
@@ -120,6 +128,7 @@ def test_grid_hit_boundary_not_wall_entity():
     # face north then walk into the boundary one row above the player's
     # start - (0, 1), a plain grid cell.
     state = face(state, NORTH)
+    prev_state = state
     state = nx.actions.forward(state)
 
     player = state.get_player()
@@ -140,7 +149,7 @@ def test_grid_hit_boundary_not_wall_entity():
     assert not state.events.happened((Entities.GOAL, EventType.REACH))
 
     # on_wall_hit must be True too - it ORs (GRID, HIT) and (WALL, HIT).
-    assert bool(nx.events.on_wall_hit(state))
+    assert bool(nx.events.on_wall_hit(prev_state, UNUSED_ACTION, state))
 
 
 def test_wall_key_door_goal_sequence():
@@ -185,6 +194,7 @@ def test_wall_key_door_goal_sequence():
     state = walk_to(state, wall_row, door_col - 1)
     state = face(state, EAST)
     assert not state.events.happened((Entities.WALL, EventType.HIT))
+    prev_state = state
     state = nx.actions.forward(state)
     assert state.get_player().position.tolist() == [wall_row, door_col - 1], (
         "must not move into a Wall"
@@ -194,7 +204,7 @@ def test_wall_key_door_goal_sequence():
     hit_idx = int(jnp.argmax(wall_hit.happened))
     assert wall_hit.position[hit_idx].tolist() == [wall_row, door_col]
     assert not state.events.happened((GRID, EventType.HIT))
-    assert bool(nx.events.on_wall_hit(state))
+    assert bool(nx.events.on_wall_hit(prev_state, UNUSED_ACTION, state))
 
     # 2. pick up the key from the cell just before it (Key.walkable is
     # False, so pickup has to happen from an adjacent cell facing it,
@@ -241,13 +251,14 @@ def test_wall_key_door_goal_sequence():
     assert not state.events.happened((Entities.GOAL, EventType.REACH))
     state = nx.actions.forward(state)  # onto the (now open) door cell
     state = walk_to(state, door_row, door_col + 1)  # into the second room
+    prev_state = state
     state = walk_to(state, goal_row, goal_col)
     player = state.get_player()
     assert player.position.tolist() == [goal_row, goal_col]
     goal_reached = state.events.events[Entities.GOAL, EventType.REACH]
     assert bool(goal_reached.happened[0])
     assert goal_reached.position[0].tolist() == [goal_row, goal_col]
-    assert bool(nx.events.on_goal_reached(state))
+    assert bool(nx.events.on_goal_reached(prev_state, UNUSED_ACTION, state))
 
     # every earlier event recorded in this same episode must still be
     # True - EventsManager never resets happened back to False mid-
@@ -280,6 +291,7 @@ def test_lava_fall():
     state = walk_to(state, lava_row, lava_col - 1)
     state = face(state, EAST)
     assert not state.events.happened((Entities.LAVA, EventType.FALL))
+    prev_state = state
     state = nx.actions.forward(state)
 
     player = state.get_player()
@@ -290,7 +302,7 @@ def test_lava_fall():
     assert bool(jnp.any(lava_fall.happened))
     hit_idx = int(jnp.argmax(lava_fall.happened))
     assert lava_fall.position[hit_idx].tolist() == [lava_row, lava_col]
-    assert bool(nx.events.on_lava_fall(state))
+    assert bool(nx.events.on_lava_fall(prev_state, UNUSED_ACTION, state))
 
 
 def test_ball_hit_walk_into():
@@ -323,6 +335,7 @@ def test_ball_hit_walk_into():
     state = face(state, EAST)
 
     assert not state.events.happened((Entities.BALL, EventType.HIT))
+    prev_state = state
     state = nx.actions.forward(state)  # attempt (2, 1) -> (2, 2) = ball 1
 
     player = state.get_player()
@@ -335,7 +348,7 @@ def test_ball_hit_walk_into():
     )
     assert ball_hit.position[1].tolist() == [2, 2]
     assert int(ball_hit.colour[1]) == int(balls.colour[1])
-    assert bool(nx.events.on_ball_hit(state))
+    assert bool(nx.events.on_ball_hit(prev_state, UNUSED_ACTION, state))
 
 
 def test_ball_pickup_terminates_dynamic_obstacles():
@@ -442,7 +455,7 @@ def test_happened_returns_false_not_keyerror_for_absent_entity_type():
     assert not bool(state.events.happened((Entities.BALL, EventType.PICKUP)))
     # on_wall_hit must still work (falls back to the always-present GRID
     # slot) even though this environment has no Wall entities.
-    assert not bool(nx.events.on_wall_hit(state))
+    assert not bool(nx.events.on_wall_hit(state, UNUSED_ACTION, state))
 
 
 def test_events_reset_each_step_not_persisted_across_episode():

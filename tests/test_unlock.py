@@ -290,6 +290,7 @@ def test_unlock_gameplay_and_reward_termination():
         assert timestep.step_type == 0, f"seed={seed}: episode ended before opening the door"
         assert not timestep.state.events.happened((Entities.DOOR, EventType.OPEN))
 
+        prev_state = timestep.state
         timestep = env.step(timestep, jnp.asarray(TOGGLE))
         assert bool(timestep.state.get_doors().open[0]), f"seed={seed}: door did not open"
         assert timestep.state.events.happened((Entities.DOOR, EventType.OPEN))
@@ -300,7 +301,9 @@ def test_unlock_gameplay_and_reward_termination():
         assert float(timestep.reward) > 0, (
             f"seed={seed}: expected positive reward for opening the door, got {timestep.reward}"
         )
-        assert bool(nx.events.on_door_open(timestep.state))
+        assert bool(
+            nx.events.on_door_open(prev_state, jnp.asarray(TOGGLE), timestep.state)
+        )
 
 
 def test_unlock_pickup_gameplay_and_reward_termination():
@@ -349,7 +352,9 @@ def test_unlock_pickup_gameplay_and_reward_termination():
         assert int(player.pocket) == int(boxes.id[0]), f"seed={seed}: box not picked up"
         assert not state_before_pickup.events.happened((Entities.BOX, EventType.PICKUP))
         assert timestep.state.events.happened((Entities.BOX, EventType.PICKUP))
-        assert bool(nx.events.on_box_pickup(timestep.state))
+        assert bool(
+            nx.events.on_box_pickup(state_before_pickup, jnp.asarray(PICKUP), timestep.state)
+        )
         assert timestep.step_type == 2, (
             f"seed={seed}: episode should terminate on picking up the box, "
             f"got step_type={timestep.step_type}"

@@ -67,7 +67,7 @@ def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether the goal has been reached."""
-    return jnp.asarray(events.on_goal_reached(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_goal_reached(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
@@ -80,7 +80,7 @@ def on_lava_fall(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether the lava has fallen."""
-    return jnp.asarray(events.on_lava_fall(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_lava_fall(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
@@ -93,7 +93,7 @@ def on_ball_hit(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether the ball has hit something."""
-    return jnp.asarray(events.on_ball_hit(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_ball_hit(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_ball_pickup(prev_state: State, action: Array, state: State) -> Array:
@@ -111,7 +111,7 @@ def on_ball_pickup(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether any ball was picked up."""
-    return jnp.asarray(events.on_ball_pickup(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_ball_pickup(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_door_done(prev_state: State, action: Array, state: State) -> Array:
@@ -127,7 +127,7 @@ def on_door_done(prev_state: State, action: Array, state: State) -> Array:
         Array: A boolean array indicating whether the action `done` has been called in \
         front of a `Door` object with the correct colour.
     """
-    return jnp.asarray(events.on_door_done(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_door_done(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_door_open(prev_state: State, action: Array, state: State) -> Array:
@@ -141,7 +141,7 @@ def on_door_open(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether any door was opened."""
-    return jnp.asarray(events.on_door_open(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_door_open(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
@@ -155,7 +155,7 @@ def on_box_pickup(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether any box was picked up."""
-    return jnp.asarray(events.on_box_pickup(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_box_pickup(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_ordered_doors_resolved(prev_state: State, action: Array, state: State) -> Array:
@@ -170,8 +170,8 @@ def on_ordered_doors_resolved(prev_state: State, action: Array, state: State) ->
 
     Returns:
         Array: A boolean array."""
-    success = events.on_ordered_doors_success(prev_state, state)
-    failure = events.on_ordered_doors_failure(prev_state, state)
+    success = events.on_ordered_doors_success(prev_state, action, state)
+    failure = events.on_ordered_doors_failure(prev_state, action, state)
     return jnp.asarray(jnp.logical_or(success, failure), dtype=jnp.bool_)
 
 
@@ -186,7 +186,7 @@ def on_target_done(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array."""
-    return jnp.asarray(events.on_target_done(action, state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_target_done(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_wrong_toggle(prev_state: State, action: Array, state: State) -> Array:
@@ -200,7 +200,7 @@ def on_wrong_toggle(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array."""
-    return jnp.asarray(events.on_wrong_toggle(action), dtype=jnp.bool_)
+    return jnp.asarray(events.on_wrong_toggle(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_any_target_pickup(prev_state: State, action: Array, state: State) -> Array:
@@ -215,7 +215,7 @@ def on_any_target_pickup(prev_state: State, action: Array, state: State) -> Arra
 
     Returns:
         Array: A boolean array."""
-    return jnp.asarray(events.on_any_target_pickup(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_any_target_pickup(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
@@ -232,7 +232,7 @@ def on_target_fetched(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array."""
-    return jnp.asarray(events.on_target_fetched(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_target_fetched(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_put_near_wrong_pickup(prev_state: State, action: Array, state: State) -> Array:
@@ -246,7 +246,7 @@ def on_put_near_wrong_pickup(prev_state: State, action: Array, state: State) -> 
 
     Returns:
         Array: A boolean array."""
-    return jnp.asarray(events.on_put_near_wrong_pickup(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_put_near_wrong_pickup(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_put_near_drop_attempted(prev_state: State, action: Array, state: State) -> Array:
@@ -261,7 +261,7 @@ def on_put_near_drop_attempted(prev_state: State, action: Array, state: State) -
     Returns:
         Array: A boolean array."""
     return jnp.asarray(
-        events.on_put_near_drop_attempted(prev_state, action), dtype=jnp.bool_
+        events.on_put_near_drop_attempted(prev_state, action, state), dtype=jnp.bool_
     )
 
 
@@ -276,7 +276,7 @@ def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether the target was reached."""
-    return jnp.asarray(events.on_memory_success(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_memory_success(prev_state, action, state), dtype=jnp.bool_)
 
 
 def on_memory_failure(prev_state: State, action: Array, state: State) -> Array:
@@ -290,7 +290,7 @@ def on_memory_failure(prev_state: State, action: Array, state: State) -> Array:
 
     Returns:
         Array: A boolean array indicating whether the wrong position was reached."""
-    return jnp.asarray(events.on_memory_failure(state), dtype=jnp.bool_)
+    return jnp.asarray(events.on_memory_failure(prev_state, action, state), dtype=jnp.bool_)
 
 
 DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)
