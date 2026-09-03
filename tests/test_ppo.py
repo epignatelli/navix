@@ -112,6 +112,21 @@ def test_ppo_stateless_encoder_carry_is_empty_end_to_end():
     assert jax.tree_util.tree_leaves(ts.rollout_carry) == []
 
 
+def test_ppo_forward_sequence_rescans_a_real_rolling_window():
+    # the rescanned per-step value must vary across the rollout - a
+    # window stuck at the initial all-zero frame would give a near-constant
+    # value. Also checks actor and critic share one advancing carry.
+    ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
+    ts = _init_state(ppo, jax.random.PRNGKey(0))
+    ts, experience = jax.jit(ppo.collect_experience)(ts)
+    logits, values = jax.jit(ppo.forward_sequence)(
+        ts.params, ts.rollout_carry, experience.obs, experience.t == 0
+    )
+    values = np.asarray(values)  # (T, N)
+    assert values.shape == (ppo.hparams.num_steps, ppo.hparams.num_envs)
+    assert np.std(values, axis=0).mean() > 0.0
+
+
 def test_ppo_transformer_encoder_trains_one_update_without_nans():
     ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
     ts, logs = jax.jit(ppo.train)(jax.random.PRNGKey(0))
@@ -130,11 +145,10 @@ def test_ppo_transformer_encoder_tracks_rollout_initial_window():
     ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
     ts = _init_state(ppo, jax.random.PRNGKey(0))
     ts, _ = jax.jit(ppo.collect_experience)(ts)
-    # rollout_carry: (actor_window, critic_window), each the per-env frame
-    # window (num_envs, context, *frame_shape) the rescan starts from.
-    actor_window = ts.rollout_carry[0]
+    # rollout_carry is the single shared frame window per env
+    # (num_envs, context, *frame_shape) the loss rescans the encoder from.
     frame_dim = int(np.prod(ppo.env.observation_space.shape))
-    assert actor_window.shape == (ppo.hparams.num_envs, 4, frame_dim)
+    assert ts.rollout_carry.shape == (ppo.hparams.num_envs, 4, frame_dim)
 
 
 def _init_state(ppo: PPO, rng):
@@ -179,5 +193,6 @@ if __name__ == "__main__":
     test_ppo_is_an_agent()
     test_ppo_stateless_encoder_trains_one_update_without_nans()
     test_ppo_stateless_encoder_carry_is_empty_end_to_end()
+    test_ppo_forward_sequence_rescans_a_real_rolling_window()
     test_ppo_transformer_encoder_trains_one_update_without_nans()
     test_ppo_transformer_encoder_tracks_rollout_initial_window()
