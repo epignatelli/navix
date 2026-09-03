@@ -1,13 +1,37 @@
 """Shared neural-network building blocks used across navix's agents.
 
 Three groups live here: PPO's encoder/actor-critic components
-(`MLPEncoder`, `ConvEncoder`, `ActorCritic`), Dreamer's world-model
-components (categorical-latent utilities, the symexp-twohot head, and
-the RSSM's encoder/decoder/prior/posterior networks) - the reusable
-pieces `navix.agents.dreamer.WorldModel` wires together into an RSSM -
-and PQN's normalized Q-network (`QNetwork`). See `navix.agents.dreamer`
-and `navix.agents.pqn`'s module docstrings for the algorithms these
-latter components implement."""
+(`MLPEncoder`, `ConvEncoder`, `TransformerEncoder`, `ActorCritic`),
+Dreamer's world-model components (categorical-latent utilities, the
+symexp-twohot head, and the RSSM's encoder/decoder/prior/posterior
+networks) - the reusable pieces `navix.agents.dreamer.WorldModel` wires
+together into an RSSM - and PQN's normalized Q-network (`QNetwork`). See
+`navix.agents.dreamer` and `navix.agents.pqn`'s module docstrings for the
+algorithms these latter components implement.
+
+## The encoder contract (carry-based)
+
+Every PPO encoder (`MLPEncoder`, `ConvEncoder`, `TransformerEncoder`, and
+anything a caller substitutes for them) implements the same two-method
+interface, so an agent's training loop is written once and works for both
+fully- and partially-observable settings by swapping only the encoder:
+
+- `initial_carry(obs_shape) -> carry` - the encoder's hidden state at an
+  episode boundary. Stateless encoders return `()`.
+- `__call__(carry, obs, is_first) -> (carry, features)` - consume one
+  observation, emit the next carry and a feature vector. `is_first` (a
+  bool, broadcast per batch element) marks `obs` as the first frame of a
+  fresh episode, so a stateful encoder re-initialises its carry there
+  rather than reading history that belongs to the episode that just
+  ended.
+
+Stateless encoders (`MLPEncoder`, `ConvEncoder`) carry `()` and ignore
+`is_first`: threading a carry through an agent that uses them is inert,
+and their output is identical to the pre-carry versions. `TransformerEncoder`
+is the stateful one (issue #169): its carry is a raw window of the last
+`context` frames, so a `pomdp` observation function's single-frame stream
+becomes a history-conditioned feature without the agent, the environment,
+or the observation function changing."""
 
 from functools import partial
 from typing import Callable, Sequence, Tuple
@@ -23,9 +47,16 @@ from flax.linen.initializers import constant, orthogonal
 class MLPEncoder(nn.Module):
     hidden_size: int = 64
 
+    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
+        """Stateless: no history to carry between steps."""
+        return ()
+
     @nn.compact
-    def __call__(self, x):
-        return nn.Sequential(
+    def __call__(self, carry, x, is_first=None):
+        # Stateless: `carry` (always `()`) passes straight through and
+        # `is_first` is ignored, so this is identical to the pre-carry
+        # `MLPEncoder(x)` for any agent that threads a carry.
+        features = nn.Sequential(
             [
                 nn.Dense(self.hidden_size),
                 nn.tanh,
@@ -33,6 +64,7 @@ class MLPEncoder(nn.Module):
                 nn.tanh,
             ]
         )(x)
+        return carry, features
 
 
 class ConvEncoder(nn.Module):
@@ -51,9 +83,14 @@ class ConvEncoder(nn.Module):
 
     hidden_size: int = 64
 
+    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
+        """Stateless: no history to carry between steps."""
+        return ()
+
     @nn.compact
-    def __call__(self, x):
-        return nn.Sequential(
+    def __call__(self, carry, x, is_first=None):
+        # Stateless (see `MLPEncoder.__call__`).
+        features = nn.Sequential(
             [
                 nn.Conv(16, kernel_size=(2, 2), strides=(2, 2)),
                 nn.relu,
@@ -66,6 +103,115 @@ class ConvEncoder(nn.Module):
                 nn.relu,
             ]
         )(x)
+        return carry, features
+
+
+class TransformerBlock(nn.Module):
+    """One pre-LN transformer encoder block (self-attention + MLP, each
+    with a residual connection and `LayerNorm` applied *before* the
+    sub-layer, not after) - the standard modern choice (GPT-2 onwards)
+    over the original "Attention Is All You Need" post-LN block, which
+    needs a learning-rate warmup schedule to train stably; none of
+    navix's other components add one, so pre-LN avoids relying on it."""
+
+    hidden_size: int
+    num_heads: int = 4
+    mlp_ratio: int = 4
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        y = nn.LayerNorm()(x)
+        y = nn.MultiHeadDotProductAttention(num_heads=self.num_heads)(y)
+        x = x + y
+
+        y = nn.LayerNorm()(x)
+        y = nn.Dense(self.hidden_size * self.mlp_ratio)(y)
+        y = nn.gelu(y)
+        y = nn.Dense(self.hidden_size)(y)
+        x = x + y
+        return x
+
+
+class TransformerEncoder(nn.Module):
+    """Issue #169: a `pomdp`-mode observation function (`rgb_first_person`/
+    `categorical_first_person`/`symbolic_first_person`) returns a single
+    current-step frame - no history. A lone frame doesn't disambiguate
+    states that look identical from the agent's current viewpoint but
+    differ in what led there (e.g. which direction something moved before
+    this frame reached it), so a policy conditioned on it only sees a
+    Markovian *approximation* of the true partially-observable state. This
+    encoder instead attends over a short window of the last `context`
+    frames, so the feature it hands to `ActorCritic` is conditioned on a
+    real (if bounded) piece of history.
+
+    History lives in the encoder's **carry**, not in the environment, the
+    observation function, or the agent's training state. The carry is the
+    literal `(context, *frame_shape)` window of the last `context` raw
+    observations, oldest first; `__call__` rolls the new `obs` in (or, on
+    `is_first`, refills the whole window with `obs` so it never reaches
+    back into the episode that just ended) and returns the updated window
+    *unchanged* as the next carry. Keeping the carry as raw frames - not
+    per-frame embeddings - is deliberate: the window then has no
+    dependence on the encoder's parameters, so an agent that stores it at
+    collection time and reuses it in its loss (rather than re-deriving it)
+    gets the exact same gradient, not an approximation.
+
+    `frame_encoder` is applied to each of the `context` frames with
+    *shared* weights (same submodule instance, called once per frame -
+    `context` is a static field, so this unrolls at trace time and
+    repeated calls reuse its parameters rather than creating `context`
+    copies). Its output must already be `hidden_size`-wide, the same
+    implicit dimension contract `ActorCritic` places on its
+    `actor_encoder`/`critic_encoder`.
+
+    A learned positional embedding is added per frame position before
+    attention (plain per-position table, not sinusoidal - the context
+    length is fixed and small). The output is the *last* token's
+    post-attention feature (the current frame, now contextualised by the
+    ones before it), not a pool over all positions, which would blur the
+    current frame's signal into older, less relevant ones."""
+
+    frame_encoder: nn.Module
+    hidden_size: int = 64
+    num_heads: int = 4
+    num_layers: int = 2
+    context: int = 4
+
+    def initial_carry(self, obs_shape: Sequence[int]) -> Array:
+        """The frame window at an episode boundary: `context` zero
+        frames. `obs_shape` is a single observation's shape (no batch
+        axis) - the caller `vmap`s `__call__` over the batch, so it
+        `vmap`s an `initial_carry`-shaped leaf the same way."""
+        return jnp.zeros((self.context, *tuple(obs_shape)), dtype=jnp.float32)
+
+    @nn.compact
+    def __call__(
+        self, carry: Array, obs: Array, is_first: Array
+    ) -> Tuple[Array, Array]:
+        # carry: (context, *frame_shape), oldest first. Roll `obs` in at
+        # the end; on a fresh episode, refill the window with `obs` so no
+        # position holds a frame from the previous episode.
+        obs = obs.astype(carry.dtype)
+        rolled = jnp.concatenate([carry[1:], obs[None]], axis=0)
+        fresh = jnp.broadcast_to(obs, carry.shape)
+        window = jnp.where(is_first, fresh, rolled)
+
+        embed = jnp.stack(
+            [self.frame_encoder((), window[t])[1] for t in range(self.context)],
+            axis=0,
+        )  # (context, hidden_size) - shared frame_encoder, one call per frame
+        pos_embedding = self.param(
+            "pos_embedding",
+            nn.initializers.normal(0.02),
+            (self.context, self.hidden_size),
+        )
+        embed = embed + pos_embedding
+        for _ in range(self.num_layers):
+            embed = TransformerBlock(
+                hidden_size=self.hidden_size, num_heads=self.num_heads
+            )(embed)
+        embed = nn.LayerNorm()(embed)
+        return window, embed[-1]  # (context, *frame), (hidden_size,)
 
 
 class ActorCritic(nn.Module):
@@ -73,35 +219,65 @@ class ActorCritic(nn.Module):
     actor_encoder: nn.Module = MLPEncoder()
     critic_encoder: nn.Module = MLPEncoder()
 
+    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
+        """`(actor_carry, critic_carry)` - one per encoder. `()` for the
+        stateless encoders, so threading it through PPO is inert unless a
+        stateful encoder (e.g. `TransformerEncoder`) is plugged in."""
+        return (
+            self.actor_encoder.initial_carry(obs_shape),
+            self.critic_encoder.initial_carry(obs_shape),
+        )
+
     def setup(self):
+        # `layers_0` is an identity passthrough, not the encoder: the
+        # encoder is now called separately (it returns `(carry,
+        # features)`, which `nn.Sequential` can't thread). Keeping the
+        # head at `nn.Sequential` slot `layers_1` preserves its parameter
+        # path (`actor/layers_1`, `critic/layers_1`) - and therefore its
+        # init RNG - byte-for-byte against the pre-carry `ActorCritic`, so
+        # a fixed-seed run with a stateless encoder is unchanged.
         self.actor = nn.Sequential(
             [
-                self.actor_encoder,
+                lambda x: x,
                 nn.Dense(
                     self.action_dim,
                     kernel_init=orthogonal(0.01),
                     bias_init=constant(0.0),
                 ),
-                # lambda x: distrax.Categorical(logits=x),
             ]
         )
-
         self.critic = nn.Sequential(
             [
-                self.critic_encoder,
+                lambda x: x,
                 nn.Dense(1, kernel_init=orthogonal(1.0), bias_init=constant(0.0)),
-                # lambda x: jnp.squeeze(x, axis=-1),
             ]
         )
 
-    def __call__(self, x: Array) -> Tuple[distrax.Distribution, Array]:
-        return distrax.Categorical(self.actor(x)), jnp.squeeze(self.critic(x), -1)
+    def __call__(
+        self, carry: Tuple, x: Array, is_first: Array
+    ) -> Tuple[Tuple, Tuple[distrax.Distribution, Array]]:
+        actor_carry, critic_carry = carry
+        actor_carry, actor_feat = self.actor_encoder(actor_carry, x, is_first)
+        critic_carry, critic_feat = self.critic_encoder(critic_carry, x, is_first)
+        pi = distrax.Categorical(self.actor(actor_feat))
+        value = jnp.squeeze(self.critic(critic_feat), -1)
+        return (actor_carry, critic_carry), (pi, value)
 
-    def policy(self, x: Array) -> distrax.Distribution:
-        return distrax.Categorical(logits=self.actor(x))
+    def policy(
+        self, carry: Tuple, x: Array, is_first: Array
+    ) -> Tuple[Tuple, distrax.Distribution]:
+        actor_carry, critic_carry = carry
+        actor_carry, actor_feat = self.actor_encoder(actor_carry, x, is_first)
+        pi = distrax.Categorical(logits=self.actor(actor_feat))
+        return (actor_carry, critic_carry), pi
 
-    def value(self, x: Array) -> Array:
-        return jnp.squeeze(self.critic(x), -1)
+    def value(
+        self, carry: Tuple, x: Array, is_first: Array
+    ) -> Tuple[Tuple, Array]:
+        actor_carry, critic_carry = carry
+        critic_carry, critic_feat = self.critic_encoder(critic_carry, x, is_first)
+        value = jnp.squeeze(self.critic(critic_feat), -1)
+        return (actor_carry, critic_carry), value
 
 
 # -------------------------
