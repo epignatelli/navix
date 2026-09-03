@@ -29,7 +29,7 @@ to follow-up work, once this one is confirmed to play correctly end
 to end."""
 
 from __future__ import annotations
-from typing import Union
+from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -46,6 +46,7 @@ from ..grid import (
     open_wall,
     random_colour,
     random_directions,
+    random_distinct_positions,
     random_positions,
     room_grid,
     room_grid_dims,
@@ -58,6 +59,31 @@ from .registry import register_env
 
 
 ROOM_SIZE = 6  # fixed across every real ObstructedMaze variant
+
+# 3x3 layout, in navix's own (row, col) room indices. MiniGrid indexes
+# rooms as (col, row) instead, so its own `side_rooms` list
+# [(2,1),(1,2),(0,1),(1,0)] transposes into the one below - which is
+# self-confirming, since MiniGrid reaches `side_rooms[i]` from the
+# centre through `door_idx=i`, and its door_idx order (0=right, 1=down,
+# 2=left, 3=up) is exactly navix's own `Directions` order. So index `i`
+# here is both "which side room" and "which wall of the centre".
+CENTRE_ROOM = (1, 1)
+SIDE_ROOMS = ((1, 2), (2, 1), (1, 0), (0, 1))  # E, S, W, N of centre
+# MiniGrid's [(2,0),(2,2),(0,2),(0,0)], transposed the same way, and
+# sliced to `num_quarters` before the target ball's corner is drawn
+CORNER_ROOMS = ((0, 2), (2, 2), (2, 0), (0, 0))
+# one step along each `Directions` side, for backing a blocking ball
+# off a door into the room it is approached from
+SIDE_DELTAS = ((0, 1), (1, 0), (0, -1), (-1, 0))  # E, S, W, N
+
+# MiniGrid gives each category its own fixed colour - `COLOR_NAMES[0]`
+# for the target ball, `[1]` for blocking balls, `[2]` for boxes. Its
+# COLOR_NAMES is alphabetical (blue, green, grey, ...), so those are
+# blue/green/grey; the indices below are navix's own palette
+# (red, green, blue, purple, yellow, grey) for the same three hues.
+TARGET_COLOUR = 2  # blue
+BLOCKER_COLOUR = 1  # green
+BOX_COLOUR = 5  # grey
 
 
 class ObstructedMaze1Dlhb(Environment):
@@ -210,6 +236,250 @@ class ObstructedMaze1Dlhb(Environment):
         )
 
 
+class ObstructedMazeFull(Environment):
+    """A 3x3 `room_grid`. The centre room connects to `num_quarters`
+    side rooms through *unlocked* doors; each of those side rooms
+    connects on to two corner rooms through *locked* ones. Every locked
+    door's key lives in the side room it is opened from - optionally
+    hidden inside a `Box`, optionally with a `Ball` blocking the door.
+    The target ball waits in one of the first `num_quarters` corners.
+
+    Verified against MiniGrid's actual `ObstructedMaze_Full`:
+    `room_size=6`, keys placed via `place_in_room(*side_room)`, blocking
+    balls at `door_pos - DIR_TO_VEC[door_idx]` (i.e. backed off the door
+    into the side room), corners sliced `[:num_quarters]` before one is
+    drawn for the target.
+
+    !!! note "This is MiniGrid's `-v1` behaviour, under a `-v0` name"
+        MiniGrid ships both `-v0` and `-v1` of `2Dlhb`, `1Q`, `2Q` and
+        `Full`. Its `-v1` fixes a placement bug in `-v0`: the blocking
+        ball could be dropped onto a cell that already held a key,
+        covering it and making the episode unsolvable. navix implements
+        only the fixed behaviour and registers it under the plain `-v0`
+        name - blocking-ball cells are computed first (they follow
+        deterministically from the doors) and then excluded from every
+        subsequent player/key/box draw, so a key can never be covered.
+        `2Dl`/`2Dlh` have no `-v1` upstream and port across unchanged.
+
+    | navix id     | MiniGrid id     | `num_quarters` | `key_in_box` | `blocked` |
+    |--------------|-----------------|----------------|--------------|-----------|
+    | `2Dl-v0`     | `2Dl-v0`        | 1              | `False`      | `False`   |
+    | `2Dlh-v0`    | `2Dlh-v0`       | 1              | `True`       | `False`   |
+    | `2Dlhb-v0`   | `2Dlhb-`**v1**  | 1              | `True`       | `True`    |
+    | `1Q-v0`      | `1Q-`**v1**     | 1              | `True`       | `True`    |
+    | `2Q-v0`      | `2Q-`**v1**     | 2              | `True`       | `True`    |
+    | `Full-v0`    | `Full-`**v1**   | 4              | `True`       | `True`    |
+
+    (`2Dlhb` and `1Q` differ only by `agent_room`: `1Q` starts in the
+    centre, `2Dlhb` already inside the side room.)"""
+
+    num_quarters: int = struct.field(pytree_node=False, default=4)
+    agent_room: Tuple[int, int] = struct.field(pytree_node=False, default=CENTRE_ROOM)
+    key_in_box: bool = struct.field(pytree_node=False, default=True)
+    blocked: bool = struct.field(pytree_node=False, default=True)
+
+    def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
+        quarters = self.num_quarters
+        (
+            key,
+            k_doors,
+            k_door_colours,
+            k_player_pos,
+            k_player_dir,
+            k_objects,
+            k_corner,
+            k_target_pos,
+        ) = jax.random.split(key, num=8)
+
+        grid = room_grid(ROOM_SIZE, num_rows=3, num_cols=3)
+
+        # --- doors -------------------------------------------------
+        # 1 unlocked (centre -> side) + 2 locked (side -> corners) per
+        # quarter. Every loop here runs over static (registration-time)
+        # values, so this is plain Python control flow.
+        door_keys = jax.random.split(k_doors, 3 * quarters)
+        door_colours = random_colour(k_door_colours, n=3 * quarters)
+        door_positions: List[Array] = []
+        door_requires: List[int] = []
+        # per side room: its locked doors, as (position, side, key id)
+        locked_by_room: List[Tuple[Tuple[int, int], List[Tuple[Array, int, int]]]] = []
+
+        drawn = 0
+        next_key_id = 1
+        for quarter in range(quarters):
+            side_room = SIDE_ROOMS[quarter]
+
+            position = room_grid_door_position(
+                door_keys[drawn], ROOM_SIZE, *CENTRE_ROOM, side=quarter
+            )
+            drawn += 1
+            grid = open_wall(grid, position)
+            door_positions.append(position)
+            door_requires.append(-1)  # unlocked, but still closed
+
+            locked_here = []
+            for offset in (-1, 1):
+                side = (quarter + offset) % 4
+                position = room_grid_door_position(
+                    door_keys[drawn], ROOM_SIZE, *side_room, side=side
+                )
+                drawn += 1
+                grid = open_wall(grid, position)
+                door_positions.append(position)
+                door_requires.append(next_key_id)
+                locked_here.append((position, side, next_key_id))
+                next_key_id += 1
+            locked_by_room.append((side_room, locked_here))
+
+        doors = Door.create(
+            position=jnp.stack(door_positions),
+            requires=jnp.asarray(door_requires),
+            colour=jnp.asarray(door_colours, dtype=jnp.uint8).reshape(3 * quarters),
+            open=jnp.zeros(3 * quarters, dtype=jnp.bool_),
+        )
+
+        # --- blocking balls ----------------------------------------
+        # deterministic given the doors, so these are fixed first and
+        # every later draw avoids them (MiniGrid's -v1 fix, see the
+        # class docstring)
+        blockers: dict = {}
+        for side_room, locked_here in locked_by_room:
+            blockers[side_room] = [
+                position - jnp.asarray(SIDE_DELTAS[side])
+                for position, side, _ in locked_here
+            ]
+
+        def room_floor(room: Tuple[int, int]) -> Array:
+            return jnp.where(room_mask(grid, ROOM_SIZE, *room), grid, -1)
+
+        def keep_clear(room: Tuple[int, int]) -> Array:
+            cells = blockers.get(room, []) if self.blocked else []
+            if not cells:
+                return DISCARD_PILE_COORDS[None]  # off-grid: excludes nothing
+            return jnp.stack(cells)
+
+        # --- player ------------------------------------------------
+        player_pos = random_positions(
+            k_player_pos, room_floor(self.agent_room), exclude=keep_clear(self.agent_room)
+        )
+        player = Player.create(
+            position=player_pos,
+            direction=random_directions(k_player_dir),
+            pocket=EMPTY_POCKET_ID,
+        )
+
+        # --- keys, and the boxes that may hide them ----------------
+        object_keys = jax.random.split(k_objects, quarters)
+        key_positions: List[Array] = []
+        box_positions: List[Array] = []
+        key_ids: List[int] = []
+        key_colours: List[Array] = []
+        for quarter, (side_room, locked_here) in enumerate(locked_by_room):
+            exclude = [keep_clear(side_room)]
+            if side_room == self.agent_room:
+                exclude.append(player_pos[None])
+            # two per side room, mutually distinct - one for each of its
+            # locked doors
+            drawn_positions = random_distinct_positions(
+                object_keys[quarter],
+                room_floor(side_room),
+                n=2,
+                exclude=jnp.concatenate(exclude, axis=0),
+            )
+            for slot, (_, _, key_id) in enumerate(locked_here):
+                key_ids.append(key_id)
+                # each key wears its own door's colour, as in MiniGrid
+                key_colours.append(doors.colour[3 * quarter + 1 + slot])
+                if self.key_in_box:
+                    box_positions.append(drawn_positions[slot])
+                    key_positions.append(DISCARD_PILE_COORDS)
+                else:
+                    key_positions.append(drawn_positions[slot])
+
+        keys = Key.create(
+            position=jnp.stack(key_positions),
+            id=jnp.asarray(key_ids),
+            colour=jnp.stack(key_colours),
+        )
+
+        # --- the target ball, in one of the reachable corners -------
+        corner_keys = jax.random.split(k_target_pos, quarters)
+        candidates = jnp.stack(
+            [
+                random_positions(corner_keys[corner], room_floor(CORNER_ROOMS[corner]))
+                for corner in range(quarters)
+            ]
+        )
+        target_pos = candidates[jax.random.randint(k_corner, (), 0, quarters)]
+
+        # --- balls: the blockers, then the target last -------------
+        # (the target is always the final entry, the same convention
+        # the 1D variants use, so `state.mission` and the tests can
+        # find it without a separate index)
+        ball_positions: List[Array] = []
+        ball_ids: List[int] = []
+        ball_colours: List[int] = []
+        if self.blocked:
+            next_ball_id = next_key_id
+            for _, locked_here in locked_by_room:
+                for position, side, _ in locked_here:
+                    ball_positions.append(position - jnp.asarray(SIDE_DELTAS[side]))
+                    ball_ids.append(next_ball_id)
+                    ball_colours.append(BLOCKER_COLOUR)
+                    next_ball_id += 1
+        else:
+            next_ball_id = next_key_id
+        ball_positions.append(target_pos)
+        ball_ids.append(next_ball_id)
+        ball_colours.append(TARGET_COLOUR)
+
+        balls = Ball.create(
+            position=jnp.stack(ball_positions),
+            colour=jnp.asarray(ball_colours, dtype=jnp.uint8),
+            probability=jnp.ones(len(ball_positions)),
+            id=jnp.asarray(ball_ids),
+        )
+
+        entities = {
+            Entities.PLAYER: player[None],
+            Entities.DOOR: doors,
+            Entities.KEY: keys,
+            Entities.BALL: balls,
+        }
+        if self.key_in_box:
+            entities[Entities.BOX] = Box.create(
+                position=jnp.stack(box_positions),
+                colour=jnp.full((len(box_positions),), BOX_COLOUR, dtype=jnp.uint8),
+                id=jnp.asarray([100 + n for n in range(len(box_positions))]),
+                # box n hides key n - `actions.open_box` matches this
+                # against `Key.id`
+                pocket=jnp.asarray(key_ids),
+            )
+
+        mission = Event(
+            position=target_pos,
+            colour=jnp.asarray(TARGET_COLOUR, dtype=jnp.uint8),
+            happened=jnp.asarray(False),
+        )
+
+        state = State(
+            key=key,
+            grid=grid,
+            cache=cache or RenderingCache.init(grid),
+            entities=entities,
+            mission=(mission,),
+        )
+
+        return Timestep(
+            t=jnp.asarray(0, dtype=jnp.int32),
+            observation=self.observation_fn(state),
+            action=jnp.asarray(0, dtype=jnp.int32),
+            reward=jnp.asarray(0.0, dtype=jnp.float32),
+            step_type=jnp.asarray(0, dtype=jnp.int32),
+            state=state,
+        )
+
+
 _1D_HEIGHT, _1D_WIDTH = room_grid_dims(ROOM_SIZE, num_rows=1, num_cols=2)
 
 
@@ -239,3 +509,92 @@ def _register_1d(env_id: str, key_in_box: bool, blocked: bool) -> None:
 _register_1d("Navix-ObstructedMaze-1Dl-v0", key_in_box=False, blocked=False)
 _register_1d("Navix-ObstructedMaze-1Dlh-v0", key_in_box=True, blocked=False)
 _register_1d("Navix-ObstructedMaze-1Dlhb-v0", key_in_box=True, blocked=True)
+
+
+_FULL_HEIGHT, _FULL_WIDTH = room_grid_dims(ROOM_SIZE, num_rows=3, num_cols=3)
+
+
+def _register_full(
+    env_id: str,
+    num_quarters: int,
+    agent_room: Tuple[int, int],
+    key_in_box: bool,
+    blocked: bool,
+    num_rooms_visited: int,
+) -> None:
+    register_env(
+        env_id,
+        lambda *args, **kwargs: ObstructedMazeFull.create(
+            height=_FULL_HEIGHT,
+            width=_FULL_WIDTH,
+            num_quarters=num_quarters,
+            agent_room=agent_room,
+            key_in_box=key_in_box,
+            blocked=blocked,
+            # MiniGrid's own formula, with its own per-id
+            # `num_rooms_visited` (a hand-tuned exploration budget, not
+            # a literal room count - `2Dlhb` and `1Q` share a layout but
+            # differ here because they start in different rooms)
+            max_steps=kwargs.pop("max_steps", 4 * num_rooms_visited * ROOM_SIZE**2),
+            transitions_fn=kwargs.pop(
+                "transitions_fn", transitions.deterministic_transition
+            ),
+            observation_fn=kwargs.pop("observation_fn", observations.symbolic),
+            reward_fn=kwargs.pop("reward_fn", rewards.on_target_fetched),
+            termination_fn=kwargs.pop("termination_fn", terminations.on_target_fetched),
+            *args,
+            **kwargs,
+        ),
+    )
+
+
+# `2Dl`/`2Dlh` port MiniGrid's `-v0` directly; the rest carry its `-v1`
+# behaviour under a `-v0` name (see ObstructedMazeFull's docstring)
+_register_full(
+    "Navix-ObstructedMaze-2Dl-v0",
+    num_quarters=1,
+    agent_room=SIDE_ROOMS[0],
+    key_in_box=False,
+    blocked=False,
+    num_rooms_visited=4,
+)
+_register_full(
+    "Navix-ObstructedMaze-2Dlh-v0",
+    num_quarters=1,
+    agent_room=SIDE_ROOMS[0],
+    key_in_box=True,
+    blocked=False,
+    num_rooms_visited=4,
+)
+_register_full(
+    "Navix-ObstructedMaze-2Dlhb-v0",
+    num_quarters=1,
+    agent_room=SIDE_ROOMS[0],
+    key_in_box=True,
+    blocked=True,
+    num_rooms_visited=4,
+)
+_register_full(
+    "Navix-ObstructedMaze-1Q-v0",
+    num_quarters=1,
+    agent_room=CENTRE_ROOM,
+    key_in_box=True,
+    blocked=True,
+    num_rooms_visited=5,
+)
+_register_full(
+    "Navix-ObstructedMaze-2Q-v0",
+    num_quarters=2,
+    agent_room=SIDE_ROOMS[0],
+    key_in_box=True,
+    blocked=True,
+    num_rooms_visited=11,
+)
+_register_full(
+    "Navix-ObstructedMaze-Full-v0",
+    num_quarters=4,
+    agent_room=CENTRE_ROOM,
+    key_in_box=True,
+    blocked=True,
+    num_rooms_visited=25,
+)
