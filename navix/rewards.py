@@ -51,10 +51,12 @@ def compose(
     )
 
 
-def free(state: State) -> Array:
+def free(prev_state: State, action: Array, state: State) -> Array:
     """A reward function that always returns 0, to simulate reward-free learning.
 
     Args:
+        prev_state (State): The state before the action was taken.
+        action (Array): The action taken by the player.
         state (State): The current state of the game.
 
     Returns:
