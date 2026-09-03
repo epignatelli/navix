@@ -37,4 +37,4 @@ from .go_to_object import GoToObject
 from .fetch import Fetch
 from .put_near import PutNear
 from .memory import Memory
-from .obstructed_maze import ObstructedMaze1Dlhb
+from .obstructed_maze import ObstructedMaze1Dlhb, ObstructedMazeFull
