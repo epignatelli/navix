@@ -39,3 +39,5 @@ from .put_near import PutNear
 from .memory import Memory
 from .obstructed_maze import ObstructedMaze1Dlhb, ObstructedMazeFull
 from .multi_room import MultiRoom
+from .locked_room import LockedRoom
+from .playground import Playground

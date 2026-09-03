@@ -26,7 +26,35 @@ with no override of their own - every registered environment silently
 got `max_steps=100` via `nx.make(...)` regardless of its own intended
 default."""
 
+import warnings
+
 import navix as nx
+from navix.environments.registry import V1_ALIASES
+
+
+def test_v1_aliases_redirect_and_warn():
+    """`V1_ALIASES` ids (MiniGrid ids whose `-v1` behaviour navix ports
+    under a plain `-v0` navix id instead of its own `-v1` registration)
+    must still resolve through `nx.make`, via the aliased `-v0` id,
+    with a warning explaining the redirect - not raise
+    `NotImplementedError` the way a genuinely unregistered id does."""
+    for minigrid_id, navix_id in V1_ALIASES.items():
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            env = nx.make(minigrid_id)
+        assert len(caught) == 1, f"{minigrid_id}: expected exactly one warning"
+        assert navix_id in str(caught[0].message), (
+            f"{minigrid_id}: warning should name the aliased id {navix_id}"
+        )
+        assert env == nx.make(navix_id), (
+            f"{minigrid_id}: should construct the same environment as {navix_id}"
+        )
+
+        # the aliased id itself must not warn - only its MiniGrid alias does
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            nx.make(navix_id)
+        assert len(caught) == 0, f"{navix_id}: unexpected warning on direct use"
 
 
 def test_make_without_max_steps_uses_environment_default():

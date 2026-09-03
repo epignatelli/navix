@@ -18,6 +18,7 @@
 # under the License.
 from typing import Callable
 import difflib
+import warnings
 
 
 _ENVS_REGISTRY = {}
@@ -31,7 +32,34 @@ def register_env(name: str, ctor: Callable):
     _ENVS_REGISTRY[name] = ctor
 
 
+# MiniGrid ids whose "-v1" behaviour navix ports under a plain "-v0" id
+# instead of registering a distinct "-v1" of its own (per this
+# project's own v1-becomes-v0 convention - see each target's module
+# docstring for the actual behavioural difference this represents:
+# `obstructed_maze.py`'s `ObstructedMazeFull`, `multi_room.py`'s
+# registration comment). `make` transparently redirects these and
+# warns, rather than raising, so a caller reaching for the exact id
+# MiniGrid itself uses for that behaviour still gets it.
+V1_ALIASES = {
+    "MiniGrid-ObstructedMaze-2Dlhb-v1": "Navix-ObstructedMaze-2Dlhb-v0",
+    "MiniGrid-ObstructedMaze-1Q-v1": "Navix-ObstructedMaze-1Q-v0",
+    "MiniGrid-ObstructedMaze-2Q-v1": "Navix-ObstructedMaze-2Q-v0",
+    "MiniGrid-ObstructedMaze-Full-v1": "Navix-ObstructedMaze-Full-v0",
+    "MiniGrid-MultiRoom-N4-S5-v1": "Navix-MultiRoom-N4-S5-v0",
+}
+
+
 def make(name: str, **kwargs):
+    if name in V1_ALIASES:
+        target = V1_ALIASES[name]
+        warnings.warn(
+            f"{name} has no distinct navix registration - {target} already "
+            f"implements MiniGrid's own `-v1` behaviour for this environment "
+            f"family (see V1_ALIASES in registry.py). Instantiating {target} "
+            f"instead.",
+            stacklevel=2,
+        )
+        name = target
     if name not in registry():
         closest = difflib.get_close_matches(name, registry().keys())
         msg = f"Environment {name} not yet implemented."
@@ -46,45 +74,10 @@ def make(name: str, **kwargs):
     return ctor(**kwargs)
 
 
-NotImplementedEnvs = [
-    "MiniGrid-BlockedUnlockPickup-v0",
-    "MiniGrid-LavaCrossingS9N1-v0",
-    "MiniGrid-LavaCrossingS9N2-v0",
-    "MiniGrid-LavaCrossingS9N3-v0",
-    "MiniGrid-LavaCrossingS11N5-v0",
-    "MiniGrid-Fetch-5x5-N2-v0",
-    "MiniGrid-Fetch-6x6-N2-v0",
-    "MiniGrid-Fetch-8x8-N3-v0",
-    "MiniGrid-GoToObject-6x6-N2-v0",
-    "MiniGrid-GoToObject-8x8-N2-v0",
-    "MiniGrid-LockedRoom-v0",
-    "MiniGrid-MemoryS17Random-v0",
-    "MiniGrid-MemoryS13Random-v0",
-    "MiniGrid-MemoryS13-v0",
-    "MiniGrid-MemoryS11-v0",
-    "MiniGrid-MemoryS9-v0",
-    "MiniGrid-MemoryS7-v0",
-    "MiniGrid-MultiRoom-N2-S4-v0",
-    "MiniGrid-MultiRoom-N4-S5-v0",
-    "MiniGrid-MultiRoom-N6-v0",
-    "MiniGrid-ObstructedMaze-1Dl-v0",
-    "MiniGrid-ObstructedMaze-1Dlh-v0",
-    "MiniGrid-ObstructedMaze-1Dlhb-v0",
-    "MiniGrid-ObstructedMaze-2Dl-v0",
-    "MiniGrid-ObstructedMaze-2Dlh-v0",
-    "MiniGrid-ObstructedMaze-2Dlhb-v0",
-    "MiniGrid-ObstructedMaze-1Q-v0",
-    "MiniGrid-ObstructedMaze-2Q-v0",
-    "MiniGrid-ObstructedMaze-Full-v0",
-    "MiniGrid-ObstructedMaze-2Dlhb-v1",
-    "MiniGrid-ObstructedMaze-1Q-v1",
-    "MiniGrid-ObstructedMaze-2Q-v1",
-    "MiniGrid-ObstructedMaze-Full-v1",
-    "MiniGrid-Playground-v0",
-    "MiniGrid-PutNear-6x6-N2-v0",
-    "MiniGrid-PutNear-8x8-N3-v0",
-    "MiniGrid-RedBlueDoors-6x6-v0",
-    "MiniGrid-RedBlueDoors-8x8-v0",
-    "MiniGrid-Unlock-v0",
-    "MiniGrid-UnlockPickup-v0",
-]
+# Every MiniGrid id without a navix equivalent used to be tracked here.
+# As of this commit that list is empty - every remaining MiniGrid id
+# either has a matching Navix-* registration, or (the "-v1" family
+# above) resolves through V1_ALIASES instead. Kept as a named, exported
+# list (rather than deleted) so a future gap has an obvious place to be
+# added back to.
+NotImplementedEnvs = []
