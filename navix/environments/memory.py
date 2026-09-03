@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's Memory environment - recall a cue seen at the start to pick the right exit.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from __future__ import annotations
 from typing import Union

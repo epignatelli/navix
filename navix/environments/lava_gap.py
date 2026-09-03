@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's LavaGap environment - cross a lava strip through its single gap.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from typing import Union
 

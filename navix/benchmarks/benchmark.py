@@ -463,14 +463,18 @@ class BenchmarkResult(struct.PyTreeNode):
 
 
 class Benchmark(struct.PyTreeNode):
-    """A benchmark protocol - not tied to any one algorithm.
+    """An **experimental protocol** - the fixed set of choices that make
+    two algorithms' numbers comparable: which environments, what frame
+    budget, how many seeds, and how a run is scored and summarised. It
+    says nothing about *how* an algorithm is implemented, only how it is
+    measured, so any `AlgorithmEntry` can be run against it and against
+    the literature.
 
-    Used as an instance, e.g. `Navix1M().run(entry)`; its display name
-    is `type(self).__name__`. `run`/`summary`/`details` have no
-    protocol-agnostic default and must be overridden by a concrete
-    protocol (e.g. `FromScratchBenchmark`). `submit_entry` is concrete
-    here - it writes out whatever `run`/`summary`/`details` already
-    produced, the same way for every protocol.
+    Use an instance, e.g. `Navix1M().run(entry)`; the protocol's name is
+    `type(self).__name__`. A concrete protocol (e.g. `FromScratchBenchmark`,
+    behind `Navix1M` / `Navix100K`) supplies `run` / `summary` /
+    `details`; `submit_entry` is shared - it writes out whatever those
+    produced, identically for every protocol.
     """
 
     seeds: Tuple[int, ...] = struct.field(pytree_node=False, default_factory=lambda: tuple(range(16)))

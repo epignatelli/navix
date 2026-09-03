@@ -2,6 +2,13 @@
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
+"""`PPO`: a Proximal Policy Optimization agent whose whole training run
+(`num_updates` iterations of rollout collection + minibatch SGD) is one
+`jax.lax.scan`. `PPOHparams` holds the knobs; `ActorCritic` (from
+`navix.agents.models`) is the network - swap its encoder for
+partial-observability. Structurally mirrored by `navix.agents.pqn`.
+"""
+
 from functools import partial
 from typing import Any, Callable, Dict, Tuple
 

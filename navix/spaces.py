@@ -13,6 +13,12 @@
 # limitations under the License.
 
 
+"""`Space` descriptors for an environment's observation, action and
+reward arrays - shape, dtype and element-wise bounds, plus a `sample`
+that draws a conforming array. `Discrete` for integers, `Continuous` for
+floats.
+"""
+
 from __future__ import annotations
 from typing import Tuple
 
@@ -22,6 +28,7 @@ from jax import Array
 from flax import struct
 
 Shape = Tuple[int, ...]
+"""An array shape, i.e. a tuple of ints (`()` for a scalar)."""
 
 
 class Space(struct.PyTreeNode):

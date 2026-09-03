@@ -16,6 +16,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""`State` - the full, true world state - and the per-step `Event` /
+`EventsManager` record it carries.
+
+`State` bundles the static `grid`, the batched `entities` dict, a
+rendering `cache` and a PRNG `key`; an `observation_fn` derives what the
+agent sees from it. `EventsManager` is a small fixed set of `Event`
+slots that the transition pipeline writes ("goal reached", "ball hit",
+...) and that `navix.events` / `rewards` / `terminations` read.
+"""
+
 from __future__ import annotations
 from typing import Dict, Tuple
 

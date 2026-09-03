@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's DoorKey environment - fetch a key to unlock a door to the goal.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from typing import Union
 import jax

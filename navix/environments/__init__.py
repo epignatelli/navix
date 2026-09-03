@@ -17,6 +17,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""The `Environment` base class, the `Timestep` it returns, and every
+built-in environment (each a MiniGrid task reimplemented in JAX).
+Importing this package registers all of their `Navix-*` ids; get one
+with `navix.make(id)`.
+"""
 
 from __future__ import annotations
 

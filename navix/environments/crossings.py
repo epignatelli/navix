@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's Crossing environments: `SimpleCrossing` / `LavaCrossing`.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from typing import Union
 import jax
