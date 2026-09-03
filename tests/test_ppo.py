@@ -111,6 +111,19 @@ def test_ppo_stateless_encoder_carry_is_empty_end_to_end():
     assert jax.tree_util.tree_leaves(experience.carry) == []
 
 
+def test_ppo_transformer_critic_window_is_not_degenerate():
+    # collect_experience calls network.policy (actor only); the critic's
+    # window must still be a real rolling window in the loss, not stuck at
+    # the initial all-zero frame. Assert the stored per-step carry the
+    # loss replays actually varies across the rollout.
+    ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
+    ts = _init_state(ppo, jax.random.PRNGKey(0))
+    _, experience = jax.jit(ppo.collect_experience)(ts)
+    windows = np.asarray(experience.carry)  # (T, N, context, frame)
+    # a window that never advanced would be identical for every t
+    assert not np.allclose(windows[0], windows[-1])
+
+
 def test_ppo_transformer_encoder_trains_one_update_without_nans():
     ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
     ts, logs = jax.jit(ppo.train)(jax.random.PRNGKey(0))
@@ -129,11 +142,10 @@ def test_ppo_transformer_encoder_buffer_carries_the_frame_window():
     ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
     ts = _init_state(ppo, jax.random.PRNGKey(0))
     _, experience = jax.jit(ppo.collect_experience)(ts)
-    # Buffer.carry: (T, num_envs, (actor_window, critic_window)) with each
-    # window (context, *frame_shape).
-    actor_window = experience.carry[0]
+    # Buffer.carry is the single shared frame window per step:
+    # (T, num_envs, context, *frame_shape).
     frame_dim = int(np.prod(ppo.env.observation_space.shape))
-    assert actor_window.shape == (
+    assert experience.carry.shape == (
         ppo.hparams.num_steps,
         ppo.hparams.num_envs,
         4,
@@ -182,5 +194,6 @@ if __name__ == "__main__":
     test_ppo_is_an_agent()
     test_ppo_stateless_encoder_trains_one_update_without_nans()
     test_ppo_stateless_encoder_carry_is_empty_end_to_end()
+    test_ppo_transformer_critic_window_is_not_degenerate()
     test_ppo_transformer_encoder_trains_one_update_without_nans()
     test_ppo_transformer_encoder_buffer_carries_the_frame_window()

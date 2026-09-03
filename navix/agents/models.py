@@ -34,7 +34,7 @@ becomes a history-conditioned feature without the agent, the environment,
 or the observation function changing."""
 
 from functools import partial
-from typing import Callable, Sequence, Tuple
+from typing import Any, Callable, Sequence, Tuple
 from jax import Array
 import jax
 import jax.numpy as jnp
@@ -219,14 +219,17 @@ class ActorCritic(nn.Module):
     actor_encoder: nn.Module = MLPEncoder()
     critic_encoder: nn.Module = MLPEncoder()
 
-    def initial_carry(self, obs_shape: Sequence[int]) -> Tuple:
-        """`(actor_carry, critic_carry)` - one per encoder. `()` for the
-        stateless encoders, so threading it through PPO is inert unless a
-        stateful encoder (e.g. `TransformerEncoder`) is plugged in."""
-        return (
-            self.actor_encoder.initial_carry(obs_shape),
-            self.critic_encoder.initial_carry(obs_shape),
-        )
+    def initial_carry(self, obs_shape: Sequence[int]) -> Any:
+        """A single carry, shared by the actor and critic encoders. This
+        assumes the two encoders derive their carry the same way from the
+        same observation stream - true for the encoders here (a stateless
+        `()`, or `TransformerEncoder`'s raw-frame window, which doesn't
+        depend on the encoder's parameters) - so threading one carry and
+        advancing it once per step is correct and avoids the actor's and
+        critic's windows drifting apart when only one of `policy`/`value`
+        runs (as in `PPO.collect_experience`, which calls `policy` only).
+        `()` for the stateless encoders."""
+        return self.actor_encoder.initial_carry(obs_shape)
 
     def setup(self):
         # `layers_0` is an identity passthrough, not the encoder: the
@@ -254,30 +257,30 @@ class ActorCritic(nn.Module):
         )
 
     def __call__(
-        self, carry: Tuple, x: Array, is_first: Array
-    ) -> Tuple[Tuple, Tuple[distrax.Distribution, Array]]:
-        actor_carry, critic_carry = carry
-        actor_carry, actor_feat = self.actor_encoder(actor_carry, x, is_first)
-        critic_carry, critic_feat = self.critic_encoder(critic_carry, x, is_first)
+        self, carry: Any, x: Array, is_first: Array
+    ) -> Tuple[Any, Tuple[distrax.Distribution, Array]]:
+        # Both encoders advance the *same* carry from the same `x`; for
+        # the encoders here they produce the identical next carry, so
+        # returning the actor's is well-defined (see `initial_carry`).
+        next_carry, actor_feat = self.actor_encoder(carry, x, is_first)
+        _, critic_feat = self.critic_encoder(carry, x, is_first)
         pi = distrax.Categorical(self.actor(actor_feat))
         value = jnp.squeeze(self.critic(critic_feat), -1)
-        return (actor_carry, critic_carry), (pi, value)
+        return next_carry, (pi, value)
 
     def policy(
-        self, carry: Tuple, x: Array, is_first: Array
-    ) -> Tuple[Tuple, distrax.Distribution]:
-        actor_carry, critic_carry = carry
-        actor_carry, actor_feat = self.actor_encoder(actor_carry, x, is_first)
+        self, carry: Any, x: Array, is_first: Array
+    ) -> Tuple[Any, distrax.Distribution]:
+        next_carry, actor_feat = self.actor_encoder(carry, x, is_first)
         pi = distrax.Categorical(logits=self.actor(actor_feat))
-        return (actor_carry, critic_carry), pi
+        return next_carry, pi
 
     def value(
-        self, carry: Tuple, x: Array, is_first: Array
-    ) -> Tuple[Tuple, Array]:
-        actor_carry, critic_carry = carry
-        critic_carry, critic_feat = self.critic_encoder(critic_carry, x, is_first)
+        self, carry: Any, x: Array, is_first: Array
+    ) -> Tuple[Any, Array]:
+        next_carry, critic_feat = self.critic_encoder(carry, x, is_first)
         value = jnp.squeeze(self.critic(critic_feat), -1)
-        return (actor_carry, critic_carry), value
+        return next_carry, value
 
 
 # -------------------------

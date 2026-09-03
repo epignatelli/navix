@@ -197,31 +197,38 @@ def test_transformer_encoder_jit_vmap_over_batch():
 # --------------------------------------------------------------------------
 
 
-def test_actor_critic_carry_is_empty_tuple_for_stateless_encoders():
+def test_actor_critic_carry_is_empty_for_stateless_encoders():
     net = ActorCritic(action_dim=4)
-    assert net.initial_carry((10,)) == ((), ())
+    assert net.initial_carry((10,)) == ()
     x = jnp.zeros((10,))
-    params = net.init(jax.random.PRNGKey(0), ((), ()), x, jnp.asarray(False))
-    carry, (pi, value) = net.apply(params, ((), ()), x, jnp.asarray(False))
-    assert carry == ((), ())
+    params = net.init(jax.random.PRNGKey(0), (), x, jnp.asarray(False))
+    carry, (pi, value) = net.apply(params, (), x, jnp.asarray(False))
+    assert carry == ()
     assert pi.logits.shape == (4,)
     assert value.shape == ()
 
 
-def test_actor_critic_with_transformer_encoders_threads_window_carry():
+def test_actor_critic_with_transformer_encoders_threads_one_shared_window_carry():
+    # actor and critic share a single frame-window carry (they derive it
+    # identically from the obs stream) - so it's advanced once per step
+    # even when only `policy` runs.
     net = ActorCritic(
         action_dim=4,
         actor_encoder=_transformer(),
         critic_encoder=_transformer(),
     )
     carry0 = net.initial_carry(FRAME)
-    assert carry0[0].shape == (CONTEXT, *FRAME)
+    assert carry0.shape == (CONTEXT, *FRAME)
     x = jax.random.normal(jax.random.PRNGKey(0), FRAME)
     params = net.init(jax.random.PRNGKey(1), carry0, x, jnp.asarray(False))
-    (ac, cc), (pi, value) = net.apply(params, carry0, x, jnp.asarray(False))
-    assert ac.shape == (CONTEXT, *FRAME) and cc.shape == (CONTEXT, *FRAME)
+    carry1, (pi, value) = net.apply(params, carry0, x, jnp.asarray(False))
+    assert carry1.shape == (CONTEXT, *FRAME)
     assert pi.logits.shape == (4,)
     assert value.shape == ()
+    # `policy` and `value` advance the shared carry the same way `__call__` does
+    pcarry, _ = net.apply(params, carry0, x, jnp.asarray(False), method="policy")
+    vcarry, _ = net.apply(params, carry0, x, jnp.asarray(False), method="value")
+    assert np.allclose(pcarry, carry1) and np.allclose(vcarry, carry1)
 
 
 if __name__ == "__main__":
@@ -234,5 +241,5 @@ if __name__ == "__main__":
     test_transformer_encoder_conditions_on_history_not_just_current_frame()
     test_transformer_encoder_shares_frame_encoder_weights()
     test_transformer_encoder_jit_vmap_over_batch()
-    test_actor_critic_carry_is_empty_tuple_for_stateless_encoders()
-    test_actor_critic_with_transformer_encoders_threads_window_carry()
+    test_actor_critic_carry_is_empty_for_stateless_encoders()
+    test_actor_critic_with_transformer_encoders_threads_one_shared_window_carry()
