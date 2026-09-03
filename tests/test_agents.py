@@ -21,10 +21,11 @@ from unittest.mock import patch
 
 import pytest
 import numpy as np
+import jax
 import jax.numpy as jnp
 
 import navix as nx
-from navix.agents.agent import Agent, HParams, derive_episodic_metrics
+from navix.agents.agent import Agent, HParams, derive_episodic_metrics, stack_frame_history
 
 # None of the tests below exercise anything env-specific (they only call
 # log_to_wandb/log_to_wandb_on_train_end, which never touch self.env) -
@@ -177,6 +178,57 @@ def test_log_is_deprecated_but_still_works():
             agent.log(dict(logs))
 
     assert mock_log.call_count == 1
+
+
+def test_stack_frame_history_no_episode_boundary():
+    # obs = [0, 1, 2, 3, 4, 5], context=3, no done anywhere - each
+    # window is simply the last 3 frames, left-padded by repeating
+    # obs[0] until enough real history has accumulated.
+    obs = jnp.arange(6, dtype=jnp.float32)[:, None]  # (6, 1)
+    done = jnp.zeros((6,), dtype=jnp.bool_)
+
+    windows = stack_frame_history(obs, done, context=3)
+
+    assert windows.shape == (6, 3, 1)
+    expected = jnp.asarray(
+        [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 1, 2],
+            [1, 2, 3],
+            [2, 3, 4],
+            [3, 4, 5],
+        ],
+        dtype=jnp.float32,
+    )[:, :, None]
+    assert jnp.array_equal(windows, expected)
+
+
+def test_stack_frame_history_does_not_leak_across_episode_boundary():
+    # two episodes back to back: [0, 1, 2 (done)], [3, 4, 5]. context=3.
+    # windows[3] (the first frame of episode 2) must be [3, 3, 3], never
+    # reaching back to read 2/1/0 from the episode that just ended.
+    obs = jnp.arange(6, dtype=jnp.float32)[:, None]
+    done = jnp.asarray([False, False, True, False, False, False])
+
+    windows = stack_frame_history(obs, done, context=3)
+
+    assert jnp.array_equal(windows[3, :, 0], jnp.asarray([3.0, 3.0, 3.0]))
+    assert jnp.array_equal(windows[4, :, 0], jnp.asarray([3.0, 3.0, 4.0]))
+    assert jnp.array_equal(windows[5, :, 0], jnp.asarray([3.0, 4.0, 5.0]))
+    # episode 1's own windows are unaffected by what comes after it.
+    assert jnp.array_equal(windows[2, :, 0], jnp.asarray([0.0, 1.0, 2.0]))
+
+
+def test_stack_frame_history_jit_vmap_compatible():
+    key = jax.random.PRNGKey(0)
+    num_envs, T, context = 4, 10, 3
+    obs = jax.random.uniform(key, (num_envs, T, 2, 2))
+    done = jax.random.bernoulli(key, 0.2, (num_envs, T))
+
+    fn = jax.jit(jax.vmap(stack_frame_history, in_axes=(0, 0, None)), static_argnums=(2,))
+    windows = fn(obs, done, context)
+    assert windows.shape == (num_envs, T, context, 2, 2)
 
 
 if __name__ == "__main__":

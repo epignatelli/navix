@@ -1,13 +1,15 @@
 """Shared neural-network building blocks used across navix's agents.
 
-Three groups live here: PPO's encoder/actor-critic components
+Four groups live here: PPO's encoder/actor-critic components
 (`MLPEncoder`, `ConvEncoder`, `ActorCritic`), Dreamer's world-model
 components (categorical-latent utilities, the symexp-twohot head, and
 the RSSM's encoder/decoder/prior/posterior networks) - the reusable
 pieces `navix.agents.dreamer.WorldModel` wires together into an RSSM -
-and PQN's normalized Q-network (`QNetwork`). See `navix.agents.dreamer`
-and `navix.agents.pqn`'s module docstrings for the algorithms these
-latter components implement."""
+PQN's normalized Q-network (`QNetwork`), and a frame-history transformer
+encoder for POMDP tasks (`TransformerBlock`, `TransformerEncoder` - see
+its own docstring, and `navix.agents.agent.stack_frame_history`, for
+issue #169). See `navix.agents.dreamer` and `navix.agents.pqn`'s module
+docstrings for the algorithms the Dreamer/PQN components implement."""
 
 from functools import partial
 from typing import Callable, Sequence, Tuple
@@ -66,6 +68,96 @@ class ConvEncoder(nn.Module):
                 nn.relu,
             ]
         )(x)
+
+
+class TransformerBlock(nn.Module):
+    """One pre-LN transformer encoder block (self-attention + MLP, each
+    with a residual connection and `LayerNorm` applied *before* the
+    sub-layer, not after) - the standard modern choice (GPT-2 onwards)
+    over the original "Attention Is All You Need" post-LN block, which
+    needs a learning-rate warmup schedule to train stably; none of
+    navix's other components add one, so pre-LN avoids relying on it."""
+
+    hidden_size: int
+    num_heads: int = 4
+    mlp_ratio: int = 4
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        y = nn.LayerNorm()(x)
+        y = nn.MultiHeadDotProductAttention(num_heads=self.num_heads)(y)
+        x = x + y
+
+        y = nn.LayerNorm()(x)
+        y = nn.Dense(self.hidden_size * self.mlp_ratio)(y)
+        y = nn.gelu(y)
+        y = nn.Dense(self.hidden_size)(y)
+        x = x + y
+        return x
+
+
+class TransformerEncoder(nn.Module):
+    """Issue #169: a `pomdp`-mode observation function (`rgb_first_person`/
+    `categorical_first_person`/`symbolic_first_person`) returns a single
+    current-step frame - no history. A lone frame doesn't disambiguate
+    states that look identical from the agent's current viewpoint but
+    differ in what led there (e.g. which direction something moved
+    before this frame reached it), so a policy conditioned on it only
+    sees a Markovian *approximation* of the true partially-observable
+    state. This encoder instead attends over a short window of the last
+    `context` frames - built by `navix.agents.agent.stack_frame_history`
+    from an ordinary single-frame observation trajectory, respecting
+    episode boundaries - so the feature it hands to `ActorCritic`/
+    `QNetwork` is conditioned on a real (if bounded) piece of history,
+    not a single frame pretending to be Markovian.
+
+    `frame_encoder` is applied to each of the `context` frames with
+    *shared* weights (same encoder, same parameters, called once per
+    frame in a plain Python loop - `context` is a static field, so this
+    unrolls at trace time exactly like `nn.Sequential`'s own internal
+    loop, and repeated calls to the same bound submodule instance reuse
+    its parameters rather than creating `context` independent copies).
+    Its output must already be `hidden_size`-wide - this composes
+    `frame_encoder` the same way `ActorCritic`/`QNetwork` compose
+    `actor_encoder`/`critic_encoder`/`encoder`, with the same implicit
+    dimension contract, not an added constraint unique to this class.
+
+    A learned positional embedding is added per-frame-position before
+    attention (plain per-position embedding table, not sinusoidal - the
+    context length is fixed and small, so there's no benefit to a
+    scheme designed to extrapolate beyond lengths seen in training).
+    The output is the *last* token's post-attention feature (the
+    current frame, now contextualized by the ones before it) - not a
+    mean/max pool over all `context` positions, which would blur the
+    current frame's own signal together with older, less relevant
+    ones; every downstream head (`ActorCritic`, `QNetwork`) already
+    expects one feature vector for "now", exactly what pooling to the
+    last token preserves."""
+
+    frame_encoder: nn.Module
+    hidden_size: int = 64
+    num_heads: int = 4
+    num_layers: int = 2
+    context: int = 4
+
+    @nn.compact
+    def __call__(self, x: Array) -> Array:
+        # x: (context, *frame_shape) - see stack_frame_history.
+        embed = jnp.stack(
+            [self.frame_encoder(x[t]) for t in range(self.context)], axis=0
+        )  # (context, hidden_size)
+        pos_embedding = self.param(
+            "pos_embedding",
+            nn.initializers.normal(0.02),
+            (self.context, self.hidden_size),
+        )
+        embed = embed + pos_embedding
+        for _ in range(self.num_layers):
+            embed = TransformerBlock(
+                hidden_size=self.hidden_size, num_heads=self.num_heads
+            )(embed)
+        embed = nn.LayerNorm()(embed)
+        return embed[-1]  # (hidden_size,) - the current frame's feature
 
 
 class ActorCritic(nn.Module):

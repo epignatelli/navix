@@ -35,6 +35,65 @@ def masked_mean(values: jax.Array, mask: jax.Array, axis=None) -> jax.Array:
     return jnp.sum(jnp.where(mask, values, 0), axis=axis) / jnp.sum(mask, axis=axis)
 
 
+def stack_frame_history(obs: jax.Array, done: jax.Array, context: int) -> jax.Array:
+    """Builds a sliding window of the last `context` observations ending
+    at (and including) each timestep - the data-prep half of issue #169's
+    `navix.agents.models.TransformerEncoder`, which needs `(context,
+    *frame_shape)` at every step rather than a single frame.
+
+    Deliberately lives here, not as a new `navix.observations` function
+    or inside `Environment`/`State` itself: every existing observation
+    function (`rgb_first_person`, `symbolic_first_person`, ...) is a
+    pure function of one `State`, with no memory across calls - adding
+    history there would mean carrying a frame buffer through `State`
+    itself, which every reward/termination/transition function and
+    every existing environment's `_reset`/`_step` would then need to
+    know about, for a concern that is purely about how one particular
+    encoder consumes an already-computed trajectory of single frames.
+    Building the window here instead - over the `(T, *frame_shape)`
+    observation trajectory a rollout already collects, exactly like
+    `masked_mean`/`derive_episodic_metrics` above already reduce that
+    same rollout's `agent/train/*` buffers - needs no changes to
+    `observations.py`, `Environment`, or any registered environment,
+    and composes with any of them.
+
+    Windows never reach back across an episode boundary into a prior
+    episode's frames: MiniGrid/navix's own convention (`Environment.
+    step`'s autoreset) means `obs[t]` right after a `done[t-1] = True`
+    step is already a fresh episode's first frame, so a window that
+    starts there is padded by repeating that first frame instead of
+    reading `obs[t-1], obs[t-2], ...`, which would belong to the
+    episode that just ended.
+
+    Args:
+        obs (Array): a single trajectory of single-frame observations,
+            `(T, *frame_shape)` - the standard navix rollout layout
+            (see `Agent.train`'s docstring), with the `num_envs` axis
+            already handled by the caller (`jax.vmap` this function
+            over that axis to batch across envs, the same way
+            `Agent.train` itself vmaps a single-env rollout).
+        done (Array): `(T,)` boolean, True at the timestep an episode
+            ended - the same convention as `agent/train/done_mask`.
+        context (int): window length `c`.
+
+    Returns:
+        Array: `(T, context, *frame_shape)` - `windows[t]` is the last
+        `context` frames ending at (and including) `obs[t]`, oldest
+        first."""
+    episode_start = jnp.concatenate([jnp.asarray([True]), done[:-1]])
+
+    def step(window: jax.Array, inputs):
+        frame, start = inputs
+        reset_window = jnp.broadcast_to(frame, window.shape)
+        shifted = jnp.concatenate([window[1:], frame[None]], axis=0)
+        window = jnp.where(start, reset_window, shifted)
+        return window, window
+
+    init_window = jnp.zeros((context,) + obs.shape[1:], dtype=obs.dtype)
+    _, windows = jax.lax.scan(step, init_window, (obs, episode_start))
+    return windows
+
+
 REQUIRED_LOG_KEYS: Dict[str, str] = {
     "agent/train/done_mask": "which steps ended an episode",
     "agent/train/lengths": "per-step episode length",
