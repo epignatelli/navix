@@ -31,7 +31,7 @@ def register_env(name: str, ctor: Callable):
     _ENVS_REGISTRY[name] = ctor
 
 
-def make(name: str, max_steps: int = 100, **kwargs):
+def make(name: str, **kwargs):
     if name not in registry():
         closest = difflib.get_close_matches(name, registry().keys())
         msg = f"Environment {name} not yet implemented."
@@ -43,7 +43,7 @@ def make(name: str, max_steps: int = 100, **kwargs):
             )
         raise NotImplementedError(msg)
     ctor = _ENVS_REGISTRY[name]
-    return ctor(max_steps=max_steps, **kwargs)
+    return ctor(**kwargs)
 
 
 NotImplementedEnvs = [
