@@ -1,3 +1,17 @@
+"""The concrete things that live on a grid: `Player`, `Goal`, `Wall`,
+`Key`, `Door`, `Lava`, `Ball`, `Box`.
+
+Each is a frozen `flax.struct` pytree built by composing the mixins in
+`navix.components` (`Positionable`, `Directional`, `Openable`, ...). All
+fields are batched: `state.entities["key"]` is a single `Key` struct
+holding *every* key in the environment, with the instance count as the
+leading axis (`key.position` is `i32[n_keys, 2]`). Index into a batch
+with `entity[i]`.
+
+Entities also expose derived, per-instance properties the engine reads:
+`walkable`, `transparent`, `tag`, `sprite`, `symbolic_state`.
+"""
+
 from __future__ import annotations
 from typing import Tuple, TypeVar
 
@@ -24,7 +38,9 @@ T = TypeVar("T", bound="Entity")
 
 
 class Entities(struct.PyTreeNode):
-    """Entities enum class to store the names of the entities in the game."""
+    """The string keys used in `state.entities` (a `dict[str, Entity]`).
+    Use `Entities.KEY` etc. rather than the bare literal `"key"` so a
+    rename is caught statically."""
 
     WALL: str = struct.field(pytree_node=False, default="wall")
     FLOOR: str = struct.field(pytree_node=False, default="floor")
@@ -38,7 +54,13 @@ class Entities(struct.PyTreeNode):
 
 
 class EntityIds:
-    """EntityIds enum class to store the ids of the entities in the game."""
+    """The integer tag each entity type takes in a `categorical`
+    observation and in the first channel of a `symbolic` one. `uint8`
+    scalars. The values are not contiguous (there is no `3`) - treat them
+    as opaque ids, and `MAX_CATEGORICAL_VALUE` (in
+    `environments.environment`) as the count the observation `Space` uses.
+    `UNKNOWN` (`0`) is also the value of a cell that has not been seen in
+    a first-person observation."""
 
     UNKNOWN: Array = jnp.asarray(0, dtype=jnp.uint8)
     FLOOR: Array = jnp.asarray(1, dtype=jnp.uint8)
@@ -53,7 +75,8 @@ class EntityIds:
 
 
 class Directions:
-    """Directions enum class to store the directions in the game."""
+    """Named values for `Directional.direction`: `EAST=0`, `SOUTH=1`,
+    `WEST=2`, `NORTH=3` (clockwise). `rotate_cw` adds 1 (mod 4)."""
 
     EAST = jnp.asarray(0)
     SOUTH = jnp.asarray(1)
@@ -62,57 +85,78 @@ class Directions:
 
 
 class Entity(Positionable, HasTag, HasSprite):
-    """Entities are components that can be placed in the environment, and have a position and a tag.
-    To create an entity, use the `create` method."""
+    """Base of every concrete entity: has a `position`, a `tag` and a
+    `sprite`. Subclasses add more mixins and fill in the derived
+    properties below. Build one with the subclass's `create`."""
 
     def __getitem__(self: T, idx) -> T:
+        """Selects instance(s) from the batch - `key[0]` is the first key,
+        `key[mask]` the masked subset - by indexing every field's leading
+        axis."""
         return jax.tree.map(lambda x: x[idx], self)
 
     @property
     def name(self) -> str:
-        """The name of the entity
-
-        Returns:
-            str: the name of the entity"""
+        """The class name (`"Key"`, `"Door"`, ...)."""
         return self.__class__.__name__
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        """The batch shape of the entity. The batch shape is the shape of the entity excluding the dimensions of the component.
-        For example, if the entity has a position of shape (batch_size, 2), the shape of the entity is (batch_size,).
-        """
+        """The batch shape - the entity's axes *excluding* each field's
+        own trailing axes. `()` for a single instance, `(n,)` for a batch
+        of `n` (`position` is then `(n, 2)`)."""
         return self.position.shape[:-1]
 
     @property
     def ndim(self) -> int:
-        """The number of dimensions of the entity. The number of dimensions is the number of dimensions of the position minus 1."""
+        """Number of batch dimensions (`len(self.shape)`) - `0` for a
+        single instance, `1` for a flat batch."""
         return self.position.ndim - 1
 
     @property
     def walkable(self) -> Array:
-        """The walkable attribute of the entity. The walkable attribute is a boolean array that indicates if the entity can be walked on."""
+        """`bool[*shape]` - can the player step onto this entity's cell?
+        (`False` for walls and closed doors, `True` for goal/lava/floor.)
+
+        Raises:
+            NotImplementedError: on the base class."""
         raise NotImplementedError()
 
     @property
     def transparent(self) -> Array:
-        """The transparent attribute of the entity. The transparent attribute is a boolean array that indicates if the entity is transparent to rendering."""
+        """`bool[*shape]` - does line of sight pass through this cell?
+        Feeds the first-person view cone (`False` blocks vision).
+
+        Raises:
+            NotImplementedError: on the base class."""
         raise NotImplementedError()
 
     @property
     def symbolic_state(self) -> Array:
-        """The symbolic state representation of the entity. The symbolic state is as the
-        last channel in the symbolic_observation function."""
+        """`i32[*shape]` - the third channel of a `symbolic` observation
+        for this entity (e.g. a door's open/closed/locked; `0` for
+        entities with no internal state).
+
+        Raises:
+            NotImplementedError: on the base class."""
         raise NotImplementedError()
 
 
 class Wall(Entity, HasColour):
-    """Walls are entities that cannot be walked through"""
+    """An impassable, opaque cell. Not walkable, not transparent. The
+    grid border is walls; interior walls form rooms and corridors."""
 
     @classmethod
     def create(
         cls,
         position: Array,
     ) -> Wall:
+        """Args:
+            position (Array): `(row, col)` of each wall, `i32[n, 2]`.
+                Colour is fixed to grey.
+
+        Returns:
+            Wall: the batch of walls."""
         shape = position.shape[:-1]
         grey = jnp.ones(shape, dtype=jnp.uint8) * 5
         return cls(position=position, colour=grey)
@@ -140,7 +184,9 @@ class Wall(Entity, HasColour):
 
 
 class Player(Entity, Directional, Holder):
-    """Players are entities that can act around the environment"""
+    """The agent. Has a `direction` it faces and a `pocket` holding at
+    most one `Pickable`. navix is single-agent, so `state.entities["player"]`
+    is a batch of one."""
 
     @classmethod
     def create(
@@ -149,6 +195,14 @@ class Player(Entity, Directional, Holder):
         direction: Array,
         pocket: Array,
     ) -> Player:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            direction (Array): facing, `i32[]` in `0..3` (see
+                `Directions`).
+            pocket (Array): carried item id, or `EMPTY_POCKET_ID` (`-1`).
+
+        Returns:
+            Player: the entity."""
         return cls(position=position, direction=direction, pocket=pocket)
 
     @property
@@ -178,7 +232,10 @@ class Player(Entity, Directional, Holder):
 
 
 class Goal(Entity, HasColour, Stochastic):
-    """Goals are entities that can be reached by the player"""
+    """The target cell. Walkable and transparent. Reaching it fires a
+    `(GOAL, REACH)` event with probability `probability` (`1.0` in the
+    standard tasks) - `rewards.on_goal_reached` /
+    `terminations.on_goal_reached` react to it."""
 
     @classmethod
     def create(
@@ -186,6 +243,14 @@ class Goal(Entity, HasColour, Stochastic):
         position: Array,
         probability: Array,
     ) -> Goal:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            probability (Array): `f32[]` in `[0, 1]` - chance the reward
+                fires on contact (`1.0` for the standard tasks). Colour
+                is fixed to green.
+
+        Returns:
+            Goal: the entity."""
         shape = position.shape[:-1]
         green = jnp.ones(shape, dtype=jnp.uint8)
         return cls(position=position, probability=probability, colour=green)
@@ -219,8 +284,10 @@ class Goal(Entity, HasColour, Stochastic):
 
 
 class Key(Entity, Pickable, HasColour):
-    """Pickable items are world objects that can be picked up by the player.
-    Examples of pickable items are keys, coins, etc."""
+    """A pickable key. Not walkable, transparent. `pickup` puts its `id`
+    in the player's pocket; a `Door` whose `requires` equals that `id`
+    can then be opened, consuming the key. Its `colour` matches the door
+    it opens."""
 
     @classmethod
     def create(
@@ -229,6 +296,13 @@ class Key(Entity, Pickable, HasColour):
         colour: Array,
         id: Array,
     ) -> Key:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            colour (Array): palette index (see `HasColour`).
+            id (Array): `i32[] >= 1`, matched against `Door.requires`.
+
+        Returns:
+            Key: the entity."""
         colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(position=position, id=id, colour=colour)
 
@@ -261,13 +335,11 @@ class Key(Entity, Pickable, HasColour):
 
 
 class Door(Entity, Openable, HasColour):
-    """Consumable items are world objects that can be consumed by the player.
-    Consuming an item requires a tool (e.g. a key to open a door).
-    A tool is an id (int) of another item, specified in the `requires` field (-1 if no tool is required).
-    After an item is consumed, it is both removed from the `state.entities` collection, and replaced in the grid
-    by the item specified in the `replacement` field (0 = floor by default).
-    Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.
-    """
+    """A door in a wall. While closed it is not walkable and not
+    transparent; once open it is both. Opening needs the `open` action
+    while facing it and, if `requires != -1`, the matching `Key` in the
+    pocket (which is then consumed and `requires` set to `-1`). navix
+    doors do not re-close."""
 
     @classmethod
     def create(
@@ -277,6 +349,15 @@ class Door(Entity, Openable, HasColour):
         colour: Array,
         open: Array,
     ) -> Door:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            requires (Array): `Key.id` needed to unlock, or `-1` for an
+                unlocked door.
+            colour (Array): palette index (see `HasColour`).
+            open (Array): `0` closed, `1` open.
+
+        Returns:
+            Door: the entity."""
         colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(
             position=position,
@@ -312,6 +393,8 @@ class Door(Entity, Openable, HasColour):
 
     @property
     def locked(self) -> Array:
+        """`bool[*shape]` - `True` while the door still needs a key
+        (`requires != -1`). Becomes `False` once unlocked."""
         return self.requires != jnp.asarray(-1)
 
     @property
@@ -333,13 +416,21 @@ class Door(Entity, Openable, HasColour):
 
 
 class Lava(Entity):
-    """Goals are entities that can be reached by the player"""
+    """A hazard cell. Walkable and transparent (the player *can* step
+    onto it), but doing so fires a `(LAVA, FALL)` event that
+    `terminations.on_lava_fall` turns into a `TERMINATION` - stepping in
+    ends the episode with no reward."""
 
     @classmethod
     def create(
         cls,
         position: Array,
     ) -> Lava:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+
+        Returns:
+            Lava: the entity."""
         return cls(position=position)
 
     @property
@@ -371,24 +462,20 @@ class Lava(Entity):
 
 
 class Ball(Entity, Pickable, HasColour, Stochastic):
-    """A pickable obstacle - `id` (from `Pickable`) identifies this ball
-    instance for `actions.pickup`/`actions.drop`, the same way `Key.id`/
-    `Box.id` do. `probability` (from `Stochastic`, pre-existing) is
-    unrelated to pickup - unused by `Ball` itself; every `Ball`
-    instance actually moves unconditionally each step under the default
-    `transitions.stochastic_transition` (`transitions.update_balls`,
-    regardless of `probability`'s value), which is why any environment
-    wanting a static `Ball` (a pickup target/decoy, not a wandering
-    obstacle) must register with `transitions_fn=transitions.
-    deterministic_transition` instead - see `GoToObject`/`Fetch`/
-    `PutNear`/`BlockedUnlockPickup`.
+    """A blocking obstacle that is also pickable. Not walkable,
+    transparent. Colliding with the player fires a `(BALL, HIT)` event
+    (`terminations.on_ball_hit`).
 
-    BREAKING CHANGE: `Ball` becoming `Pickable` means `actions.pickup`
-    no longer no-ops facing a `Ball` in any environment whose
-    action_set includes `pickup` and whose transitions_fn is the
-    default `stochastic_transition` - concretely, this changes
-    `Navix-Dynamic-Obstacles-*`'s existing dynamics: `pickup` now
-    removes the faced obstacle from play instead of doing nothing."""
+    Under the default `transitions.stochastic_transition`, every ball
+    moves one random step each timestep (`transitions.update_balls`), so
+    it acts as a wandering hazard. An environment that wants a *static*
+    ball - a pickup target or decoy - must use
+    `transitions_fn=transitions.deterministic_transition` instead (as
+    `GoToObject` / `Fetch` / `PutNear` / `BlockedUnlockPickup` do).
+
+    `id` (from `Pickable`) is the pickup identity, matched against
+    `player.pocket`; `probability` (from `Stochastic`) is unused by
+    `Ball`."""
 
     @classmethod
     def create(
@@ -398,6 +485,14 @@ class Ball(Entity, Pickable, HasColour, Stochastic):
         probability: Array,
         id: Array,
     ) -> Ball:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            colour (Array): palette index (see `HasColour`).
+            probability (Array): unused by `Ball`; pass `1.0`.
+            id (Array): `i32[] >= 1` pickup identity.
+
+        Returns:
+            Ball: the entity."""
         colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(position=position, colour=colour, probability=probability, id=id)
 
@@ -430,23 +525,15 @@ class Ball(Entity, Pickable, HasColour, Stochastic):
 
 
 class Box(Entity, Pickable, HasColour, Holder):
-    """A pickable container - `id` (from `Pickable`) identifies this box
-    instance the same way `Key.id` does, for `actions.pickup` to match
-    against `player.pocket`; `pocket` (from `Holder`) is a *different*
-    field, for whatever item is hidden inside the box (e.g. a `Key`'s
-    id), unrelated to the box's own pickup-identity.
+    """A pickable container. Not walkable, transparent. `open` (the
+    `toggle` action) while facing it removes the box and, if its `pocket`
+    holds a `Key`'s id, reveals that key at the box's former cell
+    (matching MiniGrid's `Box.toggle`). Used by `ObstructedMaze` to hide
+    keys.
 
-    BREAKING CHANGE: `actions.open` (the `toggle` action) now also
-    handles `Box` - toggling one removes it from play and, if its
-    `pocket` held a `Key`'s id, reveals that `Key` at the box's former
-    position (verified against MiniGrid's actual `Box.toggle`: `env.
-    grid.set(pos, self.contains)`). Previously boxes were inert to
-    `toggle` in every environment. This changes the dynamics of any
-    existing environment whose `action_set` includes `toggle` and
-    which places a `Box` (`GoToObject`, `PutNear`, `Unlock`/
-    `UnlockPickup`/`BlockedUnlockPickup`'s decoy box) - the box can now
-    be made to disappear by toggling it, where it previously could
-    not."""
+    Two separate id fields: `id` (from `Pickable`) is the box's own
+    pickup identity, matched against `player.pocket`; `pocket` (from
+    `Holder`) is the id of the item hidden *inside*."""
 
     @classmethod
     def create(
@@ -456,6 +543,15 @@ class Box(Entity, Pickable, HasColour, Holder):
         id: Array,
         pocket: Array,
     ) -> Box:
+        """Args:
+            position (Array): `(row, col)`, `i32[2]` (or batched).
+            colour (Array): palette index (see `HasColour`).
+            id (Array): `i32[] >= 1`, the box's own pickup identity.
+            pocket (Array): id of the contained item, or
+                `EMPTY_POCKET_ID` (`-1`) for an empty box.
+
+        Returns:
+            Box: the entity."""
         colour = jnp.asarray(colour, dtype=jnp.uint8)
         return cls(position=position, colour=colour, id=id, pocket=pocket)
 
