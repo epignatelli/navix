@@ -102,13 +102,14 @@ def test_ppo_stateless_encoder_trains_one_update_without_nans():
 
 
 def test_ppo_stateless_encoder_carry_is_empty_end_to_end():
-    # a stateless encoder must thread `()` everywhere: the live carry in
-    # TrainingState and the per-step Buffer.carry are both empty pytrees.
+    # a stateless encoder must thread `()` everywhere: the live carry and
+    # the rollout-initial carry in TrainingState are both empty pytrees.
     ppo = _make_ppo(ActorCritic(action_dim=7))
     ts = _init_state(ppo, jax.random.PRNGKey(0))
     assert jax.tree_util.tree_leaves(ts.carry) == []
-    _, experience = jax.jit(ppo.collect_experience)(ts)
-    assert jax.tree_util.tree_leaves(experience.carry) == []
+    assert jax.tree_util.tree_leaves(ts.rollout_carry) == []
+    ts, _ = jax.jit(ppo.collect_experience)(ts)
+    assert jax.tree_util.tree_leaves(ts.rollout_carry) == []
 
 
 def test_ppo_transformer_encoder_trains_one_update_without_nans():
@@ -125,20 +126,15 @@ def test_ppo_transformer_encoder_trains_one_update_without_nans():
     assert any("pos_embedding" in p for p in paths)
 
 
-def test_ppo_transformer_encoder_buffer_carries_the_frame_window():
+def test_ppo_transformer_encoder_tracks_rollout_initial_window():
     ppo = _make_ppo(_transformer_actor_critic(action_dim=7, context=4))
     ts = _init_state(ppo, jax.random.PRNGKey(0))
-    _, experience = jax.jit(ppo.collect_experience)(ts)
-    # Buffer.carry: (T, num_envs, (actor_window, critic_window)) with each
-    # window (context, *frame_shape).
-    actor_window = experience.carry[0]
+    ts, _ = jax.jit(ppo.collect_experience)(ts)
+    # rollout_carry: (actor_window, critic_window), each the per-env frame
+    # window (num_envs, context, *frame_shape) the rescan starts from.
+    actor_window = ts.rollout_carry[0]
     frame_dim = int(np.prod(ppo.env.observation_space.shape))
-    assert actor_window.shape == (
-        ppo.hparams.num_steps,
-        ppo.hparams.num_envs,
-        4,
-        frame_dim,
-    )
+    assert actor_window.shape == (ppo.hparams.num_envs, 4, frame_dim)
 
 
 def _init_state(ppo: PPO, rng):
@@ -167,6 +163,7 @@ def _init_state(ppo: PPO, rng):
         env_state=env_state,
         rng=rng,
         carry=carry,
+        rollout_carry=carry,
         frames=jnp.asarray(0, dtype=jnp.int32),
         epoch=jnp.asarray(0, dtype=jnp.int32),
         policy=jax.vmap(
@@ -183,4 +180,4 @@ if __name__ == "__main__":
     test_ppo_stateless_encoder_trains_one_update_without_nans()
     test_ppo_stateless_encoder_carry_is_empty_end_to_end()
     test_ppo_transformer_encoder_trains_one_update_without_nans()
-    test_ppo_transformer_encoder_buffer_carries_the_frame_window()
+    test_ppo_transformer_encoder_tracks_rollout_initial_window()

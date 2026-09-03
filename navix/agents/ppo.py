@@ -55,15 +55,6 @@ class PPOHparams(HParams):
 
 
 class Buffer(struct.PyTreeNode):
-    carry: Any
-    """The encoder carry (`navix.agents.models`' encoder contract) that
-    went *into* the network at this step - i.e. the state produced from
-    `o_{t-1}` and earlier, before `o_t` was consumed. `()` for stateless
-    encoders. For `TransformerEncoder` it's the raw `(context, *frame)`
-    window ending at `o_{t-1}`; storing it here and replaying it in
-    `ppo_loss` (rather than re-deriving the window) is exact, because the
-    window has no dependence on the encoder's parameters (see that
-    class's docstring)."""
     done: jax.Array
     action: jax.Array
     reward: jax.Array
@@ -72,6 +63,10 @@ class Buffer(struct.PyTreeNode):
     info: Dict[str, jax.Array]
     t: jax.Array
     state: State
+    # No per-step encoder carry: this agent re-derives the carry by
+    # rescanning the encoder over each rollout sequence from its start
+    # (see `PPO.forward_sequence`), so only the rollout-initial carry is
+    # kept (in `TrainingState.rollout_carry`), not one per step.
 
 
 class TrainingState(TrainState):
@@ -84,6 +79,13 @@ class TrainingState(TrainState):
     threaded across `collect_experience` calls the same way `env_state`
     is; also the pre-step carry for the post-rollout bootstrap in
     `update`. `()` for stateless encoders."""
+    rollout_carry: Any
+    """The encoder carry each running env's sequence *started* from at the
+    last `collect_experience` - i.e. `carry` as it was before that
+    rollout's scan. The loss and `evaluate_experience` rescan the encoder
+    over the rollout from here, so gradients flow through the recurrence
+    (full BPTT) rather than through a stored constant. `()` for stateless
+    encoders."""
     policy: Callable[
         [Params, Any, Array, Array], Tuple[Any, distrax.Distribution]
     ] = struct.field(pytree_node=False)
@@ -118,7 +120,6 @@ class PPO(Agent):
             # STEP ENV
             new_env_state = jax.vmap(self.env.step, in_axes=(0, 0))(env_state, action)
             transition = Buffer(
-                carry=carry,  # carry INTO o_t (pre-step) - see Buffer.carry
                 done=new_env_state.is_done(),  # done(o_{t+1})
                 action=action,  # a_t
                 reward=new_env_state.reward,  # R(o_t, a_t)
@@ -133,6 +134,9 @@ class PPO(Agent):
             # encoder discards a stale carry on `is_first` itself.
             return (new_env_state, rng, new_carry), transition
 
+        # the carry each env's sequence starts from - the loss and
+        # evaluate_experience rescan the encoder from here.
+        rollout_carry = train_state.carry
         # collect experience and update env_state
         (env_state, rng, carry), experience = jax.lax.scan(
             _env_step,
@@ -144,16 +148,45 @@ class PPO(Agent):
             env_state=env_state,
             rng=rng,
             carry=carry,
+            rollout_carry=rollout_carry,
             frames=train_state.frames + self.hparams.num_steps * self.hparams.num_envs,
         )
         return train_state, experience
 
+    def forward_sequence(
+        self,
+        params: Params,
+        initial_carry: Any,
+        obs_seq: Array,
+        is_first_seq: Array,
+    ) -> Tuple[Array, Array]:
+        """Rescan the encoder+heads over a `(T, B, ...)` rollout sequence
+        from `initial_carry` (`(B, ...)`), under `params`. Returns
+        `(logits_seq, value_seq)`, each `(T, B, ...)`. The scan is
+        differentiable, so gradients flow through the whole recurrence
+        (full BPTT) - the `is_first` reset is applied inside the encoder,
+        exactly as at collection time. Distributions aren't returned from
+        the scan (jax.lax.scan can't restack a distrax object); the caller
+        rebuilds `distrax.Categorical(logits=logits_seq)`."""
+
+        def step(carry: Any, inputs: Tuple[Array, Array]) -> Tuple[Any, Tuple[Array, Array]]:
+            obs_t, first_t = inputs
+            carry, (pi, value) = jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0))(
+                params, carry, obs_t, first_t
+            )
+            return carry, (pi.logits, value)
+
+        _, (logits_seq, value_seq) = jax.lax.scan(
+            step, initial_carry, (obs_seq, is_first_seq)
+        )
+        return logits_seq, value_seq
+
     def evaluate_experience(
         self, train_state: TrainingState, experience: Buffer, last_val: jax.Array
     ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-        _, values = jax.vmap(train_state.value_fn, in_axes=(None, 0, 0, 0))(
+        _, values = self.forward_sequence(
             train_state.params,
-            experience.carry,
+            train_state.rollout_carry,
             experience.obs,
             experience.t == 0,
         )
@@ -180,18 +213,21 @@ class PPO(Agent):
         gae: Array,
         targets: Array,
         values_old: Array,
+        initial_carry: Any,
     ):
-        # this is already vmapped over the minibatches. The carry stored
-        # at collection time is replayed as a constant (no gradient
-        # through carry production) - exact for a param-independent carry
-        # like TransformerEncoder's raw-frame window; `t == 0` reproduces
-        # the same `is_first` the behaviour policy saw.
-        _, (pi, value) = jax.vmap(self.network.apply, in_axes=(None, 0, 0, 0))(
+        # `transition_batch` here is a minibatch of whole rollout
+        # SEQUENCES, `(num_steps, envs_per_minibatch, ...)`, not shuffled
+        # transitions - the encoder is rescanned over the `num_steps` axis
+        # from `initial_carry` so the recurrence is differentiated (see
+        # `forward_sequence`). `t == 0` reproduces the `is_first` the
+        # behaviour policy saw at each step.
+        logits, value = self.forward_sequence(
             params,
-            transition_batch.carry,
+            initial_carry,
             transition_batch.obs,
             transition_batch.t == 0,
         )
+        pi = distrax.Categorical(logits=logits)
         log_prob = pi.log_prob(transition_batch.action)
 
         # CALCULATE VALUE LOSS
@@ -247,23 +283,31 @@ class PPO(Agent):
     def sgd_step(
         self,
         train_state: TrainingState,
-        minibatch: Tuple[Buffer, jax.Array, jax.Array, jax.Array],
+        minibatch: Tuple[Buffer, jax.Array, jax.Array, jax.Array, Any],
     ) -> Tuple[TrainingState, Dict]:
-        traj_batch, advantages, targets, values_old = minibatch
+        traj_batch, advantages, targets, values_old, initial_carry = minibatch
         grad_fn = jax.value_and_grad(self.ppo_loss, has_aux=True)
         (_, logs), grads = grad_fn(
-            train_state.params, traj_batch, advantages, targets, values_old
+            train_state.params,
+            traj_batch,
+            advantages,
+            targets,
+            values_old,
+            initial_carry,
         )
         train_state = train_state.apply_gradients(grads=grads)
         return train_state, logs
 
     def update(self, train_state: TrainingState, _) -> Tuple[TrainingState, Dict]:
-        # unpack state
-        minibatch_size = (
-            self.hparams.num_envs
-            * self.hparams.num_steps
-            // self.hparams.num_minibatches
+        # Minibatches are over the ENV axis, not shuffled transitions:
+        # each is a group of whole length-`num_steps` sequences the loss
+        # rescans the encoder over, so `num_minibatches` must divide
+        # `num_envs` (unlike the transition-shuffled PPO, where it divided
+        # `num_steps * num_envs`).
+        assert self.hparams.num_envs % self.hparams.num_minibatches == 0, (
+            "num_minibatches must divide num_envs for sequence-minibatched PPO"
         )
+        envs_per_minibatch = self.hparams.num_envs // self.hparams.num_minibatches
         # collect experience
         train_state, experience = self.collect_experience(train_state)
 
@@ -279,29 +323,38 @@ class PPO(Agent):
                 train_state, experience, last_val
             )
 
-            # Batching and Shuffling
+            # Shuffle the ENV axis and split it into `num_minibatches`
+            # groups, keeping every sequence's `num_steps` axis intact.
             rng, rng_1 = jax.random.split(train_state.rng)
             train_state = train_state.replace(rng=rng)
-            n_samples = minibatch_size * self.hparams.num_minibatches
-            assert (
-                n_samples == self.hparams.num_steps * self.hparams.num_envs
-            ), "batch size must be equal to number of steps * number of envs"
-            permutation = jax.random.permutation(rng_1, n_samples)
-            samples = (experience, advantages, targets, values)  # (T, N, ...)
-            samples = jax.tree.map(
-                lambda x: x.reshape((n_samples,) + x.shape[2:]), samples
-            )  # (T * N, ...)
-            shuffled_batch = jax.tree.map(
-                lambda x: jnp.take(x, permutation, axis=0), samples
-            )  # (T * N, ...)
+            permutation = jax.random.permutation(rng_1, self.hparams.num_envs)
 
-            # One epoch update over all mini-batches
-            minibatches = jax.tree.map(
-                lambda x: jnp.reshape(
-                    x, (self.hparams.num_minibatches, -1) + tuple(x.shape[1:])
-                ),
-                shuffled_batch,
+            # (experience, advantages, targets, values): env axis is 1.
+            seqs = jax.tree.map(
+                lambda x: jnp.take(x, permutation, axis=1),
+                (experience, advantages, targets, values),
             )
+            seqs = jax.tree.map(
+                lambda x: jnp.moveaxis(
+                    x.reshape(
+                        x.shape[0],
+                        self.hparams.num_minibatches,
+                        envs_per_minibatch,
+                        *x.shape[2:],
+                    ),
+                    1,
+                    0,
+                ),  # (num_minibatches, num_steps, envs_per_minibatch, ...)
+                seqs,
+            )
+            # rollout_carry: env axis is 0.
+            init_carry = jax.tree.map(
+                lambda x: jnp.take(x, permutation, axis=0).reshape(
+                    self.hparams.num_minibatches, envs_per_minibatch, *x.shape[1:]
+                ),
+                train_state.rollout_carry,
+            )
+            minibatches = (*seqs, init_carry)
             train_state, logs = jax.lax.scan(self.sgd_step, train_state, minibatches)
 
         train_state = train_state.replace(
@@ -388,6 +441,7 @@ class PPO(Agent):
             env_state=env_state,
             rng=rng,
             carry=carry,
+            rollout_carry=carry,
             frames=jnp.asarray(0, dtype=jnp.int32),
             epoch=jnp.asarray(0, dtype=jnp.int32),
             policy=jax.vmap(
