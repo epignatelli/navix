@@ -1448,6 +1448,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.ppo.Buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Buffer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Buffer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.ppo.Buffer.carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;carry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.ppo.PPOHparams" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1607,6 +1635,34 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;vf_coef
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.agents.ppo.TrainingState" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TrainingState
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TrainingState">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.ppo.TrainingState.carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;carry
       
     </span>
   </a>
@@ -2881,6 +2937,81 @@
 
 
 
+<h3 id="navix.agents.ppo.Buffer" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Buffer</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.struct.PyTreeNode">PyTreeNode</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.agents.ppo.Buffer.carry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">carry</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The encoder carry (<code>navix.agents.models</code>' encoder contract) that
+went <em>into</em> the network at this step - i.e. the state produced from
+<code>o_{t-1}</code> and earlier, before <code>o_t</code> was consumed. <code>()</code> for stateless
+encoders. For <code>TransformerEncoder</code> it's the raw <code>(context, *frame)</code>
+window ending at <code>o_{t-1}</code>; storing it here and replaying it in
+<code>ppo_loss</code> (rather than re-deriving the window) is exact, because the
+window has no dependence on the encoder's parameters (see that
+class's docstring).</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h3 id="navix.agents.ppo.PPOHparams" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>PPOHparams</code>
 
@@ -3229,6 +3360,77 @@
     <div class="doc doc-contents ">
 
         <p>Value function coefficient in the total loss.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.agents.ppo.TrainingState" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>TrainingState</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.training.train_state.TrainState">TrainState</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.agents.ppo.TrainingState.carry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">carry</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The live encoder carry for the <code>num_envs</code> running environments,
+threaded across <code>collect_experience</code> calls the same way <code>env_state</code>
+is; also the pre-step carry for the post-rollout bootstrap in
+<code>update</code>. <code>()</code> for stateless encoders.</p>
 
     </div>
 

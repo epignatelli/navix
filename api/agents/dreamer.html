@@ -3248,7 +3248,7 @@ implementation (github.com/danijar/dreamerv3, dreamerv3/rssm.py and
 embodied/jax/agent.py) rather than assumed from the paper text alone:</p>
 <ol>
 <li>Symlog inputs/reconstruction (<code>rlax.signed_logp1</code>/<code>signed_expm1</code>,
-     used by the <code>Encoder</code> and <code>TwoHotHead</code> in <code>.models</code>).</li>
+     used by the <code>SymlogEncoder</code> and <code>TwoHotHead</code> in <code>.models</code>).</li>
 <li>Categorical latents (<code>num_latents</code> independent categoricals of
      <code>num_classes</code> each, "stoch"/"classes" in the official
      implementation) with straight-through gradients and 1% "unimix" -
@@ -4801,7 +4801,7 @@ reset one).</p>
 
         <p>One environment-collection step: advances the RSSM's belief with
 the previous action, then updates it to the posterior given the new
-observation. Encoder/RSSM/posterior are submodules bound to this
+observation. SymlogEncoder/RSSM/posterior are submodules bound to this
 WorldModel instance, so - unlike a bare Dense/Sequential module -
 they can only be called from inside a WorldModel.apply() trace,
 which is what this method (called via <code>self.world.apply(...,

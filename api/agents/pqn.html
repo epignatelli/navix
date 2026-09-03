@@ -1476,6 +1476,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.pqn.Buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Buffer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" Buffer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.pqn.Buffer.carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;carry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.pqn.PQN" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1663,6 +1691,34 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;start_e
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.agents.pqn.TrainingState" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TrainingState
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TrainingState">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.pqn.TrainingState.carry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;carry
       
     </span>
   </a>
@@ -2978,6 +3034,78 @@ official convention, not rejax's.</p>
 
 
 
+<h3 id="navix.agents.pqn.Buffer" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Buffer</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.struct.PyTreeNode">PyTreeNode</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.agents.pqn.Buffer.carry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">carry</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The encoder carry (<code>navix.agents.models.Encoder</code>) that went <em>into</em>
+the network at this step - the pre-step state, as in
+<code>navix.agents.ppo.Buffer.carry</code>. <code>()</code> for the stateless Q-encoders;
+for <code>TransformerEncoder</code> it's the raw frame window, whose replay in
+<code>q_loss</code> is exact (parameter-independent).</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
 <h3 id="navix.agents.pqn.PQN" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>PQN</code>
 
@@ -3401,6 +3529,76 @@ on gridworld-appropriate defaults for why.</p>
     <div class="doc doc-contents ">
 
         <p>Initial epsilon for epsilon-greedy exploration.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.agents.pqn.TrainingState" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>TrainingState</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="flax.training.train_state.TrainState">TrainState</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.agents.pqn.TrainingState.carry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">carry</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The live encoder carry for the <code>num_envs</code> running envs, threaded
+across <code>collect_experience</code> like <code>env_state</code>; also the pre-step carry
+for the post-rollout bootstrap. <code>()</code> for the stateless Q-encoders.</p>
 
     </div>
 
