@@ -452,17 +452,29 @@ class EventsManager(struct.PyTreeNode):
 
 
 class State(struct.PyTreeNode):
-    """The Markovian state of the environment"""
+    """The full, true state of the world - everything `step` needs to
+    compute the next state, and everything an `observation_fn` reads.
+    A frozen `flax.struct` pytree (`vmap`s over a batch of environments).
+    `Timestep.state` is one of these.
+
+    The `get_*` / `set_*` helpers below are the convenient way to reach
+    into `entities`; the raw `entities` dict is also fine to use
+    directly."""
 
     key: Array
-    """The random number generator state"""
+    """PRNG key for this environment's own stochasticity (ball motion,
+    stochastic goals). Advanced by the functions that consume it."""
     grid: Array
-    """The base map of the environment that remains constant throughout the training"""
+    """`i32[H, W]` static base map: `0` is floor, `-1` marks a wall cell.
+    Fixed for the lifetime of an episode; moving entities live in
+    `entities`, not here."""
     cache: RenderingCache
-    """The rendering cache to speed up rendering"""
+    """Pre-rendered tile patches, so `rgb` observations only re-draw the
+    cells that changed. Carried in the state so it survives `jax.jit`."""
     entities: Dict[str, Entity] = struct.field(default_factory=dict)
-    """The entities in the environment, indexed via entity type string representation.
-    Batched over the number of entities for each type"""
+    """Maps an `Entities` key (`"player"`, `"key"`, ...) to a single
+    batched `Entity` holding every instance of that type. A type with no
+    instances in this environment is simply absent from the dict."""
     events: EventsManager = EventsManager()
     """A struct indicating which events happened this timestep. For example, the
     goal is reached, or the player is hit by a ball. Left at its default (empty)
@@ -489,24 +501,35 @@ class State(struct.PyTreeNode):
             object.__setattr__(self, "events", EventsManager.create(self.entities))
 
     def get_entity(self, entity_enum: str) -> Entity:
-        """Get an entity from the state by its enum.
+        """The batched `Entity` for one type. The typed helpers
+        (`get_keys`, `get_doors`, ...) are thin wrappers around this.
 
         Args:
-            entity_enum (str): The enum of the entity to get.
+            entity_enum (str): an `Entities` key, e.g. `Entities.KEY`.
 
         Returns:
-            Entity: The entity from the state."""
+            Entity: every instance of that type, batched (leading axis =
+            instance count).
+
+        Raises:
+            KeyError: if this environment has no entity of that type -
+            check `entity_enum in state.entities` first if unsure."""
         return self.entities[entity_enum]
 
     def set_entity(self, entity_enum: str, entity: Entity) -> State:
-        """Set an entity in the state by its enum.
+        """Replaces one entity type's batch. Mutates `self.entities` in
+        place *and* returns `self` (it does not build a new `State`), so
+        `state.set_entity(...)` and `state = state.set_entity(...)` are
+        equivalent.
 
         Args:
-            entity_enum (str): The enum of the entity to set.
-            entity (Entity): The entity to set.
+            entity_enum (str): an `Entities` key.
+            entity (Entity): the new batched entity (its shape may differ
+                from the old one - e.g. after a pickup moves an instance
+                off-grid).
 
         Returns:
-            State: The updated state."""
+            State: `self`."""
         self.entities[entity_enum] = entity
         return self
 
@@ -520,7 +543,15 @@ class State(struct.PyTreeNode):
         return self
 
     def get_player(self, idx: int = 0) -> Player:
-        """Gets the player entity from the state."""
+        """The player, *unbatched* (navix is single-agent). Unlike the
+        other `get_*` helpers this indexes into the batch and returns one
+        `Player`.
+
+        Args:
+            idx (int): which player - only `0` is meaningful today.
+
+        Returns:
+            Player: the player entity, no leading instance axis."""
         return self.entities[Entities.PLAYER][idx]  # type: ignore
 
     def set_player(self, player: Player, idx: int = 0) -> State:
@@ -584,19 +615,30 @@ class State(struct.PyTreeNode):
         return self.replace(events=events)
 
     def get_positions(self) -> Array:
-        """Get the positions of all the entities in the state."""
+        """Every entity instance's `(row, col)`, concatenated across all
+        types into one `i32[N, 2]` (`N` = total instance count). The
+        ordering matches `get_tags` / `get_sprites` / `get_transparency`,
+        so they can be zipped - this is what the observation functions
+        do to paint entities onto the grid."""
         return jnp.concatenate([self.entities[k].position for k in self.entities])
 
     def get_tags(self) -> Array:
-        """Get the tags of all the entities in the state."""
+        """Every entity instance's `tag`, concatenated into `i32[N]`, in
+        the same order as `get_positions`. Used to build a `categorical`
+        observation."""
         return jnp.concatenate([self.entities[k].tag for k in self.entities])
 
     def get_sprites(self) -> Array:
-        """Get the sprites of all the entities in the state."""
+        """Every entity instance's RGB sprite, concatenated into
+        `u8[N, TILE_SIZE, TILE_SIZE, 3]`, in the same order as
+        `get_positions`. Used to build an `rgb` observation."""
         return jnp.concatenate([self.entities[k].sprite for k in self.entities])
 
     def get_sprites_first_person(self) -> Array:
-        """Returns the sprites with the agent aligned in the north position"""
+        """Like `get_sprites`, but the player's sprite is forced to its
+        north-facing variant. First-person observations rotate the whole
+        view so the player always points up, so its sprite must not also
+        carry a rotation."""
         player_sprite = SPRITES_REGISTRY[Entities.PLAYER][-1][None]  # -1 is north
         sprites = []
         for k, v in self.entities.items():
@@ -607,5 +649,7 @@ class State(struct.PyTreeNode):
         return jnp.concatenate(sprites)
 
     def get_transparency(self) -> Array:
-        """Get the transparency of all the entities in the state."""
+        """Every entity instance's `transparent` flag, concatenated into
+        `bool[N]`, in the same order as `get_positions`. Feeds the
+        first-person view cone."""
         return jnp.concatenate([self.entities[k].transparent for k in self.entities])
