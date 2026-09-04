@@ -1,5 +1,8 @@
+import warnings
+
 import jax
 import jax.numpy as jnp
+import pytest
 import navix as nx
 
 
@@ -301,6 +304,27 @@ def test_lava_crossing_structure_and_solvability():
         last_state = jax.tree.map(lambda x: x[-1], states)
         assert Entities.WALL not in last_state.entities
         assert Entities.LAVA in last_state.entities
+
+
+def test_penalty_coeff_rename_keeps_penality_coeff_as_a_deprecated_alias():
+    # https://github.com/epignatelli/navix/issues/213 - the misspelled
+    # `penality_coeff` field is renamed `penalty_coeff`, with the old
+    # name still readable (and accepted by `create`) but deprecated.
+    env = nx.environments.Room.create(height=5, width=5, penalty_coeff=0.3)
+    assert env.penalty_coeff == 0.3
+
+    with pytest.warns(DeprecationWarning, match="penalty_coeff"):
+        assert env.penality_coeff == 0.3
+
+    with pytest.warns(DeprecationWarning, match="penalty_coeff"):
+        env2 = nx.environments.Room.create(height=5, width=5, penality_coeff=0.2)
+    assert env2.penalty_coeff == 0.2
+
+    # no warning when only the new name is used
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        e = nx.environments.Room.create(height=5, width=5, penalty_coeff=0.1)
+        assert e.penalty_coeff == 0.1
 
 
 if __name__ == "__main__":

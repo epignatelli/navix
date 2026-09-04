@@ -134,22 +134,24 @@ def time_cost(
 def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
-    """`cost` on any step where the player moved into a wall this step
+    """`-cost` on any step where the player moved into a wall this step
     (detected via `events.on_wall_hit`), `0.0` otherwise. Opt-in shaping
-    for tasks that want to discourage bumping walls.
+    for tasks that want to discourage bumping walls; same sign convention
+    as `action_cost` / `time_cost`.
 
     Args:
         prev_state (State): $s_t$ (unused).
         action (Array): the integer action taken (unused).
         state (State): $s_{t+1}$ - read for the wall-hit event.
-        cost (float): the magnitude applied on a wall hit. Default
+        cost (float): the penalty magnitude on a wall hit. Default
             `0.01`.
 
     Returns:
-        Array: `f32[]` - `cost` on a wall hit, else `0.0`. Add it with a
-        negative sign (or via `compose` with a negating operator) to
-        make it a penalty."""
-    return jnp.asarray(events.on_wall_hit(prev_state, action, state), dtype=jnp.float32) * cost
+        Array: `f32[]` - `-cost` on a wall hit, else `0.0`."""
+    return (
+        -jnp.asarray(events.on_wall_hit(prev_state, action, state), dtype=jnp.float32)
+        * cost
+    )
 
 
 def on_door_done(prev_state: State, action: Array, state: State) -> Array:

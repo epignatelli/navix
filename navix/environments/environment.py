@@ -35,6 +35,7 @@ everything else is inherited. Build one with `navix.make(id)` or
 from __future__ import annotations
 
 import abc
+import warnings
 from typing import Any, Callable, Dict, Tuple
 import jax
 import jax.numpy as jnp
@@ -189,9 +190,10 @@ class Environment(struct.PyTreeNode):
         gamma: discount factor. Not used by `step` itself - carried here
             so agents and `reward_fn`s (e.g. time-discounted goal
             rewards) can read it off the environment.
-        penality_coeff: if non-zero, a terminating reward is reduced by
-            `penality_coeff * (t / max_steps)`, i.e. finishing later is
-            worth less. `0.0` disables it.
+        penalty_coeff: if non-zero, a terminating reward is reduced by
+            `penalty_coeff * (t / max_steps)`, i.e. finishing later is
+            worth less. `0.0` disables it. (The old misspelled name
+            `penality_coeff` still works as a deprecated read-only alias.)
         observation_fn: `state -> observation`. One of the functions in
             `navix.observations`.
         reward_fn: `(prev_state, action, state) -> f32[]`.
@@ -212,7 +214,7 @@ class Environment(struct.PyTreeNode):
     reward_space: Space = struct.field(pytree_node=False)
     disable_autoreset: bool = struct.field(pytree_node=False, default=False)
     gamma: float = struct.field(pytree_node=False, default=0.99)
-    penality_coeff: float = struct.field(pytree_node=False, default=0.0)
+    penalty_coeff: float = struct.field(pytree_node=False, default=0.0)
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
@@ -228,6 +230,19 @@ class Environment(struct.PyTreeNode):
     action_set: Tuple[Callable[[State], State], ...] = struct.field(
         pytree_node=False, default=DEFAULT_ACTION_SET
     )
+
+    @property
+    def penality_coeff(self) -> float:
+        """Deprecated misspelling of `penalty_coeff`. Reads still work
+        (with a warning); pass `penalty_coeff` to `create` going
+        forward."""
+        warnings.warn(
+            "Environment.penality_coeff is a deprecated misspelling of "
+            "penalty_coeff; use penalty_coeff.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.penalty_coeff
 
     @classmethod
     def create(
@@ -276,12 +291,20 @@ class Environment(struct.PyTreeNode):
             reward_space (Space | None): `None` -> `Continuous((), -1, 1)`.
             disable_autoreset (bool): see the class attribute.
             **kwargs: extra fields forwarded to the subclass constructor
-                (e.g. `gamma`, `penality_coeff`, or an environment's own
+                (e.g. `gamma`, `penalty_coeff`, or an environment's own
                 layout options like `random_start`).
 
         Returns:
             Environment: the constructed environment.
         """
+        if "penality_coeff" in kwargs:
+            warnings.warn(
+                "Environment.create(penality_coeff=...) is a deprecated "
+                "misspelling; use penalty_coeff.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            kwargs.setdefault("penalty_coeff", kwargs.pop("penality_coeff"))
         if observation_space is None:
             observation_space = cls._get_obs_space_from_fn(
                 width, height, observation_fn
@@ -421,7 +444,7 @@ class Environment(struct.PyTreeNode):
         reward = self.reward_fn(timestep.state, action, state)
         reward = jax.lax.cond(
             step_type == StepType.TERMINATION,
-            lambda reward: reward - self.penality_coeff * (t / self.max_steps),
+            lambda reward: reward - self.penalty_coeff * (t / self.max_steps),
             lambda reward: reward,
             reward,
         )
