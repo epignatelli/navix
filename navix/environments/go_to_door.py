@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's GoToDoor environment - signal `done` at the named coloured door.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from __future__ import annotations
 from typing import Union
@@ -39,6 +45,16 @@ from .registry import register_env
 
 
 class GoToDoor(Environment):
+    """`Navix-GoToDoor-*`. A room with a coloured `Door` on each of the
+    four walls; one is named in `State.mission`. The agent succeeds by
+    signalling `done` next to the target door. Door positions and colours
+    and the room size are randomised each reset.
+
+    Attributes:
+        split_lava: unused by `GoToDoor`; kept for constructor
+            compatibility.
+    """
+
     split_lava: bool = struct.field(pytree_node=False, default=False)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

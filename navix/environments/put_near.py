@@ -66,6 +66,17 @@ from .registry import register_env
 
 
 class PutNear(Environment):
+    """`Navix-PutNear-*`. A room scattered with `n_objects` coloured
+    `Key`/`Ball`/`Box` objects; two are named in `State.mission` - one to
+    carry (`mission[0]`) and one to drop it next to (`mission[1]`).
+    Success: pick up the carry object and drop it within Chebyshev
+    distance 1 of the target. Picking up the wrong object, or any drop
+    attempt, ends the episode (reward `1` only on a correct near-drop).
+
+    Attributes:
+        n_objects: how many objects to scatter.
+    """
+
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

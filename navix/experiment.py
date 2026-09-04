@@ -90,24 +90,30 @@ def hparam_search_fitness(logs: Dict[str, jax.Array]) -> jax.Array:
 
 
 class Experiment:
-    """A class to run an experiment with a given agent and environment.
+    """Trains one `agent` on one `env` for a list of `seeds` and collects
+    the metrics.
+
+    `run()` compiles the agent's `train` once and runs it for every seed
+    (each seed is an independent training run from a different PRNG key),
+    returning the stacked final train state and a `logs` pytree with a
+    leading seed axis. `run_hparam_search()` wraps that in an
+    Evolution-Strategies loop over hyperparameters.
 
     Args:
-        name (str): The name of the experiment.
-        agent (Agent): The agent to use in the experiment.
-        env (Environment): The environment to use in the experiment.
-        env_id (str): The ID of the environment.
-        seeds (Tuple[int, ...]): The seeds to use in the experiment.
-        group (str): The group to use in the experiment.
-
-    Attributes:
-        name (str): The name of the experiment.
-        agent (Agent): The agent to use in the experiment.
-        env (Environment): The environment to use in the experiment.
-        env_id (str): The ID of the environment.
-        seeds (Tuple[int, ...]): The seeds to use in the experiment.
-        group (str): The group to use in the experiment.
-
+        name (str): experiment name; used as the wandb project and as a
+            prefix for run names.
+        agent (Agent): the agent to train (`PPO`, `PQN`, `Dreamer`, or a
+            custom `Agent`). It already holds its own `hparams`.
+        env (Environment): the environment to train on. Usually the same
+            one `nx.make(env_id)` returns.
+        env_id (str): the registered id of `env` (e.g.
+            `"Navix-Empty-5x5-v0"`). Logged as metadata and used to match
+            a run to a `navix.benchmarks` protocol; `""` if `env` is not
+            a registered environment.
+        seeds (Tuple[int, ...]): one training run per seed. Default
+            `(0,)`.
+        group (str): optional wandb group, for aggregating related runs
+            in the dashboard.
     """
 
     def __init__(

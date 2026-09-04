@@ -16,6 +16,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""The `Environment` class and the `Timestep` it produces.
+
+An `Environment` is a frozen JAX pytree: it holds the grid geometry
+(`height`, `width`, `max_steps`) and a set of *pluggable functions* -
+`observation_fn`, `reward_fn`, `termination_fn`, `transitions_fn`,
+`action_set` - that together define the task. `reset` and `step` are pure
+functions of `(key)` / `(timestep, action)`, so they compose with
+`jax.jit`, `jax.vmap` (a batch of environments) and `jax.lax.scan` (a
+whole rollout in one compiled loop).
+
+Concrete environments (`navix.environments.Empty`, `DoorKey`, ...)
+subclass `Environment` and implement `_reset` to lay out their grid;
+everything else is inherited. Build one with `navix.make(id)` or
+`SomeEnv.create(...)`.
+"""
+
 from __future__ import annotations
 
 import abc
@@ -41,49 +57,153 @@ MAX_CATEGORICAL_VALUE = 1 + max(
 
 
 class StepType(struct.PyTreeNode):
+    """The three kinds of timestep, stored as `Timestep.step_type`. The
+    distinction between the two "episode over" cases matters for
+    bootstrapping a value function: bootstrap through a `TRUNCATION`,
+    but not through a `TERMINATION`."""
+
     TRANSITION = jnp.asarray(0)
-    """Standard timestep transition: the episode continues"""
+    """The episode continues; `step` will keep advancing it."""
     TRUNCATION = jnp.asarray(1)
-    """The environment reached its maximum number of timesteps.
-    The episode ended, but the agent could have still collected rewards.
-    The value of the state is not 0"""
+    """The episode was cut off at `max_steps` while still ongoing. The
+    final state is *not* absorbing - its value is non-zero - so a value
+    estimate should bootstrap through it."""
     TERMINATION = jnp.asarray(2)
-    """The episode ended and the current state is an absorbing state."""
+    """The episode reached a genuine terminal (absorbing) state - the
+    goal, lava, a wrong toggle, etc. Its value is 0; do not bootstrap."""
 
 
 class Timestep(struct.PyTreeNode):
+    """What `Environment.reset` and `Environment.step` return - one moment
+    in a trajectory.
+
+    Read it as the *result* of the transition that produced it: `state`
+    and `t` describe the world now, and `action` / `reward` / `step_type`
+    are the action that got here and its consequences. So after
+    `ts_next = env.step(ts, a)`: `ts_next.state` is $s_{t+1}$,
+    `ts_next.action` is $a$ (`ts.action` is discarded), `ts_next.reward`
+    is $R(s_t, a, s_{t+1})$, and `ts_next.observation` is the observation
+    of $s_{t+1}$.
+
+    Every field is a JAX array (or a pytree of them), so a `Timestep`
+    `vmap`s over a batch of environments and `scan`s over time.
+
+    Attributes:
+        t: steps since the last reset, `i32[]` (or `i32[batch]` when
+            vmapped). `0` exactly on a `reset` output.
+        observation: the agent's view of `state`, produced by the
+            environment's `observation_fn`. Shape and dtype are described
+            by `env.observation_space`; for a `pomdp` observation
+            function this is a partial (first-person, cropped) view.
+        action: the action that led to this timestep, `i32[]`. On a
+            `reset` output it is a placeholder `0`.
+        reward: the scalar reward for the transition into this timestep,
+            `f32[]`, produced by the environment's `reward_fn` (bounds
+            given by `env.reward_space`).
+        step_type: a `StepType` value (`0`/`1`/`2`) - see `StepType`.
+        state: the full `State` (the true MDP state); the observation is
+            a function of this. Also carries the PRNG `key` and the
+            rendering `cache`.
+        info: a plain dict for extra per-step quantities. navix populates
+            `info["return"]` (undiscounted return so far this episode);
+            you may add your own keys.
+    """
+
     t: Array
-    """The number of timesteps elapsed from the last reset of the environment"""
     observation: Array
-    """The observation corresponding to the current state (for POMDPs)"""
     action: Array
-    """The action taken by the agent at the current timestep a_t = $\\pi(s_t)$, where $s_t$ is `state`"""
     reward: Array
-    """The reward $r_{t=1}$ received by the agent after taking action $a_t$"""
     step_type: Array
-    """The type of the current timestep, 0 for TRANSITION, 1 for TRUNCATION, 2 for TERMINATION"""
     state: State
-    """The true state of the MDP, $s_t$ before taking action `action`"""
     info: Dict[str, Any] = struct.field(default_factory=dict)
-    """Additional information about the environment. Useful for accumulations (e.g. returns)"""
 
     def is_truncation(self) -> Array:
+        """`True` where `step_type == StepType.TRUNCATION` (episode cut off
+        at `max_steps`). Boolean, same batch shape as `step_type`."""
         return self.step_type == StepType.TRUNCATION
 
     def is_termination(self) -> Array:
+        """`True` where `step_type == StepType.TERMINATION` (genuine
+        absorbing terminal state). Boolean, same batch shape as
+        `step_type`."""
         return self.step_type == StepType.TERMINATION
 
     def is_transition(self) -> Array:
+        """`True` where the episode is still ongoing
+        (`step_type == StepType.TRANSITION`). Boolean."""
         return self.step_type == StepType.TRANSITION
 
     def is_done(self) -> Array:
+        """`True` where the episode has ended for either reason -
+        truncation or termination. This is the mask you use to segment
+        trajectories or to stop bootstrapping a return."""
         return jnp.logical_or(self.is_truncation(), self.is_termination())
 
     def is_start(self) -> Array:
+        """`True` on the first timestep of an episode (`t == 0`) - both
+        the initial `reset` and every post-autoreset step. Robust to
+        navix deferring autoreset by one `step` call, unlike checking a
+        previous step's `is_done()`."""
         return self.t == 0
 
 
 class Environment(struct.PyTreeNode):
+    """A gridworld task as a frozen JAX pytree.
+
+    The task is defined by five pluggable pieces, each a plain function
+    you can override per-`make`/`create` call:
+
+    - `observation_fn(state) -> Array` - what the agent sees.
+    - `transitions_fn(state, action, action_set) -> State` - the world
+      dynamics (applies `action_set[action]`, then any stochastic
+      entity updates).
+    - `reward_fn(prev_state, action, state) -> f32[]` - the reward for a
+      transition. The `(prev_state, action, state)` triple is the
+      convention across `navix.rewards` / `terminations` / `events`:
+      `prev_state` is $s_t$, `state` is $s_{t+1}$.
+    - `termination_fn(prev_state, action, state) -> bool[]` - whether
+      $s_{t+1}$ is a genuine terminal state (truncation at `max_steps`
+      is added on top automatically).
+    - `action_set` - the tuple of `state -> state` primitives an integer
+      action indexes into.
+
+    Subclasses only implement `_reset` (the initial grid layout);
+    `reset`/`step` are inherited. Instances are immutable - use
+    `env.replace(...)` (from `flax.struct`) to get a modified copy.
+
+    Attributes:
+        height: grid height in cells, including the surrounding wall.
+        width: grid width in cells, including the surrounding wall.
+        max_steps: truncation horizon - `step` returns `StepType.TRUNCATION`
+            once `t >= max_steps`. Default (via `create`) is
+            `4 * height * width`.
+        observation_space: `Space` describing `observation_fn`'s output
+            (shape, dtype, bounds).
+        action_space: `Discrete` over `len(action_set)`.
+        reward_space: `Continuous` bound on the reward, `[-1, 1]` by
+            default.
+        disable_autoreset: if `False` (default), calling `step` on a
+            timestep whose episode already ended returns a fresh `reset`
+            instead of stepping. Set `True` to handle episode boundaries
+            yourself.
+        gamma: discount factor. Not used by `step` itself - carried here
+            so agents and `reward_fn`s (e.g. time-discounted goal
+            rewards) can read it off the environment.
+        penality_coeff: if non-zero, a terminating reward is reduced by
+            `penality_coeff * (t / max_steps)`, i.e. finishing later is
+            worth less. `0.0` disables it.
+        observation_fn: `state -> observation`. One of the functions in
+            `navix.observations`.
+        reward_fn: `(prev_state, action, state) -> f32[]`.
+        termination_fn: `(prev_state, action, state) -> bool[]`.
+        transitions_fn: `(state, action, action_set) -> state`. Usually
+            `transitions.deterministic_transition` or
+            `transitions.stochastic_transition` (the default, which also
+            moves balls).
+        action_set: tuple of `state -> state` callables; an integer
+            action `a` applies `action_set[a]`.
+    """
+
     height: int = struct.field(pytree_node=False)
     width: int = struct.field(pytree_node=False)
     max_steps: int = struct.field(pytree_node=False)
@@ -130,6 +250,38 @@ class Environment(struct.PyTreeNode):
         disable_autoreset: bool = False,
         **kwargs,
     ) -> Environment:
+        """Builds an environment, filling in the spaces and `max_steps`
+        that weren't given.
+
+        This is the shared constructor concrete environments call from
+        their own `create`; `navix.make(id, **kwargs)` ends up here too.
+
+        Args:
+            height (int): grid height in cells (walls included).
+            width (int): grid width in cells (walls included).
+            max_steps (int | None): truncation horizon. `None` ->
+                `4 * height * width`.
+            observation_fn (Callable): `state -> observation`, from
+                `navix.observations`. Default `observations.symbolic`.
+            reward_fn (Callable): `(prev_state, action, state) -> f32[]`.
+            termination_fn (Callable): `(prev_state, action, state) -> bool[]`.
+            transitions_fn (Callable): `(state, action, action_set) -> state`.
+            action_set (tuple[Callable, ...]): `state -> state`
+                primitives indexed by the integer action.
+            observation_space (Space | None): `None` infers it from
+                `observation_fn` and the grid size (works for the
+                built-in observation functions; pass one explicitly for
+                a custom `observation_fn`).
+            action_space (Space | None): `None` -> `Discrete(len(action_set))`.
+            reward_space (Space | None): `None` -> `Continuous((), -1, 1)`.
+            disable_autoreset (bool): see the class attribute.
+            **kwargs: extra fields forwarded to the subclass constructor
+                (e.g. `gamma`, `penality_coeff`, or an environment's own
+                layout options like `random_start`).
+
+        Returns:
+            Environment: the constructed environment.
+        """
         if observation_space is None:
             observation_space = cls._get_obs_space_from_fn(
                 width, height, observation_fn
@@ -160,15 +312,64 @@ class Environment(struct.PyTreeNode):
 
     @abc.abstractmethod
     def _reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
+        """Lays out the initial grid and returns the first `Timestep`.
+        Implemented by each concrete environment; call `reset` (which
+        wraps this) rather than this directly.
+
+        Args:
+            key (Array): PRNG key for any randomised placement.
+            cache (RenderingCache | None): reuse a rendering cache built
+                for a same-shaped grid; `None` builds a fresh one.
+
+        Returns:
+            Timestep: `t = 0`, `step_type = TRANSITION`, placeholder
+            `action`/`reward`."""
         raise NotImplementedError()
 
     def reset(self, key: Array, cache: RenderingCache | None = None) -> Timestep:
+        """Starts a new episode.
+
+        Args:
+            key (Array): a `jax.random` PRNG key. Split it yourself
+                across a batch (`jax.vmap(env.reset)(keys)`).
+            cache (RenderingCache | None): optional pre-built rendering
+                cache (see `_reset`).
+
+        Returns:
+            Timestep: the first timestep - `t = 0`, `is_start()` true,
+            `info["return"] = 0.0`. `state.key` is a fresh key derived
+            from `key`, so the environment's own stochasticity is
+            reproducible from the single seed you pass here.
+        """
         k1, k2 = jax.random.split(key)
         timestep = self._reset(k1, cache)
         timestep.info["return"] = jnp.asarray(0.0)
         return timestep.replace(state=timestep.state.replace(key=k2))
 
     def step(self, timestep: Timestep, action: Array) -> Timestep:
+        """Advances one timestep, or auto-resets at an episode boundary.
+
+        If `timestep` already ended an episode (its `step_type > 0`) and
+        `disable_autoreset` is `False`, this ignores `action` and returns
+        a fresh `reset` seeded from `timestep.state.key`. Otherwise it
+        applies `action` via `transitions_fn`, then evaluates
+        `reward_fn`, `termination_fn` and `observation_fn` on the result.
+
+        Autoreset is deferred by one call: the terminal timestep is
+        returned as-is (so you can read its final reward), and the reset
+        happens on the *next* `step`. Detect a fresh episode with
+        `timestep.is_start()`, not by looking back at `is_done()`.
+
+        Args:
+            timestep (Timestep): the current timestep (from `reset` or a
+                previous `step`).
+            action (Array): an integer action, `i32[]`, in
+                `[0, len(action_set))`. Indexes `action_set`.
+
+        Returns:
+            Timestep: the next timestep. `info["return"]` accumulates the
+            undiscounted episodic reward.
+        """
         # autoreset if necessary: 0 = transition, 1 = truncation, 2 = termination
         should_reset = timestep.step_type > 0
         return jax.lax.cond(
@@ -179,12 +380,16 @@ class Environment(struct.PyTreeNode):
         )
 
     def _step(self, timestep: Timestep, action: Array) -> Timestep:
-        """
+        """The non-autoreset half of `step`: apply `action` to
+        `timestep.state` and build the resulting `Timestep` at `t + 1`.
+        `step` calls this; call `step`, not this.
+
         Args:
-            timestep (Timestep): The timestep at time $t$.
-            action (Array): The action $a_t \\sim \\pi(A_t | s_t)$
+            timestep (Timestep): the timestep at time $t$.
+            action (Array): the integer action $a_t$.
+
         Returns:
-            (Timestep): The timestep at time $t + 1$
+            Timestep: the timestep at time $t + 1$.
         """
         # events are a per-step record - EventsManager's own docstring
         # says "which events happened this timestep" - but
@@ -240,6 +445,20 @@ class Environment(struct.PyTreeNode):
     def termination(
         self, prev_state: State, action: Array, state: State, t: Array
     ) -> Array:
+        """Combines the task's `termination_fn` with the `max_steps`
+        truncation into a single `StepType`.
+
+        Args:
+            prev_state (State): $s_t$.
+            action (Array): $a_t$.
+            state (State): $s_{t+1}$.
+            t (Array): the step count of `state` (`i32[]`).
+
+        Returns:
+            Array: a `StepType` value - `TERMINATION` if `termination_fn`
+            fired, else `TRUNCATION` if `t >= max_steps`, else
+            `TRANSITION`. Termination takes precedence over truncation.
+        """
         terminated = self.termination_fn(prev_state, action, state)
         truncated = t >= self.max_steps
         return terminations.check_truncation(terminated, truncated)
@@ -248,6 +467,10 @@ class Environment(struct.PyTreeNode):
     def _get_obs_space_from_fn(
         width: int, height: int, observation_fn: Callable[[State], Array]
     ) -> Space:
+        """Infers the `observation_space` for a built-in `observation_fn`
+        and grid size. Raises `NotImplementedError` for an unrecognised
+        function - pass `observation_space` explicitly to `create` in
+        that case."""
         if observation_fn == observations.none:
             return Continuous.create(
                 shape=(), minimum=jnp.asarray(0.0), maximum=jnp.asarray(0.0)

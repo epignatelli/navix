@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's FourRooms environment - four quadrants joined by narrow doorways.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from __future__ import annotations
 from typing import Union
@@ -43,6 +49,13 @@ from .registry import register_env
 
 
 class FourRooms(Environment):
+    """`Navix-FourRooms-*`. The classic four-rooms layout: a cross of
+    interior walls divides the room into quadrants, each connected to its
+    neighbours by a one-cell doorway at a randomised position. Player and
+    goal are placed at random free cells (any two rooms). Default
+    reward/termination; the difficulty is the long, gap-constrained path
+    between quadrants."""
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         assert self.height > 4, f"Insufficient height for room {self.height} < 4"
         assert self.width > 4, f"Insufficient width for room {self.width} < 4"

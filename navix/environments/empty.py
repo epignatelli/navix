@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's Empty environment - navigation in a bare walled room (`Room`).
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from __future__ import annotations
 from typing import Union
@@ -37,6 +43,18 @@ from .registry import register_env
 
 
 class Room(Environment):
+    """A single empty walled room - navix's `Empty` environments
+    (`Navix-Empty-*`). One goal, one player, no obstacles; the task is
+    pure navigation. Reward and termination are the defaults: `+1` on
+    reaching the goal minus a per-step cost, episode ends on the goal.
+
+    Attributes:
+        random_start: `False` (the `Navix-Empty-NxN-v0` ids) places the
+            player at `(1, 1)` facing east and the goal at the opposite
+            corner. `True` (the `-Random-` ids) samples both positions
+            and the player's facing each reset.
+    """
+
     random_start: bool = struct.field(pytree_node=False, default=False)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

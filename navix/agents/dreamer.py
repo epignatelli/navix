@@ -111,6 +111,11 @@ from ..states import State
 
 
 class DreamerHparams(HParams):
+    """Hyperparameters for `Dreamer` (DreamerV3). Frozen; `.replace(...)`
+    for a variant. Groups the world-model, actor and critic knobs plus
+    the imagination-rollout schedule; sized for navix's small
+    observations rather than Atari."""
+
     # Training schedule
     budget: int = struct.field(pytree_node=False, default=1_000_000)
     """Number of environment frames to train for."""

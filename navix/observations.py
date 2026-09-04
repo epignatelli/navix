@@ -18,6 +18,34 @@
 # under the License.
 
 
+"""Observation functions: how a `State` is turned into what the agent sees.
+
+Pick one and pass it as `observation_fn` to `navix.make` / `Environment.create`.
+Two families:
+
+- **Fully observable** (`categorical`, `symbolic`, `rgb`) - the whole
+  `height x width` grid, always the same orientation.
+- **First person / POMDP** (`categorical_first_person`,
+  `symbolic_first_person`, `rgb_first_person`) - cropped to a
+  `(2 * RADIUS + 1)` square with the player at the bottom-centre facing
+  *up*, so the observation is egocentric and rotation-invariant. Cells
+  the player cannot see (behind a wall, outside the view cone) are masked
+  to a "not seen" fill.
+
+Three encodings, shared by both families:
+
+- **categorical** - one integer per cell, the entity's tag (see
+  `entities.EntityIds`); shape `(H, W)`.
+- **symbolic** - three integers per cell `(tag, colour, state)` as in
+  MiniGrid; shape `(H, W, 3)`, `uint8`.
+- **rgb** - a rendered image, `uint8`, each cell a `TILE_SIZE x TILE_SIZE`
+  sprite; shape `(H * TILE_SIZE, W * TILE_SIZE, 3)`.
+
+`Environment` infers the matching `observation_space` for these built-in
+functions; a custom `observation_fn` needs `observation_space` passed
+explicitly.
+"""
+
 from __future__ import annotations
 import jax
 
@@ -38,36 +66,48 @@ from .entities import EntityIds
 
 
 RADIUS = 3
+"""Half-size of the first-person view: those observations are
+`(2 * RADIUS + 1)` cells on a side (default `3` -> a 7x7 window). Change
+it with `set_radius` *before* building an environment - `Environment`
+reads it when it computes `observation_space`."""
 
 
 def set_radius(radius: int):
+    """Sets the module-global `RADIUS` used by every `*_first_person`
+    observation. Call it before `navix.make` so the environment's
+    `observation_space` picks up the new size.
+
+    Args:
+        radius (int): the new half-window size; the view becomes
+            `(2 * radius + 1)` cells square."""
     global RADIUS
     RADIUS = radius
 
 
 def none(state: State) -> Array:
-    """An empty observation represented as an array of shape f32[0].
-    Useful for testing purposes.
+    """The empty observation - shape `f32[0]`. Use it when the agent
+    should learn from `state`/`reward` directly (e.g. debugging, or a
+    hand-coded policy) and never looks at `observation`.
 
     Args:
-        state (State): The current state of the game.
+        state (State): the current state (ignored).
 
     Returns:
-        Array: A 0-shaped array `f32[0]`."""
+        Array: an empty `f32[0]` array."""
     return jnp.asarray(())
 
 
 def categorical(state: State) -> Array:
-    """Fully observable grid with a categorical state representation.
-    Each entity is represented by its unique integer tag.
-    
+    """The whole grid as one integer per cell: the tag of whatever entity
+    occupies it (`0` for empty floor, `-1`-marked walls become their tag
+    via `entities.EntityIds`), fully observable.
+
     Args:
-        state (State): The current state of the game.
-    
+        state (State): the current state.
+
     Returns:
-        Array: A grid of integers, where each integer represents an entity, \
-        represented as an array of shape `i32[H, W]`, where `H` and `W` are the height \
-        and width of the grid."""
+        Array: `i32[H, W]` (`H = env.height`, `W = env.width`). Entities
+        that have been picked up (off-grid) do not appear."""
     # get idx of entity on the set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tags corresponding to the entities
@@ -87,15 +127,16 @@ def categorical(state: State) -> Array:
 
 
 def categorical_first_person(state: State) -> Array:
-    """Categorical state representation, but cropped to the agent's view, and aligned \
-    with the agent's direction, such that the agent always points upwards.
-    
+    """The egocentric version of `categorical`: one tag per cell, cropped
+    to a `(2 * RADIUS + 1)` square around the player and rotated so the
+    player sits at the bottom-centre facing up. Cells outside the view
+    cone or occluded by a wall are set to `0` (not seen).
+
     Args:
-        state (State): The current state of the game.
+        state (State): the current state.
 
     Returns:
-        Array: A grid of integers, where each integer represents an entity, \
-        represented as an array of shape `i32[2 * RADIUS + 1, 2 * RADIUS + 1]`."""
+        Array: `i32[2 * RADIUS + 1, 2 * RADIUS + 1]`."""
     # get transparency map
     transparency_map = jnp.where(state.grid == 0, 1, 0)
     positions = state.get_positions()
@@ -133,19 +174,18 @@ def categorical_first_person(state: State) -> Array:
 
 
 def symbolic(state: State) -> Array:
-    """Fully observable grid with a symbolic state representation as originally \
-    proposed in the MiniGrid environment.
-    The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED). The
-    last layer might also contain the direction of the entity, for example, the
-    direction of the agent.
-    
+    """MiniGrid's symbolic encoding: three integers per cell,
+    `(object_tag, colour_index, state)`, fully observable. `object_tag` is
+    the entity id (empty floor and walls have their own tags);
+    `colour_index` indexes the palette (`0` when the entity has no
+    colour); the third channel is the entity's own discrete state - a
+    door's open/closed/locked, or the player's facing direction.
+
     Args:
-        state (State): The current state of the game.
-        
+        state (State): the current state.
+
     Returns:
-        Array: A grid of integers, where each integer represents an entity, \
-        represented as an array of shape `u8[H, W, 3]`, where `H` and `W` are the height \
-        and width of the grid."""
+        Array: `u8[H, W, 3]` (`H = env.height`, `W = env.width`)."""
     # initialise as all floors
     H, W = state.grid.shape
     obs = jnp.zeros((H, W, 3), dtype=jnp.uint8)
@@ -183,16 +223,17 @@ def symbolic(state: State) -> Array:
 
 
 def symbolic_first_person(state: State) -> Array:
-    """First person view with a symbolic state representation, but cropped to the \
-    agent's view, and aligned with the agent's direction, such that the agent always \
-    points upwards. See `symbolic` for more details.
-    
+    """The egocentric version of `symbolic`: the `(tag, colour, state)`
+    triple per cell, cropped to a `(2 * RADIUS + 1)` square around the
+    player and rotated so the player faces up. Out-of-view / occluded
+    cells are filled with the wall symbol; the player's own cell shows
+    what it is carrying.
+
     Args:
-        state (State): The current state of the game.
-    
+        state (State): the current state.
+
     Returns:
-        Array: A grid of integers, where each integer represents an entity, \
-        represented as an array of shape `u8[2 * RADIUS + 1, 2 * RADIUS + 1, 3]`."""
+        Array: `u8[2 * RADIUS + 1, 2 * RADIUS + 1, 3]`."""
     # get transparency map
     obs = symbolic(state)
 
@@ -217,18 +258,16 @@ def symbolic_first_person(state: State) -> Array:
 
 
 def rgb(state: State) -> Array:
-    """Fully observable grid with an RGB state representation.
-    Each entity is represented by its unique RGB sprite. The RGB sprites are \
-    stored in a cache, and the entities are placed on the grid according to their \
-    positions.
-    
+    """The whole grid rendered as an RGB image, fully observable. Each
+    cell is a `TILE_SIZE x TILE_SIZE` sprite (walls, floor grid lines,
+    entities) drawn from `state.cache`.
+
     Args:
-        state (State): The current state of the game.
-    
+        state (State): the current state.
+
     Returns:
-        Array: An RGB image of the grid, represented as an array of shape \
-        `u8[H * S, W * S, 3]`, where `H` and `W` are the height and width of the grid,
-        and `S` is the size of the tile."""
+        Array: `u8[H * TILE_SIZE, W * TILE_SIZE, 3]` (`H = env.height`,
+        `W = env.width`)."""
     # get idx of entity on the flat set of patches
     indices = idx_from_coordinates(state.grid, state.get_positions())
     # get tiles corresponding to the entities
@@ -247,18 +286,16 @@ def rgb(state: State) -> Array:
 
 
 def rgb_first_person(state: State) -> Array:
-    """First person view with an RGB state representation.
-    The image is cropped to the agent's view, and aligned with the agent's direction, \
-    such that the agent always points upwards. See `rgb` for more details.
-    See `rgb` for more details.
+    """The egocentric version of `rgb`: the rendered image cropped to a
+    `(2 * RADIUS + 1)`-tile square around the player and rotated so the
+    player faces up. Out-of-view / occluded tiles are filled with the
+    dimmed "unseen" grey.
 
     Args:
-        state (State): The current state of the game.
-    
+        state (State): the current state.
+
     Returns:
-        Array: An RGB image of the agent's view, represented as an array of shape \
-        `u8[(2 * RADIUS + 1) * S, (2 * RADIUS + 1) * S, 3]`, where 
-        `S` is the size of the tile."""
+        Array: `u8[(2 * RADIUS + 1) * TILE_SIZE, (2 * RADIUS + 1) * TILE_SIZE, 3]`."""
     # get the player
     player = state.get_player()
 

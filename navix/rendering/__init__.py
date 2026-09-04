@@ -18,4 +18,8 @@
 # under the License.
 
 
+"""Sprite/tile rendering for `rgb` observations: the colour `PALETTE`
+and sprite `SPRITES_REGISTRY` (`registry`), and the pre-rendered
+`RenderingCache` + patch plumbing (`cache`)."""
+
 from . import cache, registry

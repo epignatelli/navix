@@ -63,6 +63,17 @@ from .registry import register_env
 
 
 class GoToObject(Environment):
+    """`Navix-GoToObject-*`. A room scattered with `n_objects` coloured
+    `Key`/`Ball`/`Box` objects of distinct colours; one is named in
+    `State.mission`. The agent succeeds by signalling `done` while
+    orthogonally adjacent to the target (using `toggle` fails outright).
+    Each object's type is drawn independently per episode. Uses
+    `deterministic_transition` so balls stay put.
+
+    Attributes:
+        n_objects: how many objects to scatter.
+    """
+
     n_objects: int = struct.field(pytree_node=False, default=2)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

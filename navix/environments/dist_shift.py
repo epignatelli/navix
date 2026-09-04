@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's DistShift environment - two fixed layouts to test distribution shift.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from __future__ import annotations
 from typing import Union
@@ -37,6 +43,19 @@ from .registry import register_env
 
 
 class DistShift(Environment):
+    """`Navix-DistShift1-v0` / `Navix-DistShift2-v0`. A small room with a
+    fixed strip of `Lava` between the player (top-left) and the goal
+    (top-right). The two ids differ only in where the lava's far edge
+    sits (`split_lava`), so a policy that overfits the first layout fails
+    on the second - the environment exists to test distribution shift.
+    Nothing is randomised.
+
+    Attributes:
+        split_lava: `False` -> the compact `DistShift1` layout; `True` ->
+            the `DistShift2` layout with the lava strip reaching further
+            down.
+    """
+
     split_lava: bool = struct.field(pytree_node=False, default=False)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

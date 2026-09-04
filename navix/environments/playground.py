@@ -111,6 +111,13 @@ def wall_segments(
 
 
 class Playground(Environment):
+    """`Navix-Playground-v0`. A 3x3 grid of rooms joined by one random
+    unlocked door per adjacent pair, with 12 randomly-typed
+    `Key`/`Ball`/`Box` objects scattered throughout. There is no goal:
+    reward is always `0` (`rewards.free`) and the episode only ever ends
+    at `max_steps`. Intended as a sandbox for exploration / unsupervised
+    objectives."""
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         vertical_walls, horizontal_walls = wall_segments(self.height, self.width)
         room_size = self.height // 3  # square rooms - == self.width // 3 too

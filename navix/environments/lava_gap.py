@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's LavaGap environment - cross a lava strip through its single gap.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from typing import Union
 
@@ -37,6 +43,13 @@ from .registry import register_env
 
 
 class LavaGap(Environment):
+    """`Navix-LavaGap-*`. A room with a vertical strip of `Lava` spanning
+    it, broken by a single one-cell gap at a randomised row. The agent
+    starts in one corner, the goal is in the opposite one; it must find
+    and pass through the gap. Stepping into lava ends the episode with no
+    reward (via the default `on_lava_fall` termination); reaching the
+    goal gives `+1` minus a step cost."""
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         # check minimum height and width
         assert (

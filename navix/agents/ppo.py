@@ -2,6 +2,13 @@
 # https://github.com/luchris429/purejaxrl/blob/main/purejaxrl/ppo.py
 # which is in turn inspired by:
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo.py
+"""`PPO`: a Proximal Policy Optimization agent whose whole training run
+(`num_updates` iterations of rollout collection + minibatch SGD) is one
+`jax.lax.scan`. `PPOHparams` holds the knobs; `ActorCritic` (from
+`navix.agents.models`) is the network - swap its encoder for
+partial-observability. Structurally mirrored by `navix.agents.pqn`.
+"""
+
 from functools import partial
 from typing import Any, Callable, Dict, Tuple
 
@@ -24,6 +31,10 @@ from .models import ActorCritic
 
 
 class PPOHparams(HParams):
+    """Hyperparameters for `PPO`. Frozen; `.replace(...)` for a variant.
+    The per-field defaults are tuned for navix's small gridworlds, not
+    copied from a CartPole reference."""
+
     budget: int = struct.field(pytree_node=False, default=1_000_000)
     """Number of environment frames to train for."""
     num_envs: int = struct.field(pytree_node=False, default=16)

@@ -17,6 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""MiniGrid's DoorKey environment - fetch a key to unlock a door to the goal.
+
+See the environment class in this module for the task, layout and
+reward/termination details.
+"""
+
 
 from typing import Union
 import jax
@@ -37,6 +43,19 @@ from .registry import register_env
 
 
 class DoorKey(Environment):
+    """`Navix-DoorKey-*`. A room split in two by an interior wall with a
+    single locked yellow door; a matching key lies in the first half, the
+    goal in the second. The agent must pick up the key, unlock and open
+    the door, then reach the goal. Default reward/termination (`+1` at
+    the goal minus a step cost). The wall column and door row are
+    randomised every reset.
+
+    Attributes:
+        random_start: `False` puts the player at a fixed corner of the
+            first room; `True` (the `-Random-` ids) samples the player
+            and key positions within the first room.
+    """
+
     random_start: bool = struct.field(pytree_node=False, default=False)
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:

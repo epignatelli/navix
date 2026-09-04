@@ -16,6 +16,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Reward functions: the scalar reward for one transition.
+
+An `Environment`'s `reward_fn` has the signature shared with
+`navix.terminations` and `navix.events`:
+
+    fn(prev_state: State, action: Array, state: State) -> Array
+
+- `prev_state` is $s_t$, `action` is $a_t$, `state` is $s_{t+1}$. Some
+  functions need `prev_state` to reward a *change* this step; most only
+  read `state`.
+- The return is a scalar `f32[]`. `Environment.reward_space` bounds it
+  (`[-1, 1]` by default). Positive functions here return `1.0` on the
+  rewarded event and `0.0` otherwise; the `*_cost` functions return a
+  small negative shaping term every step.
+
+`compose` reduces several into one (summed by default), and
+`DEFAULT_TASK` is `on_goal_reached` minus a per-step `action_cost`.
+"""
+
 from __future__ import annotations
 from typing import Callable
 
@@ -31,19 +50,19 @@ def compose(
     *reward_functions: Callable[[State, Array, State], Array],
     operator: Callable = jnp.sum,
 ) -> Callable:
-    """Compose multiple reward functions into a single reward function.
-    The functions are called in order and the results are reduced using the `operator` \
-    function.
-    
+    """Combines several reward functions into one.
+
     Args:
-        *reward_functions (Callable[[State, Array, State], Array]): A list of reward functions.
-        operator (Callable): The operator to reduce the results of the reward functions.
-        It must be a function that takes a list of arrays, or an array and returns an \
-        array of size `f32[]`.
-    
+        *reward_functions (Callable): reward functions to combine, each
+            `(prev_state, action, state) -> f32[]`.
+        operator (Callable): reduces the stacked `f32[len(reward_functions)]`
+            results to a scalar `f32[]`. Default `jnp.sum` - the rewards
+            add up (use `on_goal_reached` for `+1` and an `action_cost`
+            for the `-` shaping term, as `DEFAULT_TASK` does).
+
     Returns:
-        Callable: A composed reward function that applies the `operator` to the results of the \
-        reward functions."""
+        Callable: a single `(prev_state, action, state) -> f32[]`
+        function."""
     return lambda prev_state, action, state: operator(
         jnp.asarray(
             [f(prev_state, action, state) for f in reward_functions], dtype=jnp.float32
@@ -52,15 +71,12 @@ def compose(
 
 
 def free(prev_state: State, action: Array, state: State) -> Array:
-    """A reward function that always returns 0, to simulate reward-free learning.
-
-    Args:
-        prev_state (State): The state before the action was taken.
-        action (Array): The action taken by the player.
-        state (State): The current state of the game.
+    """Always `0.0` - the reward-free setting, for unsupervised or
+    exploration-driven training where only the transition dynamics
+    matter.
 
     Returns:
-        Array: A scalar array `f32[]` with value 0."""
+        Array: `f32[]`, always `0.0`."""
     return jnp.asarray(0.0, dtype=jnp.float32)
 
 
@@ -79,18 +95,19 @@ def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
 def action_cost(
     prev_state: State, action: Array, new_state: State, cost: float = 0.01
 ) -> Array:
-    """A reward function that returns a negative value when an action is taken. 
-    All actions have a cost of `cost`, except for noops.
-    
+    """A per-step penalty of `-cost` on every action except the one at
+    index `6` (the `done` action in the default `MINIGRID_ACTION_SET`),
+    which is free. Part of `DEFAULT_TASK`, where it makes shorter
+    successful episodes score higher.
+
     Args:
-        prev_state (State): The previous state of the game.
-        action (Array): The action taken.
-        new_state (State): The new state of the game.
-        cost (float): The cost of taking an action.
-    
+        prev_state (State): $s_t$ (unused).
+        action (Array): the integer action taken.
+        new_state (State): $s_{t+1}$ (unused).
+        cost (float): the per-action penalty magnitude. Default `0.01`.
+
     Returns:
-        Array: A scalar array `f32[]` with value -`cost` if the action is not a noop, \
-        and 0 otherwise."""
+        Array: `f32[]` - `-cost` if `action != 6`, else `0.0`."""
     # noops are free
     return -jnp.asarray(action != 6, dtype=jnp.float32) * cost
 
@@ -98,17 +115,17 @@ def action_cost(
 def time_cost(
     prev_state: State, action: Array, new_state: State, cost: float = 0.01
 ) -> Array:
-    """A reward function that returns a negative value as time passes, paying a cost \
-    of `cost` at each time step.
+    """A flat `-cost` on every step, regardless of the action (unlike
+    `action_cost`, which exempts `done`).
 
     Args:
-        prev_state (State): The previous state of the game.
-        action (Array): The action taken.
-        new_state (State): The new state of the game.
-        cost (float): The cost of time passing.
-    
+        prev_state (State): $s_t$ (unused).
+        action (Array): the integer action taken (unused).
+        new_state (State): $s_{t+1}$ (unused).
+        cost (float): the per-step penalty magnitude. Default `0.01`.
+
     Returns:
-        Array: A scalar array `f32[]` with value -`cost`.
+        Array: `f32[]`, always `-cost`.
     """
     # time always has a cost
     return -jnp.asarray(cost, dtype=jnp.float32)
@@ -117,16 +134,21 @@ def time_cost(
 def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
-    """A reward function that returns a negative value when the agent hits a wall, \
-    paying a cost of `cost` for each wall hit.
-    
+    """`cost` on any step where the player moved into a wall this step
+    (detected via `events.on_wall_hit`), `0.0` otherwise. Opt-in shaping
+    for tasks that want to discourage bumping walls.
+
     Args:
-        state (State): The current state of the game.
-        cost (float): The cost of hitting a wall.
-    
+        prev_state (State): $s_t$ (unused).
+        action (Array): the integer action taken (unused).
+        state (State): $s_{t+1}$ - read for the wall-hit event.
+        cost (float): the magnitude applied on a wall hit. Default
+            `0.01`.
+
     Returns:
-        Array: A scalar array `f32[]` with value -`cost` if the agent hits a wall, \
-        and 0 otherwise."""
+        Array: `f32[]` - `cost` on a wall hit, else `0.0`. Add it with a
+        negative sign (or via `compose` with a negating operator) to
+        make it a penalty."""
     return jnp.asarray(events.on_wall_hit(prev_state, action, state), dtype=jnp.float32) * cost
 
 
@@ -189,16 +211,13 @@ def on_ordered_doors_success(prev_state: State, action: Array, state: State) -> 
 
 
 def on_target_done(prev_state: State, action: Array, state: State) -> Array:
-    """`GoToObject`'s reward: 1 if `done` was called while facing the
-    mission target, 0 otherwise.
-
-    Args:
-        prev_state (State): The previous state of the game.
-        action (Array): The action taken by the player.
-        state (State): The current state of the game.
+    """`GoToObject`'s reward: `1.0` if the `done` action was taken while
+    the player is orthogonally adjacent to the mission's target object
+    (facing it is not required; see `events.on_target_done`), else
+    `0.0`.
 
     Returns:
-        Array: A scalar array `f32[]`."""
+        Array: `f32[]`."""
     return jnp.asarray(events.on_target_done(prev_state, action, state), dtype=jnp.float32)
 
 
@@ -254,4 +273,6 @@ def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
 
 
 DEFAULT_TASK = compose(on_goal_reached, action_cost)
-"""The default task for the game, composed of the `on_goal_reached` and `action_cost` reward functions."""
+"""The `reward_fn` an `Environment` uses unless overridden: `+1.0` on
+reaching the goal, plus a small negative `action_cost` on every step, so
+shorter successful episodes score higher."""

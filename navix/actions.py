@@ -16,8 +16,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The *action* system determines the next state of the environment \
-given the current state and an action."""
+"""The action primitives an integer action indexes into.
+
+Each function here is a pure `State -> State` transformation of the
+world. An `Environment` holds an ordered `action_set` (a tuple of these),
+and `transitions_fn` applies `action_set[a]` for an integer action `a`;
+the environment's `action_space` is `Discrete(len(action_set))`. So the
+*meaning* of action `2` depends on which set the environment uses - see
+`MINIGRID_ACTION_SET` (the default) and `COMPLETE_ACTION_SET`.
+
+Conventions shared by all of them:
+
+- "the player" is `state.get_player(idx=0)` (navix is single-agent for
+  now); "in front" is the cell one step along `player.direction`
+  (`0` east, `1` south, `2` west, `3` north).
+- Movement that would enter a wall or a non-walkable entity is a no-op:
+  the player stays put (and a wall/entity-hit event is recorded).
+- Every action is total - it always returns a `State` of the same
+  structure, so the set can go through `jax.lax.switch`.
+"""
 
 
 from __future__ import annotations
@@ -89,93 +106,113 @@ def _move(state: State, direction: Array) -> State:
 
 
 def noop(state: State) -> State:
-    """No operation. Does nothing.
+    """Does nothing - the world is returned unchanged. Present so an
+    action set can include an explicit "wait".
 
     Args:
-        state (State): The current state.
-    
+        state (State): the current state.
+
     Returns:
-        State: The same state."""
+        State: `state`, unchanged."""
     return state
 
 
 def rotate_cw(state: State) -> State:
-    """Rotates the player clockwise.
-    
+    """Turns the player 90 degrees clockwise (`direction` -> `direction + 1`
+    mod 4). Position is unchanged.
+
     Args:
-        state (State): The current state.
-    
+        state (State): the current state.
+
     Returns:
-        State: The new state with the player rotated clockwise."""
+        State: the state with the player's `direction` updated."""
     return _rotate(state, 1)
 
 
 def rotate_ccw(state: State) -> State:
-    """Rotates the player counter-clockwise.
-    
+    """Turns the player 90 degrees counter-clockwise (`direction` ->
+    `direction - 1` mod 4). Position is unchanged.
+
     Args:
-        state (State): The current state.
+        state (State): the current state.
 
     Returns:
-        State: The new state with the player rotated counter-clockwise."""
+        State: the state with the player's `direction` updated."""
     return _rotate(state, -1)
 
 
 def forward(state: State) -> State:
-    """Moves the player forward.
-    
+    """Moves the player one cell in the direction it faces. No-op if that
+    cell is a wall or a non-walkable entity (a hit event is recorded);
+    `direction` never changes.
+
     Args:
-        state: The current state.
+        state (State): the current state.
 
     Returns:
-        State: The new state with the player moved forward."""
+        State: the state with the player's `position` updated (or not, if
+        blocked)."""
     player = state.get_player(idx=0)
     return _move(state, player.direction)
 
 
 def right(state: State) -> State:
-    """Steps the player to the right without changing the direction.
+    """Strafes the player one cell to its right (90 degrees clockwise of
+    where it faces) *without* turning. Blocked-move rules as for
+    `forward`. Not in the MiniGrid action set.
 
     Args:
-        state (State): The current state.
+        state (State): the current state.
 
     Returns:
-        State: The new state with the player moved to the right."""
+        State: the state with the player's `position` updated (or not, if
+        blocked)."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 1)
 
 
 def backward(state: State) -> State:
-    """Steps the player backward without changing the direction.
-        
-        Args:
-            state (State): The current state.
+    """Steps the player one cell backwards (opposite to where it faces)
+    without turning. Blocked-move rules as for `forward`. Not in the
+    MiniGrid action set.
 
-        Returns:
-            State: The new state with the player moved backward."""
+    Args:
+        state (State): the current state.
+
+    Returns:
+        State: the state with the player's `position` updated (or not, if
+        blocked)."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 2)
 
 
 def left(state: State) -> State:
-    """Steps the player to the left without changing the direction.
+    """Strafes the player one cell to its left (90 degrees
+    counter-clockwise of where it faces) without turning. Blocked-move
+    rules as for `forward`. Not in the MiniGrid action set.
 
     Args:
-        state (State): The current state.
-    
+        state (State): the current state.
+
     Returns:
-        State: The new state with the player moved to the left."""
+        State: the state with the player's `position` updated (or not, if
+        blocked)."""
     player = state.get_player(idx=0)
     return _move(state, player.direction + 3)
 
 
 def pickup(state: State) -> State:
-    """Picks up an item (`Key`, `Box`, or `Ball`) in front of the player
-    and puts it in the pocket.
+    """Picks up the pickable entity (`Key`, `Box`, or `Ball`) directly in
+    front of the player: the entity is moved off the grid and its `id` is
+    written to `player.pocket`, overwriting whatever was there. No-op if
+    the cell in front holds nothing pickable. Records a pickup event.
+
     Args:
-        state (State): The current state.
+        state (State): the current state.
+
     Returns:
-        State: The new state with the player entity having the item in the pocket."""
+        State: the state with the item removed from the grid and its
+        `id` in `player.pocket`."""
 
     def pickup_entity(state: State, entity, setter) -> State:
         """Shared logic for one pickable entity type (`Key`/`Box`/
@@ -250,13 +287,16 @@ def pickup(state: State) -> State:
 
 
 def drop(state: State) -> State:
-    """Replaces the position in front of the player with the item in the pocket.
+    """Places the item currently in `player.pocket` on the cell in front
+    of the player and empties the pocket. No-op if the pocket is empty or
+    the cell in front is not walkable (occupied or a wall).
 
     Args:
-        state (State): The current state.
+        state (State): the current state.
 
     Returns:
-        State: The new state with the item in the pocket dropped in front of the player."""
+        State: the state with the pocketed item back on the grid in front
+        of the player and `player.pocket` cleared."""
     player = state.get_player(idx=0)
 
     position_in_front = translate(player.position, player.direction)
@@ -295,13 +335,15 @@ def drop(state: State) -> State:
 
 
 def toggle(state: State) -> State:
-    """Toggles an openable object (like a door) if possible.
+    """MiniGrid's `toggle` action. An alias for `open`: in navix a door,
+    once opened, stays open (there is no close), so "toggle" and "open"
+    are the same operation.
 
     Args:
-        state (State): The current state.
-    
+        state (State): the current state.
+
     Returns:
-        State: The new state with the openable object toggled."""
+        State: see `open`."""
     return open(state)
 
 
@@ -343,14 +385,24 @@ def open_box(state: State, position_in_front: Array) -> State:
 
 
 def open(state: State) -> State:
-    """Unlocks and opens an openable object (like a door), or opens a
-    box to reveal what it contains, if possible.
+    """Opens whatever openable thing is directly in front of the player:
+
+    - a `Box` -> removed, and its contents (a `Key`) revealed at that
+      cell (see `open_box`);
+    - a `Door` -> opened iff it is closed and either unlocked
+      (`requires == -1`) or the player is carrying the required key
+      (`player.pocket == door.requires`), in which case that key is
+      consumed from the pocket. Opening records a door-opening event.
+
+    A `Door` that is already open, and any other cell, are left
+    untouched. `toggle` is an alias for this.
 
     Args:
-        state (State): The current state.
+        state (State): the current state.
 
     Returns:
-        State: The new state with the openable object opened."""
+        State: the state with the door/box in front opened if the
+        conditions held."""
     player = state.get_player(idx=0)
     position_in_front = translate(player.position, player.direction)
 
@@ -410,28 +462,18 @@ def open(state: State) -> State:
 
 
 def done(state: State) -> State:
-    """A placeholder action that does nothing, but is a signal to the environment that the episode is over.
-    This action does not terminate the episode, unless the termination function explicitly checks for it (not default).
-    
+    """The agent's "I'm finished" signal. Returns the state unchanged - it
+    does *not* end the episode by itself. Only environments whose
+    `termination_fn` inspects for it (e.g. `GoToObject`, via
+    `events.on_target_done`) react to it; under the default termination
+    it is a no-op.
+
     Args:
-        state (State): The current state.
-    
+        state (State): the current state.
+
     Returns:
-        State: The same state."""
+        State: `state`, unchanged."""
     return state
-
-
-# DEFAULT_ACTION_SET = (
-#     rotate_ccw,
-#     rotate_cw,
-#     forward,
-#     pickup,
-#     drop,
-#     toggle,
-#     done
-# )
-"""Default action set from Minigrid. See
-https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.py"""
 
 
 COMPLETE_ACTION_SET = (
@@ -446,8 +488,11 @@ COMPLETE_ACTION_SET = (
     open,
     done,
 )
-"""Complete action set for the environment.
-This set includes all the actions that can be taken by the agent, and does not mirror the Minigrid action set."""
+"""Every action navix defines, in index order:
+`0 noop`, `1 rotate_cw`, `2 rotate_ccw`, `3 forward`, `4 right`,
+`5 backward`, `6 left`, `7 pickup`, `8 open`, `9 done`. Wider than
+MiniGrid's set (adds strafing and `noop`); use it for environments that
+need lateral movement."""
 
 MINIGRID_ACTION_SET = (
     rotate_ccw,
@@ -458,7 +503,11 @@ MINIGRID_ACTION_SET = (
     toggle,
     done,
 )
-"""Default action set from Minigrid. See
+"""MiniGrid's seven actions, in the same index order MiniGrid uses:
+`0 rotate_ccw` (MiniGrid "left"), `1 rotate_cw` ("right"), `2 forward`,
+`3 pickup`, `4 drop`, `5 toggle`, `6 done`. See
 https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.py"""
 
 DEFAULT_ACTION_SET = MINIGRID_ACTION_SET
+"""The `action_set` an `Environment` uses unless overridden -
+`MINIGRID_ACTION_SET`."""

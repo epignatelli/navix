@@ -48,12 +48,28 @@ class LogUniform(distrax.Uniform):
     the known-good region."""
 
     def __init__(self, low: float, high: float):
+        """Args:
+            low (float): lower bound, `> 0`.
+            high (float): upper bound, `> low`."""
         super().__init__(low=jnp.log(low), high=jnp.log(high))
 
     def sample(self, *, seed, sample_shape=()):
+        """Draws a log-uniform sample in `[low, high]`.
+
+        Args:
+            seed: a `jax.random` PRNG key.
+            sample_shape: extra leading shape for a batch of draws.
+
+        Returns:
+            Array: the sample(s), always positive."""
         return jnp.exp(super().sample(seed=seed, sample_shape=sample_shape))
 
     def sample_n(self, rng, n):
+        """`n` log-uniform samples, shape `(n, ...)`.
+
+        Args:
+            rng: a `jax.random` PRNG key.
+            n (int): how many samples."""
         return jnp.exp(super().sample_n(rng, n))
 
 

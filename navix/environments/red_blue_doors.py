@@ -55,6 +55,12 @@ from .registry import register_env
 
 
 class RedBlueDoors(Environment):
+    """`Navix-RedBlueDoors-*`. One room, a dividing wall holding a red and
+    a blue `Door` (both reachable from the start side). Success is
+    opening the blue door *after* the red one is already open; opening
+    blue first ends the episode with no reward. The task is about
+    ordering, not navigation."""
+
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
         k_wall, k_rows, k_pos, k_dir = jax.random.split(key, 4)
 

@@ -17,18 +17,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Issue #192: every function in this module takes the uniform
-`(prev_state, action, state)` triple, even where its own body only
-reads a subset of it - matching the convention `rewards.py`/
-`terminations.py`'s wrapper functions already use unconditionally
-(e.g. `rewards.on_goal_reached(prev_state, action, state)` ignores the
-first two args entirely). Before this, 5 different signature shapes
-were spread across this module's functions (`(state)`, `(prev_state,
-state)`, `(action, state)`, `(action)`, `(prev_state, action)`), each
-needing its own docstring paragraph explaining why it deviated from a
-single-state "convention" that was never actually uniform. One honest,
-uniform contract instead - unused args are still named in each
-function's docstring, marked `(unused)`."""
+"""Event detectors: given a transition, did some notable thing happen?
+
+An *event* is a thing that occurred during one step - the goal was
+reached, a ball hit the player, a door was unlocked. The transition
+pipeline records events into `state.events` (an `EventsManager`, reset
+every step), and the functions here read that record - together with
+`prev_state`/`action`/`state` - to answer yes/no questions about the
+step. `navix.rewards` and `navix.terminations` are thin, dtype-coercing
+wrappers around these; this module is where each condition's exact
+semantics live.
+
+Every function has the same signature,
+
+    fn(prev_state: State, action: Array, state: State) -> Array
+
+returning a boolean scalar `bool[]`. Not all three arguments are used by
+every function - some only need `state`, a few need `prev_state` to
+detect a *change* this step (the event record alone can't say whether a
+flag just flipped or was already set). Each function's docstring marks
+the arguments it ignores.
+"""
 
 from __future__ import annotations
 
@@ -47,8 +56,15 @@ from .entities import Entities, Player
 # default action_set (matches the existing precedent of
 # `rewards.action_cost` hardcoding an action index the same way).
 DONE_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.done))
+"""The integer that means `actions.done` in the default action set -
+used by detectors like `on_target_done` that care *which* action was
+taken. Only correct for environments using `MINIGRID_ACTION_SET`."""
 TOGGLE_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.toggle))
+"""The integer that means `actions.toggle` in the default action set
+(see `DONE_ACTION`)."""
 DROP_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.drop))
+"""The integer that means `actions.drop` in the default action set (see
+`DONE_ACTION`)."""
 
 
 def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
@@ -245,24 +261,25 @@ def on_ordered_doors_failure(prev_state: State, action: Array, state: State) -> 
 
 
 def on_target_done(prev_state: State, action: Array, state: State) -> Array:
-    """`GoToObject`'s real win condition (verified directly against
-    MiniGrid's actual `GoToObjectEnv.step` source): the `done` action
-    was called while orthogonally adjacent to `state.mission`'s target -
-    NOT while facing it. An earlier version of this function required
-    facing too, which was a misreading of the source: real MiniGrid's
-    check is pure position, `(ax==tx and abs(ay-ty)==1) or (ay==ty and
-    abs(ax-tx)==1)`, with no facing/direction test at all (PR #191
-    review caught this - reproduced directly: with the player adjacent
-    but facing perpendicular to the target, this function used to
-    return `False` where real MiniGrid rewards it).
+    """`GoToObject`'s win condition: the `done` action was taken while
+    the player is **orthogonally adjacent** to the target named by
+    `state.mission` - direction/facing is not checked. This is a pure
+    position test, `(row == target_row and |col - target_col| == 1) or
+    (col == target_col and |row - target_row| == 1)`, matching
+    MiniGrid's `GoToObjectEnv.step`.
+
+    `state.mission` must be non-empty (an `AssertionError` otherwise).
+    "The `done` action" is `action == DONE_ACTION`, i.e. only meaningful
+    for an environment using the default action set.
 
     Args:
-        prev_state (State): The state before this step's action (unused).
-        action (Array): The action taken by the player.
-        state (State): The current state of the game.
+        prev_state (State): $s_t$ (unused).
+        action (Array): the integer action taken.
+        state (State): $s_{t+1}$ - source of the player and target
+            positions.
 
     Returns:
-        Array: A boolean scalar."""
+        Array: `bool[]`."""
     assert (
         len(state.mission) > 0
     ), "on_target_done requires the state to specify a mission."

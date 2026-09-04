@@ -1,3 +1,13 @@
+"""`Agent`: the common interface `Experiment` trains, and `HParams`: the
+base its per-algorithm hyperparameter structs extend.
+
+The concrete agents - `PPO`, `PQN`, `Dreamer` - each subclass `Agent`,
+implement `train`, and carry their own `HParams` subclass. This module
+also holds the shared logging helpers (`masked_mean`,
+`derive_episodic_metrics`) and the `agent/train/*` metric contract every
+agent's `train` must return.
+"""
+
 from dataclasses import dataclass
 import time
 import warnings
@@ -97,11 +107,21 @@ def derive_episodic_metrics(logs: Dict[str, jax.Array]) -> Dict[str, jax.Array]:
 
 
 class HParams(struct.PyTreeNode):
+    """Base for every agent's hyperparameter struct (`PPOHparams`,
+    `PQNHparams`, `DreamerHparams`). Holds only the fields common to all;
+    each subclass adds its own (learning rate, rollout length, ...).
+    Frozen - use `.replace(...)` for a modified copy (this is what the
+    hyperparameter search does)."""
+
     debug: bool = struct.field(pytree_node=False, default=False)
-    """Whether to run in debug mode."""
+    """If `True`, agents run extra `jax.debug` callbacks and per-step
+    wandb logging. Slow; off by default."""
     log_frequency: int = struct.field(pytree_node=False, default=1)
-    """How often to log results."""
+    """Log to wandb every `log_frequency` training updates (`1` = every
+    update)."""
     log_render: bool = struct.field(pytree_node=False, default=False)
+    """If `True`, agents also emit an `rgb` rollout video under
+    `render/human` in their logs."""
 
 
 class Agent(struct.PyTreeNode):
@@ -189,6 +209,19 @@ class Agent(struct.PyTreeNode):
         raise NotImplementedError
 
     def log_to_wandb(self, logs, inspectable=None, run=None):
+        """Streams one training update's metrics to Weights & Biases,
+        deriving the `agent/episode/*` aggregates from the raw
+        `agent/train/*` buffers first. A no-op unless
+        `logs["agent/train/updates"]` is a multiple of
+        `hparams.log_frequency`. `Experiment.run` calls this; you rarely
+        call it directly.
+
+        Args:
+            logs (dict): one update's metrics (a single-update slice of
+                `Agent.train`'s output).
+            inspectable: optional extra payload for a debug callback.
+            run: an explicit `wandb.Run` to log to; defaults to the
+                module-level current run."""
         if len(logs) == 0 or logs["agent/train/updates"] % self.hparams.log_frequency != 0:
             return
 
@@ -225,6 +258,15 @@ class Agent(struct.PyTreeNode):
         (run or wandb).log(logs, step=step)
 
     def log_to_wandb_on_train_end(self, logs, run=None):
+        """Replays `log_to_wandb` for every recorded update after training
+        has finished - for when `train` ran fully inside `jax.jit` and
+        streaming live was not possible. `logs` here has a leading
+        update axis (the whole history); each kept update is logged in
+        order.
+
+        Args:
+            logs (dict): the full `Agent.train` output.
+            run: an explicit `wandb.Run`; defaults to the current run."""
         print(jax.tree.map(lambda x: x.shape, logs))
         len_logs = len(logs["agent/train/updates"])
         updates = logs["agent/train/updates"]

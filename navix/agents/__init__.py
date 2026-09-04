@@ -17,6 +17,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Reference JAX RL agents you can train on navix environments:
+`PPO`, `PQN` (a replay/target-free deep Q-network) and `Dreamer`
+(DreamerV3). Each pairs with an `HParams` struct and plugs into
+`navix.experiment.Experiment`. `models` holds the shared network pieces,
+including the carry-based `Encoder` family (swap `TransformerEncoder` in
+for a history-conditioned policy on partially observable tasks).
+"""
 
 from .ppo import PPO, PPOHparams as PPOHparams
 from .models import (

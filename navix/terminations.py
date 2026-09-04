@@ -16,6 +16,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Termination functions: does a transition land in a terminal state?
+
+An `Environment`'s `termination_fn` has the signature shared across this
+module, `navix.rewards` and `navix.events`:
+
+    fn(prev_state: State, action: Array, state: State) -> Array
+
+- `prev_state` is $s_t$ (before the action), `action` is $a_t$, `state`
+  is $s_{t+1}$ (after). Most conditions only need `state`; a few need
+  `prev_state` to detect a *change* this step (e.g. a door going
+  closed -> open), because navix clears the per-step event record every
+  step.
+- The return is a boolean scalar `bool[]` (`True` = terminate). Truncation
+  at `max_steps` is added separately by `Environment.termination`, so a
+  termination function only reports genuine absorbing states.
+
+Most functions here are thin, correctly-typed wrappers around the
+matching detector in `navix.events` (which holds the precise semantics);
+`compose` ORs several into one, and `DEFAULT_TERMINATION` is the goal /
+lava / ball-hit combination MiniGrid uses.
+"""
+
 from __future__ import annotations
 
 from typing import Callable
@@ -30,29 +52,35 @@ def compose(
     *term_functions: Callable[[State, Array, State], Array],
     operator: Callable = jnp.any,
 ) -> Callable:
-    """Compose termination functions into a single termination function.
+    """Combines several termination functions into one.
 
     Args:
-        *term_functions (Callable): List of termination functions.
-        operator (Callable): Operator to combine the termination functions.
+        *term_functions (Callable): termination functions to combine,
+            each `(prev_state, action, state) -> bool[]`.
+        operator (Callable): reduces the stacked results to a scalar.
+            Default `jnp.any` - terminate if *any* condition fires.
 
     Returns:
-        Callable: A single termination function."""
+        Callable: a single `(prev_state, action, state) -> bool[]`
+        function. This is how `DEFAULT_TERMINATION` and the per-task
+        combinations are built."""
     return lambda prev_state, action, state: operator(
         jnp.asarray([term_f(prev_state, action, state) for term_f in term_functions])
     )
 
 
 def check_truncation(terminated: Array, truncated: Array) -> Array:
-    """Check if the episode is truncated or terminated, and returns a value
-    that conforms to the `StepType` enum.
+    """Merges a termination flag and a truncation flag into a single
+    `StepType` value. Used by `Environment.termination`.
 
     Args:
-        terminated (Array): A boolean array indicating whether the episode is terminated.
-        truncated (Array): A boolean array indicating whether the episode is truncated.
+        terminated (Array): `bool[]`, `True` if `termination_fn` fired.
+        truncated (Array): `bool[]`, `True` if `t >= max_steps`.
 
     Returns:
-        Array: An integer array that represents the step type."""
+        Array: `i32[]` - `2` (`TERMINATION`) if `terminated`, else `1`
+        (`TRUNCATION`) if `truncated`, else `0` (`TRANSITION`).
+        Termination wins over truncation."""
     result = jnp.asarray(truncated + 2 * terminated, dtype=jnp.int32)
     return jnp.clip(result, 0, 2)
 
@@ -176,16 +204,13 @@ def on_ordered_doors_resolved(prev_state: State, action: Array, state: State) ->
 
 
 def on_target_done(prev_state: State, action: Array, state: State) -> Array:
-    """`GoToObject`'s success termination: `done` was called while
-    facing the mission target.
-
-    Args:
-        prev_state (State): The previous state of the game.
-        action (Array): The action taken by the player.
-        state (State): The current state of the game.
+    """`GoToObject`'s success termination: the `done` action was taken
+    while the player is orthogonally adjacent to the mission's target
+    object - facing it is *not* required (matches MiniGrid; see
+    `events.on_target_done`).
 
     Returns:
-        Array: A boolean array."""
+        Array: `bool[]`."""
     return jnp.asarray(events.on_target_done(prev_state, action, state), dtype=jnp.bool_)
 
 
@@ -294,3 +319,6 @@ def on_memory_failure(prev_state: State, action: Array, state: State) -> Array:
 
 
 DEFAULT_TERMINATION = compose(on_goal_reached, on_lava_fall, on_ball_hit)
+"""The `termination_fn` an `Environment` uses unless overridden: the
+episode ends on reaching the goal, falling into lava, or being hit by a
+moving ball (MiniGrid's default terminal conditions)."""
