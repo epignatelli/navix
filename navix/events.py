@@ -51,10 +51,11 @@ from .entities import Entities, Player
 
 
 # Indices into navix.actions.MINIGRID_ACTION_SET/DEFAULT_ACTION_SET -
-# derived, not hardcoded, so they stay correct if that tuple's ordering
-# ever changes. Only meaningful for an environment actually using that
-# default action_set (matches the existing precedent of
-# `rewards.action_cost` hardcoding an action index the same way).
+# derived from the tuple, not hardcoded, so they stay correct if its
+# ordering ever changes. Only meaningful for an environment actually
+# using that default action_set; a detector that reads one of these
+# (e.g. on_target_done) is simply wrong under a different action_set,
+# which is why `rewards` no longer does the same thing.
 DONE_ACTION = jnp.asarray(actions.MINIGRID_ACTION_SET.index(actions.done))
 """The integer that means `actions.done` in the default action set -
 used by detectors like `on_target_done` that care *which* action was
