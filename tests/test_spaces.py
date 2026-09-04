@@ -2,6 +2,7 @@ import sys
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from navix.spaces import Continuous, Discrete
 
 
@@ -21,6 +22,19 @@ def test_discrete():
                 sample = space.sample(key)
                 print(sample)
                 assert jnp.all(jnp.logical_not(jnp.isnan(sample)))
+
+
+def test_discrete_sample_covers_the_full_range():
+    # https://github.com/epignatelli/navix/issues/210 - `Discrete.sample`
+    # passed the inclusive `maximum` as randint's exclusive `maxval`, so
+    # the top value `n_elements - 1` was never drawn.
+    n = 5
+    space = Discrete.create(n)
+    keys = jax.random.split(jax.random.PRNGKey(0), 2000)
+    samples = np.asarray(jax.vmap(space.sample)(keys))
+    assert samples.min() == 0
+    assert samples.max() == n - 1  # the top value is reachable
+    assert set(np.unique(samples).tolist()) == set(range(n))
 
 
 def test_continuous():
@@ -45,4 +59,5 @@ def test_continuous():
 
 if __name__ == "__main__":
     test_discrete()
+    test_discrete_sample_covers_the_full_range()
     test_continuous()

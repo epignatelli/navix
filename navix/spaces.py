@@ -127,7 +127,10 @@ class Discrete(Space):
 
         Returns:
             Array: shape `shape`, dtype `dtype`."""
-        item = jax.random.randint(key, self.shape, self.minimum, self.maximum)
+        # `maximum` is the inclusive top value (`n_elements - 1`), but
+        # `jax.random.randint`'s `maxval` is exclusive - pass `+ 1` so the
+        # top value is actually reachable.
+        item = jax.random.randint(key, self.shape, self.minimum, self.maximum + 1)
         # randint cannot draw jnp.uint, so we cast it later
         return jnp.asarray(item, dtype=self.dtype)
 
