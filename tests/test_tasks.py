@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import pytest
 
 import navix as nx
 from navix.states import State
@@ -50,7 +51,6 @@ def test_navigation():
 def test_tasks_composition():
     reward_fn = nx.rewards.compose(
         nx.rewards.on_goal_reached,
-        nx.rewards.action_cost,
         nx.rewards.time_cost,
         nx.rewards.wall_hit_cost,
     )
@@ -65,6 +65,39 @@ def test_tasks_composition():
         return timestep
 
     print(jax.jit(_test)())
+
+
+def test_default_task_is_unshaped_on_goal_reached():
+    # https://github.com/epignatelli/navix/issues/211 - DEFAULT_TASK no
+    # longer folds in a per-step cost; it is exactly `on_goal_reached`.
+    assert nx.rewards.DEFAULT_TASK is nx.rewards.on_goal_reached
+
+    env = nx.make("Navix-Empty-5x5-v0", reward_fn=nx.rewards.DEFAULT_TASK)
+    ts = env.reset(jax.random.PRNGKey(0))
+    # first (non-goal) step: no shaping, reward is exactly 0
+    ts = env.step(ts, jnp.asarray(0))  # rotate - definitely not on the goal
+    assert float(ts.reward) == 0.0
+
+
+def test_multiroom_keeps_its_per_step_cost():
+    # MultiRoom rode on the old shaped DEFAULT_TASK; it now pins its own
+    # `compose(on_goal_reached, time_cost)` so its reward is unchanged.
+    env = nx.make("Navix-MultiRoom-N2-S4-v0")
+    assert env.reward_fn is not nx.rewards.DEFAULT_TASK
+    ts = env.reset(jax.random.PRNGKey(0))
+    ts = env.step(ts, jnp.asarray(0))  # non-goal step
+    assert abs(float(ts.reward) - (-0.01)) < 1e-6
+
+
+def test_action_cost_is_a_deprecated_alias_of_time_cost():
+    # https://github.com/epignatelli/navix/issues/211 - the index-6
+    # `done` exemption was action-set-dependent; every action now costs
+    # `cost`, i.e. action_cost == time_cost.
+    with pytest.warns(DeprecationWarning, match="time_cost"):
+        a = nx.rewards.action_cost(None, jnp.asarray(6), None)
+    t = nx.rewards.time_cost(None, jnp.asarray(6), None)
+    assert float(a) == float(t)
+    assert abs(float(a) - (-0.01)) < 1e-6
 
 
 if __name__ == "__main__":
