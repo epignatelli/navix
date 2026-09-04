@@ -31,11 +31,13 @@ An `Environment`'s `reward_fn` has the signature shared with
   rewarded event and `0.0` otherwise; the `*_cost` functions return a
   small negative shaping term every step.
 
-`compose` reduces several into one (summed by default), and
-`DEFAULT_TASK` is `on_goal_reached` minus a per-step `action_cost`.
+`compose` reduces several into one (summed by default). `DEFAULT_TASK`
+is just `on_goal_reached` - `+1` at the goal, no per-step shaping; add a
+`time_cost` yourself if you want to reward faster solutions.
 """
 
 from __future__ import annotations
+import warnings
 from typing import Callable
 
 
@@ -57,8 +59,8 @@ def compose(
             `(prev_state, action, state) -> f32[]`.
         operator (Callable): reduces the stacked `f32[len(reward_functions)]`
             results to a scalar `f32[]`. Default `jnp.sum` - the rewards
-            add up (use `on_goal_reached` for `+1` and an `action_cost`
-            for the `-` shaping term, as `DEFAULT_TASK` does).
+            add up, e.g. `compose(on_goal_reached, time_cost)` for `+1` at
+            the goal minus a small per-step cost.
 
     Returns:
         Callable: a single `(prev_state, action, state) -> f32[]`
@@ -92,31 +94,12 @@ def on_goal_reached(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_goal_reached(prev_state, action, state), dtype=jnp.float32)
 
 
-def action_cost(
-    prev_state: State, action: Array, new_state: State, cost: float = 0.01
-) -> Array:
-    """A per-step penalty of `-cost` on every action except the one at
-    index `6` (the `done` action in the default `MINIGRID_ACTION_SET`),
-    which is free. Part of `DEFAULT_TASK`, where it makes shorter
-    successful episodes score higher.
-
-    Args:
-        prev_state (State): $s_t$ (unused).
-        action (Array): the integer action taken.
-        new_state (State): $s_{t+1}$ (unused).
-        cost (float): the per-action penalty magnitude. Default `0.01`.
-
-    Returns:
-        Array: `f32[]` - `-cost` if `action != 6`, else `0.0`."""
-    # noops are free
-    return -jnp.asarray(action != 6, dtype=jnp.float32) * cost
-
-
 def time_cost(
     prev_state: State, action: Array, new_state: State, cost: float = 0.01
 ) -> Array:
-    """A flat `-cost` on every step, regardless of the action (unlike
-    `action_cost`, which exempts `done`).
+    """A flat `-cost` on every step. Compose it with a goal reward
+    (`compose(on_goal_reached, time_cost)`) to make shorter successful
+    episodes score higher.
 
     Args:
         prev_state (State): $s_t$ (unused).
@@ -131,13 +114,41 @@ def time_cost(
     return -jnp.asarray(cost, dtype=jnp.float32)
 
 
+def action_cost(
+    prev_state: State, action: Array, new_state: State, cost: float = 0.01
+) -> Array:
+    """Deprecated alias of `time_cost`.
+
+    It used to exempt the action at index `6` (`done` in
+    `MINIGRID_ACTION_SET`), but a reward function has no way to know
+    which action set an environment uses, so the exemption was
+    action-set-dependent and wrong for any non-default set. Every action
+    now costs `cost` - identical to `time_cost` - so use that instead.
+
+    Args:
+        prev_state (State): $s_t$ (unused).
+        action (Array): the integer action taken (unused).
+        new_state (State): $s_{t+1}$ (unused).
+        cost (float): the per-step penalty magnitude. Default `0.01`.
+
+    Returns:
+        Array: `f32[]`, always `-cost`."""
+    warnings.warn(
+        "rewards.action_cost is deprecated; it is now identical to "
+        "rewards.time_cost (every action costs `cost`). Use time_cost.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return time_cost(prev_state, action, new_state, cost)
+
+
 def wall_hit_cost(
     prev_state: State, action: Array, state: State, cost: float = 0.01
 ) -> Array:
     """`-cost` on any step where the player moved into a wall this step
     (detected via `events.on_wall_hit`), `0.0` otherwise. Opt-in shaping
     for tasks that want to discourage bumping walls; same sign convention
-    as `action_cost` / `time_cost`.
+    as `time_cost`.
 
     Args:
         prev_state (State): $s_t$ (unused).
@@ -274,7 +285,7 @@ def on_memory_success(prev_state: State, action: Array, state: State) -> Array:
     return jnp.asarray(events.on_memory_success(prev_state, action, state), dtype=jnp.float32)
 
 
-DEFAULT_TASK = compose(on_goal_reached, action_cost)
+DEFAULT_TASK = on_goal_reached
 """The `reward_fn` an `Environment` uses unless overridden: `+1.0` on
-reaching the goal, plus a small negative `action_cost` on every step, so
-shorter successful episodes score higher."""
+reaching the goal, `0.0` every other step - no per-step shaping. Compose
+`time_cost` in yourself if you want to reward faster solutions."""

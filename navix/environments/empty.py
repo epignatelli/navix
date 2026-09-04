@@ -45,8 +45,8 @@ from .registry import register_env
 class Room(Environment):
     """A single empty walled room - navix's `Empty` environments
     (`Navix-Empty-*`). One goal, one player, no obstacles; the task is
-    pure navigation. Reward and termination are the defaults: `+1` on
-    reaching the goal minus a per-step cost, episode ends on the goal.
+    pure navigation. `+1` on reaching the goal, `0` otherwise; the
+    episode ends on the goal.
 
     Attributes:
         random_start: `False` (the `Navix-Empty-NxN-v0` ids) places the

@@ -18,7 +18,7 @@ def test_room():
         reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
-        # these are optimal actios for navigation + action_cost
+        # these are optimal actions for navigation
         actions = (
             0,  # noop sanity check
             2,  # rotate_ccw
@@ -53,7 +53,7 @@ def test_keydoor():
         reset = jax.jit(env._reset)
         step = jax.jit(env.step)
         timestep = reset(key)
-        #  these are optimal actions for navigation + action_cost
+        #  these are optimal actions for navigation
         actions = (
             0,  # rotate_ccw
             2,  # forward

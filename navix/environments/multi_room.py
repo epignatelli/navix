@@ -535,7 +535,10 @@ def register_multi_room(env_id: str, num_rooms: int, max_room_size: int) -> None
             max_room_size=max_room_size,
             max_steps=kwargs.pop("max_steps", num_rooms * 20),
             observation_fn=kwargs.pop("observation_fn", observations.symbolic),
-            reward_fn=kwargs.pop("reward_fn", rewards.DEFAULT_TASK),
+            reward_fn=kwargs.pop(
+                "reward_fn",
+                rewards.compose(rewards.on_goal_reached, rewards.time_cost),
+            ),
             termination_fn=kwargs.pop("termination_fn", terminations.DEFAULT_TERMINATION),
             *args,
             **kwargs,
