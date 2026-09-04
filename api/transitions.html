@@ -1256,6 +1256,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.transitions.DEFAULT_TRANSITION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DEFAULT_TRANSITION
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.transitions.deterministic_transition" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2675,6 +2686,13 @@
 <a id="navix.transitions"></a>
     <div class="doc doc-contents first">
 
+        <p>Transition functions: given <code>(state, action, action_set)</code>, produce the
+next <code>State</code>.</p>
+<p>An <code>Environment</code>'s <code>transitions_fn</code> is one of these. They all start by
+applying the agent's action (<code>action_set[action]</code>, a <code>state -&gt; state</code>
+primitive - see <code>navix.actions</code>) and then optionally advance any
+autonomous entities. <code>DEFAULT_TRANSITION</code> is <code>stochastic_transition</code>.</p>
+
 
 
 
@@ -2692,6 +2710,29 @@
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.transitions.DEFAULT_TRANSITION" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DEFAULT_TRANSITION</span> <span class="o">=</span> <span class="n">stochastic_transition</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>transitions_fn</code> an <code>Environment</code> uses unless overridden:
+<code>stochastic_transition</code> (agent action + random ball motion).</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -2706,8 +2747,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Deterministic transition function. It selects the action from the set of actions
-and applies it to the state.</p>
+        <p>Applies only the agent's action - nothing else in the world moves.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2730,7 +2770,7 @@ and applies it to the state.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state, $s_t$.</p>
               </div>
             </td>
             <td>
@@ -2746,7 +2786,8 @@ and applies it to the state.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The action to be taken.</p>
+                <p>a scalar integer action, <code>i32[]</code>, in
+<code>[0, len(actions_set))</code>.</p>
               </div>
             </td>
             <td>
@@ -2758,11 +2799,13 @@ and applies it to the state.</p>
                 <code>actions_set</code>
             </td>
             <td>
-                  <code>Tuple[Callable[[State], State]</code>
+                  <code><span title="tuple">tuple</span>[<span title="typing.Callable">Callable</span>, ...]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A set of actions that can be taken.</p>
+                <p>the environment's
+<code>action_set</code>; <code>actions_set[action]</code> is applied via
+<code>jax.lax.switch</code>.</p>
               </div>
             </td>
             <td>
@@ -2788,7 +2831,7 @@ and applies it to the state.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state of the game.</p>
+                <p>$s_{t+1}$.</p>
               </div>
             </td>
           </tr>
@@ -2811,9 +2854,9 @@ and applies it to the state.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Stochastic transition function. It selects the action from the set of actions
-and applies it to the state, and updates entities that have stochastic transitions,
-such as balls.</p>
+        <p>Applies the agent's action, then moves every <code>Ball</code> one random
+step (<code>update_balls</code>). This is <code>DEFAULT_TRANSITION</code> - environments
+without balls behave identically to <code>deterministic_transition</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2836,7 +2879,7 @@ such as balls.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state, $s_t$.</p>
               </div>
             </td>
             <td>
@@ -2852,7 +2895,8 @@ such as balls.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The action to be taken.</p>
+                <p>a scalar integer action, <code>i32[]</code>, in
+<code>[0, len(actions_set))</code>.</p>
               </div>
             </td>
             <td>
@@ -2864,11 +2908,12 @@ such as balls.</p>
                 <code>actions_set</code>
             </td>
             <td>
-                  <code>Tuple[Callable[[State], State]</code>
+                  <code><span title="tuple">tuple</span>[<span title="typing.Callable">Callable</span>, ...]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A set of actions that can be taken.</p>
+                <p>the environment's
+<code>action_set</code>.</p>
               </div>
             </td>
             <td>
@@ -2894,7 +2939,7 @@ such as balls.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state of the game.</p>
+                <p>$s_{t+1}$, with balls advanced.</p>
               </div>
             </td>
           </tr>
@@ -2917,8 +2962,11 @@ such as balls.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Update the position of the balls in the game.
-Balls move in a random direction if they can, otherwise they stay in place.</p>
+        <p>Moves every <code>Ball</code> one cell in a uniformly random direction, or
+leaves it in place if that cell is blocked. A ball that would move
+onto the player instead stays put and records a
+<code>(BALL, HIT)</code> event (used by <code>rewards.on_ball_hit</code> /
+<code>terminations.on_ball_hit</code>).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2941,7 +2989,8 @@ Balls move in a random direction if they can, otherwise they stay in place.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state. If it has no <code>Ball</code> entities
+this is a no-op.</p>
               </div>
             </td>
             <td>
@@ -2967,7 +3016,17 @@ Balls move in a random direction if they can, otherwise they stay in place.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state of the game.</p>
+                <p>the state with ball positions and ball-hit events</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>updated, and <code>state.key</code> advanced.</p>
               </div>
             </td>
           </tr>

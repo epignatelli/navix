@@ -1420,6 +1420,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent.log_to_wandb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;log_to_wandb
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.agent.Agent.log_to_wandb_on_train_end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;log_to_wandb_on_train_end
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#navix.agents.agent.Agent.train" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1463,6 +1485,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;log_frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.agents.agent.HParams.log_render" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;log_render
       
     </span>
   </a>
@@ -2820,6 +2853,14 @@
 <a id="navix.agents.agent"></a>
     <div class="doc doc-contents first">
 
+        <p><code>Agent</code>: the common interface <code>Experiment</code> trains, and <code>HParams</code>: the
+base its per-algorithm hyperparameter structs extend.</p>
+<p>The concrete agents - <code>PPO</code>, <code>PQN</code>, <code>Dreamer</code> - each subclass <code>Agent</code>,
+implement <code>train</code>, and carry their own <code>HParams</code> subclass. This module
+also holds the shared logging helpers (<code>masked_mean</code>,
+<code>derive_episodic_metrics</code>) and the <code>agent/train/*</code> metric contract every
+agent's <code>train</code> must return.</p>
+
 
 
 
@@ -2970,6 +3011,160 @@ algorithm-specific internals (e.g. PPO's <code>sgd_step</code>).</p>
     <div class="doc doc-contents ">
 
         <p>Deprecated: use <code>log_to_wandb_on_train_end</code> instead.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.agents.agent.Agent.log_to_wandb" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">log_to_wandb</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">inspectable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Streams one training update's metrics to Weights &amp; Biases,
+deriving the <code>agent/episode/*</code> aggregates from the raw
+<code>agent/train/*</code> buffers first. A no-op unless
+<code>logs["agent/train/updates"]</code> is a multiple of
+<code>hparams.log_frequency</code>. <code>Experiment.run</code> calls this; you rarely
+call it directly.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>logs</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>one update's metrics (a single-update slice of
+<code>Agent.train</code>'s output).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>inspectable</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>optional extra payload for a debug callback.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>run</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>an explicit <code>wandb.Run</code> to log to; defaults to the
+module-level current run.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.agents.agent.Agent.log_to_wandb_on_train_end" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">log_to_wandb_on_train_end</span><span class="p">(</span><span class="n">logs</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Replays <code>log_to_wandb</code> for every recorded update after training
+has finished - for when <code>train</code> ran fully inside <code>jax.jit</code> and
+streaming live was not possible. <code>logs</code> here has a leading
+update axis (the whole history); each kept update is logged in
+order.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>logs</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the full <code>Agent.train</code> output.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>run</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>an explicit <code>wandb.Run</code>; defaults to the current run.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3134,6 +3329,12 @@ wrapped by <code>Experiment</code>, returns <code>logs</code> with neither.</p>
 
 
 
+        <p>Base for every agent's hyperparameter struct (<code>PPOHparams</code>,
+<code>PQNHparams</code>, <code>DreamerHparams</code>). Holds only the fields common to all;
+each subclass adds its own (learning rate, rollout length, ...).
+Frozen - use <code>.replace(...)</code> for a modified copy (this is what the
+hyperparameter search does).</p>
+
 
 
 
@@ -3169,7 +3370,8 @@ wrapped by <code>Experiment</code>, returns <code>logs</code> with neither.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Whether to run in debug mode.</p>
+        <p>If <code>True</code>, agents run extra <code>jax.debug</code> callbacks and per-step
+wandb logging. Slow; off by default.</p>
 
     </div>
 
@@ -3192,7 +3394,32 @@ wrapped by <code>Experiment</code>, returns <code>logs</code> with neither.</p>
 
     <div class="doc doc-contents ">
 
-        <p>How often to log results.</p>
+        <p>Log to wandb every <code>log_frequency</code> training updates (<code>1</code> = every
+update).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.agents.agent.HParams.log_render" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">log_render</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">pytree_node</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>If <code>True</code>, agents also emit an <code>rgb</code> rollout video under
+<code>render/human</code> in their logs.</p>
 
     </div>
 

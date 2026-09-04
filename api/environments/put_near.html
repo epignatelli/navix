@@ -2291,6 +2291,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.put_near.PutNear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PutNear
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2725,6 +2736,84 @@ random step each turn, which real MiniGrid's <code>Ball</code> doesn't do outsid
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.put_near.PutNear" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>PutNear</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>Navix-PutNear-*</code>. A room scattered with <code>n_objects</code> coloured
+<code>Key</code>/<code>Ball</code>/<code>Box</code> objects; two are named in <code>State.mission</code> - one to
+carry (<code>mission[0]</code>) and one to drop it next to (<code>mission[1]</code>).
+Success: pick up the carry object and drop it within Chebyshev
+distance 1 of the target. Picking up the wrong object, or any drop
+attempt, ends the episode (reward <code>1</code> only on a correct near-drop).</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.put_near.PutNear.n_objects">n_objects</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>how many objects to scatter.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

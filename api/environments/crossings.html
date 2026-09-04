@@ -2715,6 +2715,10 @@
 <a id="navix.environments.crossings"></a>
     <div class="doc doc-contents first">
 
+        <p>MiniGrid's Crossing environments: <code>SimpleCrossing</code> / <code>LavaCrossing</code>.</p>
+<p>See the environment class in this module for the task, layout and
+reward/termination details.</p>
+
 
 
 
@@ -2750,6 +2754,56 @@
               Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
 
 
+
+        <p><code>Navix-SimpleCrossing-*</code> / <code>Navix-LavaCrossing-*</code>. A square room
+crossed by <code>n_crossings</code> full-width "rivers" of obstacle cells, each
+with one gap; the gaps sit on a guaranteed-solvable monotone path
+from the top-left (player) to the bottom-right (goal). Same
+river-placement as MiniGrid's <code>CrossingEnv</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.crossings.Crossings.n_crossings">n_crossings</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>number of rivers. More rivers -&gt; harder.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;obstacle_type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;struct&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;field&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pytree_node&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;False&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;default&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;&#x27;wall&#x27;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-class-attribute&quot;&gt;&lt;code&gt;class-attribute&lt;/code&gt;&lt;/small&gt;
+      &lt;small class=&quot;doc doc-label doc-label-instance-attribute&quot;&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.environments.crossings.Crossings.obstacle_type&lt;/code&gt;)" href="#navix.environments.crossings.Crossings.obstacle_type">obstacle_type</a></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"wall"</code> (<code>SimpleCrossing</code> - rivers merely block
+movement) or <code>"lava"</code> (<code>LavaCrossing</code> - the river is
+walkable but stepping in ends the episode via
+<code>on_lava_fall</code>).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 

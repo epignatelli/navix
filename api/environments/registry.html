@@ -2347,6 +2347,61 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.registry.NotImplementedEnvs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;NotImplementedEnvs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.registry.V1_ALIASES" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;V1_ALIASES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.registry.make" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;make
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.registry.register_env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;register_env
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.registry.registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;registry
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2742,14 @@
 <a id="navix.environments.registry"></a>
     <div class="doc doc-contents first">
 
+        <p>The environment registry: <code>make</code> an environment by string id, and
+<code>register_env</code> to add your own.</p>
+<p>Every built-in environment registers itself at import time (importing
+<code>navix</code> is enough), so <code>navix.make(id)</code> is the normal way to get an
+<code>Environment</code>. The ids follow MiniGrid's naming with a <code>Navix-</code> prefix
+and a <code>-v0</code> suffix, e.g. <code>Navix-Empty-5x5-v0</code>, <code>Navix-DoorKey-8x8-v0</code>,
+<code>Navix-MultiRoom-N4-S5-v0</code>.</p>
+
 
 
 
@@ -2704,8 +2767,333 @@
 
 
 
+<div class="doc doc-object doc-attribute">
 
 
+
+<h3 id="navix.environments.registry.NotImplementedEnvs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">NotImplementedEnvs</span> <span class="o">=</span> <span class="p">[]</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>MiniGrid environment ids that navix does not yet cover. Currently
+empty - every MiniGrid id either has a <code>Navix-*</code> registration or resolves
+through <code>V1_ALIASES</code>. Kept as a named list so a future gap has an obvious
+place to be recorded.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.environments.registry.V1_ALIASES" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">V1_ALIASES</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'MiniGrid-ObstructedMaze-2Dlhb-v1'</span><span class="p">:</span> <span class="s1">'Navix-ObstructedMaze-2Dlhb-v0'</span><span class="p">,</span> <span class="s1">'MiniGrid-ObstructedMaze-1Q-v1'</span><span class="p">:</span> <span class="s1">'Navix-ObstructedMaze-1Q-v0'</span><span class="p">,</span> <span class="s1">'MiniGrid-ObstructedMaze-2Q-v1'</span><span class="p">:</span> <span class="s1">'Navix-ObstructedMaze-2Q-v0'</span><span class="p">,</span> <span class="s1">'MiniGrid-ObstructedMaze-Full-v1'</span><span class="p">:</span> <span class="s1">'Navix-ObstructedMaze-Full-v0'</span><span class="p">,</span> <span class="s1">'MiniGrid-MultiRoom-N4-S5-v1'</span><span class="p">:</span> <span class="s1">'Navix-MultiRoom-N4-S5-v0'</span><span class="p">}</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>MiniGrid <code>-v1</code> ids that navix implements under a plain <code>-v0</code> id rather
+than as a separate <code>-v1</code> registration: for these families navix ports
+MiniGrid's <code>-v1</code> behaviour and calls it <code>-v0</code> (the per-environment
+behavioural difference is documented in each target's module docstring).
+<code>make</code> redirects a <code>-v1</code> key here to its <code>-v0</code> value and warns, so code
+written against MiniGrid's own id still resolves.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.environments.registry.make" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">make</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Builds a registered environment by id.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a registered id (see <code>sorted(navix.registry())</code> for
+the full list). A handful of MiniGrid <code>-v1</code> ids are accepted
+too and transparently redirected to their navix <code>-v0</code>
+equivalent with a warning (see <code>V1_ALIASES</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>forwarded verbatim to the environment's constructor.
+Common ones: <code>observation_fn</code> (a function from <code>navix.observations</code>,
+default is environment-specific), <code>gamma</code> (discount, default
+<code>0.99</code>), <code>max_steps</code> (episode truncation horizon, default
+<code>4 * height * width</code>), <code>observation_space</code> (override the
+inferred <code>Space</code>). Anything the specific environment's
+<code>create</code> accepts also works.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Environment</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the constructed environment.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if <code>name</code> is not registered. The message
+lists close matches and links the feature-request form.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">navix</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">navix</span><span class="w"> </span><span class="kn">import</span> <span class="n">observations</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">make</span><span class="p">(</span>
+    <span class="s2">"Navix-DoorKey-8x8-v0"</span><span class="p">,</span>
+    <span class="n">observation_fn</span><span class="o">=</span><span class="n">observations</span><span class="o">.</span><span class="n">rgb_first_person</span><span class="p">,</span>
+    <span class="n">gamma</span><span class="o">=</span><span class="mf">0.995</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.environments.registry.register_env" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">register_env</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ctor</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Adds an environment id to the registry (or overwrites one).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the id <code>make</code> will accept, e.g.
+<code>"Navix-MyEnv-8x8-v0"</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ctor</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>builds and returns the <code>Environment</code>. <code>make</code>
+calls it as <code>ctor(**kwargs)</code>, forwarding whatever keyword
+arguments were passed to <code>make</code> (<code>observation_fn</code>, <code>gamma</code>,
+<code>max_steps</code>, ...), so <code>ctor</code> typically ends in
+<code>MyEnv.create(...)</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.environments.registry.registry" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">registry</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The full id -&gt; constructor mapping.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>dict</code></td>            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>maps each registered environment id (e.g.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"Navix-Empty-5x5-v0"</code>) to a zero-argument-or-kwargs callable</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>that builds the <code>Environment</code>. The live dict, not a copy -</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>sorted(navix.registry())</code> lists every available id.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 

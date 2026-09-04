@@ -984,6 +984,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Ball">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Ball.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -994,6 +1011,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" Box">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Box.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1021,10 +1055,32 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#navix.entities.Door.locked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;locked
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#navix.entities.Door.symbolic_state" class="md-nav__link">
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;symbolic_state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Door.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
       
     </span>
   </a>
@@ -1125,6 +1181,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#navix.entities.Entity.__getitem__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__getitem__
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1150,6 +1217,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Goal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Goal.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1160,6 +1244,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" Key">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Key.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1172,6 +1273,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Lava">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Lava.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1183,6 +1301,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Player">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Player.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1193,6 +1328,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" Wall">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.entities.Wall.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2863,6 +3015,17 @@
 <a id="navix.entities"></a>
     <div class="doc doc-contents first">
 
+        <p>The concrete things that live on a grid: <code>Player</code>, <code>Goal</code>, <code>Wall</code>,
+<code>Key</code>, <code>Door</code>, <code>Lava</code>, <code>Ball</code>, <code>Box</code>.</p>
+<p>Each is a frozen <code>flax.struct</code> pytree built by composing the mixins in
+<code>navix.components</code> (<code>Positionable</code>, <code>Directional</code>, <code>Openable</code>, ...). All
+fields are batched: <code>state.entities["key"]</code> is a single <code>Key</code> struct
+holding <em>every</em> key in the environment, with the instance count as the
+leading axis (<code>key.position</code> is <code>i32[n_keys, 2]</code>). Index into a batch
+with <code>entity[i]</code>.</p>
+<p>Entities also expose derived, per-instance properties the engine reads:
+<code>walkable</code>, <code>transparent</code>, <code>tag</code>, <code>sprite</code>, <code>symbolic_state</code>.</p>
+
 
 
 
@@ -2899,23 +3062,18 @@
 
 
 
-        <p>A pickable obstacle - <code>id</code> (from <code>Pickable</code>) identifies this ball
-instance for <code>actions.pickup</code>/<code>actions.drop</code>, the same way <code>Key.id</code>/
-<code>Box.id</code> do. <code>probability</code> (from <code>Stochastic</code>, pre-existing) is
-unrelated to pickup - unused by <code>Ball</code> itself; every <code>Ball</code>
-instance actually moves unconditionally each step under the default
-<code>transitions.stochastic_transition</code> (<code>transitions.update_balls</code>,
-regardless of <code>probability</code>'s value), which is why any environment
-wanting a static <code>Ball</code> (a pickup target/decoy, not a wandering
-obstacle) must register with <code>transitions_fn=transitions.
-deterministic_transition</code> instead - see <code>GoToObject</code>/<code>Fetch</code>/
-<code>PutNear</code>/<code>BlockedUnlockPickup</code>.</p>
-<p>BREAKING CHANGE: <code>Ball</code> becoming <code>Pickable</code> means <code>actions.pickup</code>
-no longer no-ops facing a <code>Ball</code> in any environment whose
-action_set includes <code>pickup</code> and whose transitions_fn is the
-default <code>stochastic_transition</code> - concretely, this changes
-<code>Navix-Dynamic-Obstacles-*</code>'s existing dynamics: <code>pickup</code> now
-removes the faced obstacle from play instead of doing nothing.</p>
+        <p>A blocking obstacle that is also pickable. Not walkable,
+transparent. Colliding with the player fires a <code>(BALL, HIT)</code> event
+(<code>terminations.on_ball_hit</code>).</p>
+<p>Under the default <code>transitions.stochastic_transition</code>, every ball
+moves one random step each timestep (<code>transitions.update_balls</code>), so
+it acts as a wandering hazard. An environment that wants a <em>static</em>
+ball - a pickup target or decoy - must use
+<code>transitions_fn=transitions.deterministic_transition</code> instead (as
+<code>GoToObject</code> / <code>Fetch</code> / <code>PutNear</code> / <code>BlockedUnlockPickup</code> do).</p>
+<p><code>id</code> (from <code>Pickable</code>) is the pickup identity, matched against
+<code>player.pocket</code>; <code>probability</code> (from <code>Stochastic</code>) is unused by
+<code>Ball</code>.</p>
 
 
 
@@ -2937,6 +3095,129 @@ removes the faced obstacle from play instead of doing nothing.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Ball.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">colour</span><span class="p">,</span> <span class="n">probability</span><span class="p">,</span> <span class="nb">id</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>colour</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>palette index (see <code>HasColour</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>probability</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>unused by <code>Ball</code>; pass <code>1.0</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>id</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>i32[] &gt;= 1</code> pickup identity.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Ball</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Ball&lt;/code&gt; (&lt;code&gt;navix.entities.Ball&lt;/code&gt;)" href="#navix.entities.Ball">Ball</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -2963,22 +3244,14 @@ removes the faced obstacle from play instead of doing nothing.</p>
 
 
 
-        <p>A pickable container - <code>id</code> (from <code>Pickable</code>) identifies this box
-instance the same way <code>Key.id</code> does, for <code>actions.pickup</code> to match
-against <code>player.pocket</code>; <code>pocket</code> (from <code>Holder</code>) is a <em>different</em>
-field, for whatever item is hidden inside the box (e.g. a <code>Key</code>'s
-id), unrelated to the box's own pickup-identity.</p>
-<p>BREAKING CHANGE: <code>actions.open</code> (the <code>toggle</code> action) now also
-handles <code>Box</code> - toggling one removes it from play and, if its
-<code>pocket</code> held a <code>Key</code>'s id, reveals that <code>Key</code> at the box's former
-position (verified against MiniGrid's actual <code>Box.toggle</code>: <code>env.
-grid.set(pos, self.contains)</code>). Previously boxes were inert to
-<code>toggle</code> in every environment. This changes the dynamics of any
-existing environment whose <code>action_set</code> includes <code>toggle</code> and
-which places a <code>Box</code> (<code>GoToObject</code>, <code>PutNear</code>, <code>Unlock</code>/
-<code>UnlockPickup</code>/<code>BlockedUnlockPickup</code>'s decoy box) - the box can now
-be made to disappear by toggling it, where it previously could
-not.</p>
+        <p>A pickable container. Not walkable, transparent. <code>open</code> (the
+<code>toggle</code> action) while facing it removes the box and, if its <code>pocket</code>
+holds a <code>Key</code>'s id, reveals that key at the box's former cell
+(matching MiniGrid's <code>Box.toggle</code>). Used by <code>ObstructedMaze</code> to hide
+keys.</p>
+<p>Two separate id fields: <code>id</code> (from <code>Pickable</code>) is the box's own
+pickup identity, matched against <code>player.pocket</code>; <code>pocket</code> (from
+<code>Holder</code>) is the id of the item hidden <em>inside</em>.</p>
 
 
 
@@ -3000,6 +3273,130 @@ not.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Box.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">colour</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="n">pocket</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>colour</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>palette index (see <code>HasColour</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>id</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>i32[] &gt;= 1</code>, the box's own pickup identity.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pocket</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>id of the contained item, or
+<code>EMPTY_POCKET_ID</code> (<code>-1</code>) for an empty box.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Box</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Box&lt;/code&gt; (&lt;code&gt;navix.entities.Box&lt;/code&gt;)" href="#navix.entities.Box">Box</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3024,7 +3421,8 @@ not.</p>
 
 
 
-        <p>Directions enum class to store the directions in the game.</p>
+        <p>Named values for <code>Directional.direction</code>: <code>EAST=0</code>, <code>SOUTH=1</code>,
+<code>WEST=2</code>, <code>NORTH=3</code> (clockwise). <code>rotate_cw</code> adds 1 (mod 4).</p>
 
 
 
@@ -3072,12 +3470,11 @@ not.</p>
 
 
 
-        <p>Consumable items are world objects that can be consumed by the player.
-Consuming an item requires a tool (e.g. a key to open a door).
-A tool is an id (int) of another item, specified in the <code>requires</code> field (-1 if no tool is required).
-After an item is consumed, it is both removed from the <code>state.entities</code> collection, and replaced in the grid
-by the item specified in the <code>replacement</code> field (0 = floor by default).
-Examples of consumables are doors (to open) food (to eat) and water (to drink), etc.</p>
+        <p>A door in a wall. While closed it is not walkable and not
+transparent; once open it is both. Opening needs the <code>open</code> action
+while facing it and, if <code>requires != -1</code>, the matching <code>Key</code> in the
+pocket (which is then consumed and <code>requires</code> set to <code>-1</code>). navix
+doors do not re-close.</p>
 
 
 
@@ -3096,6 +3493,29 @@ Examples of consumables are doors (to open) food (to eat) and water (to drink), 
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.entities.Door.locked" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">locked</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>bool[*shape]</code> - <code>True</code> while the door still needs a key
+(<code>requires != -1</code>). Becomes <code>False</code> once unlocked.</p>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-attribute">
 
@@ -3135,6 +3555,130 @@ Examples of consumables are doors (to open) food (to eat) and water (to drink), 
 
 
 
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Door.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">requires</span><span class="p">,</span> <span class="n">colour</span><span class="p">,</span> <span class="nb">open</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>requires</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Key.id</code> needed to unlock, or <code>-1</code> for an
+unlocked door.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>colour</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>palette index (see <code>HasColour</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>open</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>0</code> closed, <code>1</code> open.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Door</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Door&lt;/code&gt; (&lt;code&gt;navix.entities.Door&lt;/code&gt;)" href="#navix.entities.Door">Door</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -3160,7 +3704,9 @@ Examples of consumables are doors (to open) food (to eat) and water (to drink), 
 
 
 
-        <p>Entities enum class to store the names of the entities in the game.</p>
+        <p>The string keys used in <code>state.entities</code> (a <code>dict[str, Entity]</code>).
+Use <code>Entities.KEY</code> etc. rather than the bare literal <code>"key"</code> so a
+rename is caught statically.</p>
 
 
 
@@ -3208,8 +3754,9 @@ Examples of consumables are doors (to open) food (to eat) and water (to drink), 
 
 
 
-        <p>Entities are components that can be placed in the environment, and have a position and a tag.
-To create an entity, use the <code>create</code> method.</p>
+        <p>Base of every concrete entity: has a <code>position</code>, a <code>tag</code> and a
+<code>sprite</code>. Subclasses add more mixins and fill in the derived
+properties below. Build one with the subclass's <code>create</code>.</p>
 
 
 
@@ -3245,30 +3792,7 @@ To create an entity, use the <code>create</code> method.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The name of the entity</p>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>str</code></td>            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>the name of the entity</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>The class name (<code>"Key"</code>, <code>"Door"</code>, ...).</p>
 
     </div>
 
@@ -3290,7 +3814,8 @@ To create an entity, use the <code>create</code> method.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The number of dimensions of the entity. The number of dimensions is the number of dimensions of the position minus 1.</p>
+        <p>Number of batch dimensions (<code>len(self.shape)</code>) - <code>0</code> for a
+single instance, <code>1</code> for a flat batch.</p>
 
     </div>
 
@@ -3312,8 +3837,9 @@ To create an entity, use the <code>create</code> method.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The batch shape of the entity. The batch shape is the shape of the entity excluding the dimensions of the component.
-For example, if the entity has a position of shape (batch_size, 2), the shape of the entity is (batch_size,).</p>
+        <p>The batch shape - the entity's axes <em>excluding</em> each field's
+own trailing axes. <code>()</code> for a single instance, <code>(n,)</code> for a batch
+of <code>n</code> (<code>position</code> is then <code>(n, 2)</code>).</p>
 
     </div>
 
@@ -3335,8 +3861,32 @@ For example, if the entity has a position of shape (batch_size, 2), the shape of
 
     <div class="doc doc-contents ">
 
-        <p>The symbolic state representation of the entity. The symbolic state is as the
-last channel in the symbolic_observation function.</p>
+        <p><code>i32[*shape]</code> - the third channel of a <code>symbolic</code> observation
+for this entity (e.g. a door's open/closed/locked; <code>0</code> for
+entities with no internal state).</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>on the base class.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
     </div>
 
@@ -3358,7 +3908,31 @@ last channel in the symbolic_observation function.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The transparent attribute of the entity. The transparent attribute is a boolean array that indicates if the entity is transparent to rendering.</p>
+        <p><code>bool[*shape]</code> - does line of sight pass through this cell?
+Feeds the first-person view cone (<code>False</code> blocks vision).</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>on the base class.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
     </div>
 
@@ -3380,7 +3954,31 @@ last channel in the symbolic_observation function.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The walkable attribute of the entity. The walkable attribute is a boolean array that indicates if the entity can be walked on.</p>
+        <p><code>bool[*shape]</code> - can the player step onto this entity's cell?
+(<code>False</code> for walls and closed doors, <code>True</code> for goal/lava/floor.)</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>on the base class.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
     </div>
 
@@ -3388,6 +3986,26 @@ last channel in the symbolic_observation function.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Entity.__getitem__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__getitem__</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Selects instance(s) from the batch - <code>key[0]</code> is the first key,
+<code>key[mask]</code> the masked subset - by indexing every field's leading
+axis.</p>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3412,7 +4030,13 @@ last channel in the symbolic_observation function.</p>
 
 
 
-        <p>EntityIds enum class to store the ids of the entities in the game.</p>
+        <p>The integer tag each entity type takes in a <code>categorical</code>
+observation and in the first channel of a <code>symbolic</code> one. <code>uint8</code>
+scalars. The values are not contiguous (there is no <code>3</code>) - treat them
+as opaque ids, and <code>MAX_CATEGORICAL_VALUE</code> (in
+<code>environments.environment</code>) as the count the observation <code>Space</code> uses.
+<code>UNKNOWN</code> (<code>0</code>) is also the value of a cell that has not been seen in
+a first-person observation.</p>
 
 
 
@@ -3460,7 +4084,10 @@ last channel in the symbolic_observation function.</p>
 
 
 
-        <p>Goals are entities that can be reached by the player</p>
+        <p>The target cell. Walkable and transparent. Reaching it fires a
+<code>(GOAL, REACH)</code> event with probability <code>probability</code> (<code>1.0</code> in the
+standard tasks) - <code>rewards.on_goal_reached</code> /
+<code>terminations.on_goal_reached</code> react to it.</p>
 
 
 
@@ -3482,6 +4109,99 @@ last channel in the symbolic_observation function.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Goal.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">probability</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>probability</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>f32[]</code> in <code>[0, 1]</code> - chance the reward
+fires on contact (<code>1.0</code> for the standard tasks). Colour
+is fixed to green.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Goal</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Goal&lt;/code&gt; (&lt;code&gt;navix.entities.Goal&lt;/code&gt;)" href="#navix.entities.Goal">Goal</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3508,8 +4228,10 @@ last channel in the symbolic_observation function.</p>
 
 
 
-        <p>Pickable items are world objects that can be picked up by the player.
-Examples of pickable items are keys, coins, etc.</p>
+        <p>A pickable key. Not walkable, transparent. <code>pickup</code> puts its <code>id</code>
+in the player's pocket; a <code>Door</code> whose <code>requires</code> equals that <code>id</code>
+can then be opened, consuming the key. Its <code>colour</code> matches the door
+it opens.</p>
 
 
 
@@ -3531,6 +4253,113 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Key.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">colour</span><span class="p">,</span> <span class="nb">id</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>colour</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>palette index (see <code>HasColour</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>id</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>i32[] &gt;= 1</code>, matched against <code>Door.requires</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Key</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Key&lt;/code&gt; (&lt;code&gt;navix.entities.Key&lt;/code&gt;)" href="#navix.entities.Key">Key</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3557,7 +4386,10 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
-        <p>Goals are entities that can be reached by the player</p>
+        <p>A hazard cell. Walkable and transparent (the player <em>can</em> step
+onto it), but doing so fires a <code>(LAVA, FALL)</code> event that
+<code>terminations.on_lava_fall</code> turns into a <code>TERMINATION</code> - stepping in
+ends the episode with no reward.</p>
 
 
 
@@ -3579,6 +4411,81 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Lava.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Lava</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Lava&lt;/code&gt; (&lt;code&gt;navix.entities.Lava&lt;/code&gt;)" href="#navix.entities.Lava">Lava</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3605,7 +4512,9 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
-        <p>Players are entities that can act around the environment</p>
+        <p>The agent. Has a <code>direction</code> it faces and a <code>pocket</code> holding at
+most one <code>Pickable</code>. navix is single-agent, so <code>state.entities["player"]</code>
+is a batch of one.</p>
 
 
 
@@ -3627,6 +4536,114 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Player.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">direction</span><span class="p">,</span> <span class="n">pocket</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code>, <code>i32[2]</code> (or batched).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>facing, <code>i32[]</code> in <code>0..3</code> (see
+<code>Directions</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pocket</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>carried item id, or <code>EMPTY_POCKET_ID</code> (<code>-1</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Player</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Player&lt;/code&gt; (&lt;code&gt;navix.entities.Player&lt;/code&gt;)" href="#navix.entities.Player">Player</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -3653,7 +4670,8 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
-        <p>Walls are entities that cannot be walked through</p>
+        <p>An impassable, opaque cell. Not walkable, not transparent. The
+grid border is walls; interior walls form rooms and corridors.</p>
 
 
 
@@ -3675,6 +4693,82 @@ Examples of pickable items are keys, coins, etc.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.entities.Wall.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">position</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>position</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(row, col)</code> of each wall, <code>i32[n, 2]</code>.
+Colour is fixed to grey.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Wall</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Wall&lt;/code&gt; (&lt;code&gt;navix.entities.Wall&lt;/code&gt;)" href="#navix.entities.Wall">Wall</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the batch of walls.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 

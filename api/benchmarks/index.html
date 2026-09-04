@@ -3758,13 +3758,17 @@ all be rank 1 (one point per update).</p>
 
 
 
-        <p>A benchmark protocol - not tied to any one algorithm.</p>
-<p>Used as an instance, e.g. <code>Navix1M().run(entry)</code>; its display name
-is <code>type(self).__name__</code>. <code>run</code>/<code>summary</code>/<code>details</code> have no
-protocol-agnostic default and must be overridden by a concrete
-protocol (e.g. <code>FromScratchBenchmark</code>). <code>submit_entry</code> is concrete
-here - it writes out whatever <code>run</code>/<code>summary</code>/<code>details</code> already
-produced, the same way for every protocol.</p>
+        <p>An <strong>experimental protocol</strong> - the fixed set of choices that make
+two algorithms' numbers comparable: which environments, what frame
+budget, how many seeds, and how a run is scored and summarised. It
+says nothing about <em>how</em> an algorithm is implemented, only how it is
+measured, so any <code>AlgorithmEntry</code> can be run against it and against
+the literature.</p>
+<p>Use an instance, e.g. <code>Navix1M().run(entry)</code>; the protocol's name is
+<code>type(self).__name__</code>. A concrete protocol (e.g. <code>FromScratchBenchmark</code>,
+behind <code>Navix1M</code> / <code>Navix100K</code>) supplies <code>run</code> / <code>summary</code> /
+<code>details</code>; <code>submit_entry</code> is shared - it writes out whatever those
+produced, identically for every protocol.</p>
 
 
 

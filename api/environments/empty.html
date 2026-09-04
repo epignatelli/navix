@@ -1927,6 +1927,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.empty.Room" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Room
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2698,10 @@
 <a id="navix.environments.empty"></a>
     <div class="doc doc-contents first">
 
+        <p>MiniGrid's Empty environment - navigation in a bare walled room (<code>Room</code>).</p>
+<p>See the environment class in this module for the task, layout and
+reward/termination details.</p>
+
 
 
 
@@ -2705,6 +2720,85 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.empty.Room" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Room</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p>A single empty walled room - navix's <code>Empty</code> environments
+(<code>Navix-Empty-*</code>). One goal, one player, no obstacles; the task is
+pure navigation. Reward and termination are the defaults: <code>+1</code> on
+reaching the goal minus a per-step cost, episode ends on the goal.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.empty.Room.random_start">random_start</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>False</code> (the <code>Navix-Empty-NxN-v0</code> ids) places the
+player at <code>(1, 1)</code> facing east and the goal at the opposite
+corner. <code>True</code> (the <code>-Random-</code> ids) samples both positions
+and the player's facing each reset.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

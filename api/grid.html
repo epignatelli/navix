@@ -1088,6 +1088,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.grid.Coordinates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;Coordinates
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.grid.RoomsGrid" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3066,6 +3077,29 @@
 <a id="navix.grid"></a>
     <div class="doc doc-contents first">
 
+        <p>Array helpers for grid geometry - the low-level toolkit the
+environments, <code>navix.actions</code> and <code>navix.observations</code> are built from.</p>
+<p>Everything here is a pure JAX function over plain arrays; nothing knows
+about <code>State</code> or <code>Entity</code>. Groups:</p>
+<ul>
+<li>coordinate &lt;-&gt; flat-index conversion (<code>coordinates</code>,
+  <code>idx_from_coordinates</code>, ...);</li>
+<li>movement and rotation of a <code>(row, col)</code> position or a direction
+  (<code>translate</code>, <code>rotate</code>, <code>translate_forward/left/right</code>);</li>
+<li>rotating an image patch to align it with a direction (<code>align</code>,
+  <code>rotate_tile</code>);</li>
+<li>random placement (<code>random_positions</code>, <code>random_distinct_positions</code>,
+  <code>random_position_far_from</code>, <code>random_directions</code>, <code>random_colour</code>);</li>
+<li>building maps (<code>room</code>, <code>two_rooms</code>, <code>vertical_wall</code>, <code>horizontal_wall</code>,
+  <code>from_ascii_map</code>) and the multi-room grid helpers (<code>room_grid*</code>,
+  <code>room_*</code>, <code>RoomsGrid</code>);</li>
+<li>cropping and first-person rendering (<code>crop</code>, <code>view_cone</code>,
+  <code>draw_grid_lines</code>, <code>apply_minigrid_opacity</code>).</li>
+</ul>
+<p>Convention: positions are <code>(row, col)</code>, directions are <code>0</code> east, <code>1</code>
+south, <code>2</code> west, <code>3</code> north, and a "grid" is <code>i32[H, W]</code> with <code>0</code> = floor
+and <code>-1</code> = wall.</p>
+
 
 
 
@@ -3082,6 +3116,29 @@
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.grid.Coordinates" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">Coordinates</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">Array</span><span class="p">]</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>A <code>(rows, cols)</code> pair of index arrays, as returned by <code>coordinates</code> -
+the shape <code>jnp.where</code> / advanced indexing expect.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -3794,7 +3851,11 @@ containing two arrays, each of shape <code>i32[2]</code>.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="navix.grid.Coordinates">Coordinates</span></code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;Coordinates&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Tuple&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Array&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Array&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.grid.Coordinates&lt;/code&gt;)" href="#navix.grid.Coordinates">Coordinates</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4458,7 +4519,11 @@ corresponding element in <code>address</code> (col, row) and 0 otherwise.</p>
                 <code>address</code>
             </td>
             <td>
-                  <code><span title="navix.grid.Coordinates">Coordinates</span></code>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;Coordinates&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Tuple&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Array&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Array&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.grid.Coordinates&lt;/code&gt;)" href="#navix.grid.Coordinates">Coordinates</a></code>
             </td>
             <td>
               <div class="doc-md-description">

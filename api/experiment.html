@@ -2741,7 +2741,13 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
 
 
 
-        <p>A class to run an experiment with a given agent and environment.</p>
+        <p>Trains one <code>agent</code> on one <code>env</code> for a list of <code>seeds</code> and collects
+the metrics.</p>
+<p><code>run()</code> compiles the agent's <code>train</code> once and runs it for every seed
+(each seed is an independent training run from a different PRNG key),
+returning the stacked final train state and a <code>logs</code> pytree with a
+leading seed axis. <code>run_hparam_search()</code> wraps that in an
+Evolution-Strategies loop over hyperparameters.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2764,7 +2770,8 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The name of the experiment.</p>
+                <p>experiment name; used as the wandb project and as a
+prefix for run names.</p>
               </div>
             </td>
             <td>
@@ -2780,7 +2787,8 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The agent to use in the experiment.</p>
+                <p>the agent to train (<code>PPO</code>, <code>PQN</code>, <code>Dreamer</code>, or a
+custom <code>Agent</code>). It already holds its own <code>hparams</code>.</p>
               </div>
             </td>
             <td>
@@ -2796,7 +2804,8 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The environment to use in the experiment.</p>
+                <p>the environment to train on. Usually the same
+one <code>nx.make(env_id)</code> returns.</p>
               </div>
             </td>
             <td>
@@ -2812,7 +2821,10 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The ID of the environment.</p>
+                <p>the registered id of <code>env</code> (e.g.
+<code>"Navix-Empty-5x5-v0"</code>). Logged as metadata and used to match
+a run to a <code>navix.benchmarks</code> protocol; <code>""</code> if <code>env</code> is not
+a registered environment.</p>
               </div>
             </td>
             <td>
@@ -2828,7 +2840,8 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The seeds to use in the experiment.</p>
+                <p>one training run per seed. Default
+<code>(0,)</code>.</p>
               </div>
             </td>
             <td>
@@ -2844,91 +2857,12 @@ hyperparameters via Evolution Strategies (<code>run_hparam_search</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The group to use in the experiment.</p>
+                <p>optional wandb group, for aggregating related runs
+in the dashboard.</p>
               </div>
             </td>
             <td>
                   <code>&#39;&#39;</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.name">name</span></code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The name of the experiment.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.agent">agent</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Agent&lt;/code&gt; (&lt;code&gt;navix.agents.agent.Agent&lt;/code&gt;)" href="agents/agent.html#navix.agents.agent.Agent">Agent</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The agent to use in the experiment.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.env">env</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environments/environment.html#navix.environments.environment.Environment">Environment</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The environment to use in the experiment.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.env_id">env_id</span></code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The ID of the environment.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.seeds">seeds</span></code></td>
-            <td>
-                  <code><span title="typing.Tuple">Tuple</span>[<span title="int">int</span>, ...]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The seeds to use in the experiment.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="navix.experiment.Experiment.group">group</span></code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The group to use in the experiment.</p>
-              </div>
             </td>
           </tr>
       </tbody>

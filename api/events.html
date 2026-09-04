@@ -1032,6 +1032,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.events.DONE_ACTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DONE_ACTION
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.events.DROP_ACTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DROP_ACTION
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.events.TOGGLE_ACTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;TOGGLE_ACTION
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.events.on_any_target_pickup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2862,18 +2895,23 @@
 <a id="navix.events"></a>
     <div class="doc doc-contents first">
 
-        <p>Issue #192: every function in this module takes the uniform
-<code>(prev_state, action, state)</code> triple, even where its own body only
-reads a subset of it - matching the convention <code>rewards.py</code>/
-<code>terminations.py</code>'s wrapper functions already use unconditionally
-(e.g. <code>rewards.on_goal_reached(prev_state, action, state)</code> ignores the
-first two args entirely). Before this, 5 different signature shapes
-were spread across this module's functions (<code>(state)</code>, <code>(prev_state,
-state)</code>, <code>(action, state)</code>, <code>(action)</code>, <code>(prev_state, action)</code>), each
-needing its own docstring paragraph explaining why it deviated from a
-single-state "convention" that was never actually uniform. One honest,
-uniform contract instead - unused args are still named in each
-function's docstring, marked <code>(unused)</code>.</p>
+        <p>Event detectors: given a transition, did some notable thing happen?</p>
+<p>An <em>event</em> is a thing that occurred during one step - the goal was
+reached, a ball hit the player, a door was unlocked. The transition
+pipeline records events into <code>state.events</code> (an <code>EventsManager</code>, reset
+every step), and the functions here read that record - together with
+<code>prev_state</code>/<code>action</code>/<code>state</code> - to answer yes/no questions about the
+step. <code>navix.rewards</code> and <code>navix.terminations</code> are thin, dtype-coercing
+wrappers around these; this module is where each condition's exact
+semantics live.</p>
+<p>Every function has the same signature,</p>
+<div class="highlight"><pre><span></span><code>fn(prev_state: State, action: Array, state: State) -&gt; Array
+</code></pre></div>
+<p>returning a boolean scalar <code>bool[]</code>. Not all three arguments are used by
+every function - some only need <code>state</code>, a few need <code>prev_state</code> to
+detect a <em>change</em> this step (the event record alone can't say whether a
+flag just flipped or was already set). Each function's docstring marks
+the arguments it ignores.</p>
 
 
 
@@ -2891,6 +2929,76 @@ function's docstring, marked <code>(unused)</code>.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.events.DONE_ACTION" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DONE_ACTION</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">MINIGRID_ACTION_SET</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">done</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The integer that means <code>actions.done</code> in the default action set -
+used by detectors like <code>on_target_done</code> that care <em>which</em> action was
+taken. Only correct for environments using <code>MINIGRID_ACTION_SET</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.events.DROP_ACTION" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DROP_ACTION</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">MINIGRID_ACTION_SET</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">drop</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The integer that means <code>actions.drop</code> in the default action set (see
+<code>DONE_ACTION</code>).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.events.TOGGLE_ACTION" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">TOGGLE_ACTION</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">MINIGRID_ACTION_SET</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">actions</span><span class="o">.</span><span class="n">toggle</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The integer that means <code>actions.toggle</code> in the default action set
+(see <code>DONE_ACTION</code>).</p>
+
+    </div>
+
+</div>
 
 
 
@@ -4683,16 +4791,15 @@ which ends the episode immediately if the wrong object is picked up.</p>
 
     <div class="doc doc-contents ">
 
-        <p><code>GoToObject</code>'s real win condition (verified directly against
-MiniGrid's actual <code>GoToObjectEnv.step</code> source): the <code>done</code> action
-was called while orthogonally adjacent to <code>state.mission</code>'s target -
-NOT while facing it. An earlier version of this function required
-facing too, which was a misreading of the source: real MiniGrid's
-check is pure position, <code>(ax==tx and abs(ay-ty)==1) or (ay==ty and
-abs(ax-tx)==1)</code>, with no facing/direction test at all (PR #191
-review caught this - reproduced directly: with the player adjacent
-but facing perpendicular to the target, this function used to
-return <code>False</code> where real MiniGrid rewards it).</p>
+        <p><code>GoToObject</code>'s win condition: the <code>done</code> action was taken while
+the player is <strong>orthogonally adjacent</strong> to the target named by
+<code>state.mission</code> - direction/facing is not checked. This is a pure
+position test, <code>(row == target_row and |col - target_col| == 1) or
+(col == target_col and |row - target_row| == 1)</code>, matching
+MiniGrid's <code>GoToObjectEnv.step</code>.</p>
+<p><code>state.mission</code> must be non-empty (an <code>AssertionError</code> otherwise).
+"The <code>done</code> action" is <code>action == DONE_ACTION</code>, i.e. only meaningful
+for an environment using the default action set.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4715,7 +4822,7 @@ return <code>False</code> where real MiniGrid rewards it).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The state before this step's action (unused).</p>
+                <p>$s_t$ (unused).</p>
               </div>
             </td>
             <td>
@@ -4731,7 +4838,7 @@ return <code>False</code> where real MiniGrid rewards it).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The action taken by the player.</p>
+                <p>the integer action taken.</p>
               </div>
             </td>
             <td>
@@ -4747,7 +4854,8 @@ return <code>False</code> where real MiniGrid rewards it).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>$s_{t+1}$ - source of the player and target
+positions.</p>
               </div>
             </td>
             <td>
@@ -4773,7 +4881,7 @@ return <code>False</code> where real MiniGrid rewards it).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A boolean scalar.</p>
+                <p><code>bool[]</code>.</p>
               </div>
             </td>
           </tr>

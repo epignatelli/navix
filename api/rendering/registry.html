@@ -2544,6 +2544,100 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.rendering.registry.MIN_TILE_SIZE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;MIN_TILE_SIZE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.rendering.registry.SPRITES_DIR" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPRITES_DIR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.rendering.registry.SPRITES_REGISTRY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPRITES_REGISTRY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.rendering.registry.TILE_SIZE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;TILE_SIZE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.rendering.registry.PALETTE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PALETTE
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" PALETTE">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.rendering.registry.PALETTE.UNSET" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;UNSET
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.rendering.registry.PALETTE.as_array" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;as_array
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.rendering.registry.PALETTE.as_string" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;as_string
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.rendering.registry.SpritesRegistry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2554,6 +2648,17 @@
   
     <nav class="md-nav" aria-label=" SpritesRegistry">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.rendering.registry.SpritesRegistry.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__init__
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#navix.rendering.registry.SpritesRegistry.build_registry" class="md-nav__link">
@@ -2724,6 +2829,10 @@
 <a id="navix.rendering.registry"></a>
     <div class="doc doc-contents first">
 
+        <p>The colour palette and the on-disk sprite tiles used to render <code>rgb</code>
+observations. Everything is loaded once at import into the module-level
+<code>SPRITES_REGISTRY</code>.</p>
+
 
 
 
@@ -2741,7 +2850,216 @@
 
 
 
+<div class="doc doc-object doc-attribute">
 
+
+
+<h3 id="navix.rendering.registry.MIN_TILE_SIZE" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">MIN_TILE_SIZE</span> <span class="o">=</span> <span class="mi">8</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Smallest supported tile edge, in pixels.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.rendering.registry.SPRITES_DIR" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">SPRITES_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="vm">__file__</span><span class="p">,</span> <span class="s1">'..'</span><span class="p">,</span> <span class="s1">'..'</span><span class="p">,</span> <span class="s1">'..'</span><span class="p">,</span> <span class="s1">'assets'</span><span class="p">,</span> <span class="s1">'sprites'</span><span class="p">))</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Directory the <code>.png</code> sprite files are loaded from.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.rendering.registry.SPRITES_REGISTRY" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">SPRITES_REGISTRY</span> <span class="o">=</span> <span class="n">SpritesRegistry</span><span class="p">()</span><span class="o">.</span><span class="n">registry</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The loaded sprites: <code>dict</code> from an <code>Entities</code> name (<code>"wall"</code>, <code>"key"</code>,
+<code>"door"</code>, ...) to a <code>uint8</code> sprite array. <code>State.get_sprites</code> reads it.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.rendering.registry.TILE_SIZE" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">TILE_SIZE</span> <span class="o">=</span> <span class="n">MIN_TILE_SIZE</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Edge length (pixels) of one rendered grid cell. An <code>rgb</code> observation
+of an <code>H x W</code> grid is <code>H * TILE_SIZE</code> by <code>W * TILE_SIZE</code>.</p>
+
+    </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.rendering.registry.PALETTE" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>PALETTE</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+
+
+        <p>The six entity colours, as <code>uint8</code> indices. <code>HasColour.colour</code>
+holds one of these; it is the <code>colour</code> channel of a <code>symbolic</code>
+observation and selects the coloured sprite variant for <code>rgb</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.rendering.registry.PALETTE.UNSET" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">UNSET</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mi">255</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sentinel for "no colour" - used by colourless entities and empty
+event slots. Not a real palette index.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.rendering.registry.PALETTE.as_array" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">as_array</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>[RED, GREEN, BLUE, PURPLE, YELLOW, GREY]</code> - the index values
+in the same order as <code>as_string</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.rendering.registry.PALETTE.as_string" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">as_string</span><span class="p">()</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The colour names in index order: <code>["red", "green", "blue",
+"purple", "yellow", "grey"]</code>. Sprite files are named
+<code>&lt;entity&gt;_&lt;name&gt;.png</code>.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-class">
 
@@ -2757,6 +3075,11 @@
     <div class="doc doc-contents ">
 
 
+
+        <p>Loads every entity sprite from disk into a <code>dict</code> keyed by
+<code>Entities</code> name. Coloured / directional entities map to a stacked
+array (leading axis = colour, or direction, or <code>(colour, state)</code> for
+doors). Instantiated once at import as <code>SPRITES_REGISTRY</code>.</p>
 
 
 
@@ -2782,6 +3105,24 @@
 <div class="doc doc-object doc-function">
 
 
+<h4 id="navix.rendering.registry.SpritesRegistry.__init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Builds the registry immediately (reads the PNG files).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="navix.rendering.registry.SpritesRegistry.build_registry" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">build_registry</span><span class="p">()</span></code>
 
@@ -2790,7 +3131,8 @@
 
     <div class="doc doc-contents ">
 
-        <p>Populates the sprites registry for all entities.</p>
+        <p>Loads and stores the sprite array for every entity type. Each
+<code>set_*_sprite</code> helper populates one <code>registry</code> key.</p>
 
 
     </div>
@@ -2817,27 +3159,56 @@
 
     <div class="doc doc-contents ">
 
-        <p>Loads an image from disk in RGB space.
-Args:
-    path(str): the filepath of the image on disk</p>
+        <p>Loads <code>assets/sprites/&lt;name&gt;.png</code>, resized to <code>TILE_SIZE</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>sprite basename without extension, e.g. <code>"key_red"</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
     <table>
       <thead>
         <tr>
-          <th>Type</th>
+<th>Name</th>          <th>Type</th>
           <th>Description</th>
         </tr>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td>
+<td><code>Array</code></td>            <td>
                   <code><span title="jax.Array">Array</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>a jax.Array of shape (H, W, C)</p>
+                <p><code>u8[TILE_SIZE, TILE_SIZE, 3]</code>.</p>
               </div>
             </td>
           </tr>

@@ -3221,6 +3221,14 @@
 <a id="navix.states"></a>
     <div class="doc doc-contents first">
 
+        <p><code>State</code> - the full, true world state - and the per-step <code>Event</code> /
+<code>EventsManager</code> record it carries.</p>
+<p><code>State</code> bundles the static <code>grid</code>, the batched <code>entities</code> dict, a
+rendering <code>cache</code> and a PRNG <code>key</code>; an <code>observation_fn</code> derives what the
+agent sees from it. <code>EventsManager</code> is a small fixed set of <code>Event</code>
+slots that the transition pipeline writes ("goal reached", "ball hit",
+...) and that <code>navix.events</code> / <code>rewards</code> / <code>terminations</code> read.</p>
+
 
 
 
@@ -5054,7 +5062,13 @@ updated events manager.</p>
 
 
 
-        <p>The Markovian state of the environment</p>
+        <p>The full, true state of the world - everything <code>step</code> needs to
+compute the next state, and everything an <code>observation_fn</code> reads.
+A frozen <code>flax.struct</code> pytree (<code>vmap</code>s over a batch of environments).
+<code>Timestep.state</code> is one of these.</p>
+<p>The <code>get_*</code> / <code>set_*</code> helpers below are the convenient way to reach
+into <code>entities</code>; the raw <code>entities</code> dict is also fine to use
+directly.</p>
 
 
 
@@ -5090,7 +5104,8 @@ updated events manager.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The rendering cache to speed up rendering</p>
+        <p>Pre-rendered tile patches, so <code>rgb</code> observations only re-draw the
+cells that changed. Carried in the state so it survives <code>jax.jit</code>.</p>
 
     </div>
 
@@ -5113,8 +5128,9 @@ updated events manager.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The entities in the environment, indexed via entity type string representation.
-Batched over the number of entities for each type</p>
+        <p>Maps an <code>Entities</code> key (<code>"player"</code>, <code>"key"</code>, ...) to a single
+batched <code>Entity</code> holding every instance of that type. A type with no
+instances in this environment is simply absent from the dict.</p>
 
     </div>
 
@@ -5162,7 +5178,9 @@ since a <code>struct.PyTreeNode</code> field's default can't see its sibling fie
 
     <div class="doc doc-contents ">
 
-        <p>The base map of the environment that remains constant throughout the training</p>
+        <p><code>i32[H, W]</code> static base map: <code>0</code> is floor, <code>-1</code> marks a wall cell.
+Fixed for the lifetime of an episode; moving entities live in
+<code>entities</code>, not here.</p>
 
     </div>
 
@@ -5184,7 +5202,8 @@ since a <code>struct.PyTreeNode</code> field's default can't see its sibling fie
 
     <div class="doc doc-contents ">
 
-        <p>The random number generator state</p>
+        <p>PRNG key for this environment's own stochasticity (ball motion,
+stochastic goals). Advanced by the functions that consume it.</p>
 
     </div>
 
@@ -5288,7 +5307,8 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Get an entity from the state by its enum.</p>
+        <p>The batched <code>Entity</code> for one type. The typed helpers
+(<code>get_keys</code>, <code>get_doors</code>, ...) are thin wrappers around this.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -5311,7 +5331,7 @@ tuple, not another numbered field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The enum of the entity to get.</p>
+                <p>an <code>Entities</code> key, e.g. <code>Entities.KEY</code>.</p>
               </div>
             </td>
             <td>
@@ -5337,7 +5357,40 @@ tuple, not another numbered field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The entity from the state.</p>
+                <p>every instance of that type, batched (leading axis =</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Entity&lt;/code&gt; (&lt;code&gt;navix.entities.Entity&lt;/code&gt;)" href="entities.html#navix.entities.Entity">Entity</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>instance count).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if this environment has no entity of that type -</p>
               </div>
             </td>
           </tr>
@@ -5414,7 +5467,63 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Gets the player entity from the state.</p>
+        <p>The player, <em>unbatched</em> (navix is single-agent). Unlike the
+other <code>get_*</code> helpers this indexes into the batch and returns one
+<code>Player</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>which player - only <code>0</code> is meaningful today.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Player</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Player&lt;/code&gt; (&lt;code&gt;navix.entities.Player&lt;/code&gt;)" href="entities.html#navix.entities.Player">Player</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the player entity, no leading instance axis.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -5432,7 +5541,11 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Get the positions of all the entities in the state.</p>
+        <p>Every entity instance's <code>(row, col)</code>, concatenated across all
+types into one <code>i32[N, 2]</code> (<code>N</code> = total instance count). The
+ordering matches <code>get_tags</code> / <code>get_sprites</code> / <code>get_transparency</code>,
+so they can be zipped - this is what the observation functions
+do to paint entities onto the grid.</p>
 
 
     </div>
@@ -5450,7 +5563,9 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Get the sprites of all the entities in the state.</p>
+        <p>Every entity instance's RGB sprite, concatenated into
+<code>u8[N, TILE_SIZE, TILE_SIZE, 3]</code>, in the same order as
+<code>get_positions</code>. Used to build an <code>rgb</code> observation.</p>
 
 
     </div>
@@ -5468,7 +5583,10 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Returns the sprites with the agent aligned in the north position</p>
+        <p>Like <code>get_sprites</code>, but the player's sprite is forced to its
+north-facing variant. First-person observations rotate the whole
+view so the player always points up, so its sprite must not also
+carry a rotation.</p>
 
 
     </div>
@@ -5486,7 +5604,9 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Get the tags of all the entities in the state.</p>
+        <p>Every entity instance's <code>tag</code>, concatenated into <code>i32[N]</code>, in
+the same order as <code>get_positions</code>. Used to build a <code>categorical</code>
+observation.</p>
 
 
     </div>
@@ -5504,7 +5624,9 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Get the transparency of all the entities in the state.</p>
+        <p>Every entity instance's <code>transparent</code> flag, concatenated into
+<code>bool[N]</code>, in the same order as <code>get_positions</code>. Feeds the
+first-person view cone.</p>
 
 
     </div>
@@ -5594,7 +5716,10 @@ tuple, not another numbered field.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Set an entity in the state by its enum.</p>
+        <p>Replaces one entity type's batch. Mutates <code>self.entities</code> in
+place <em>and</em> returns <code>self</code> (it does not build a new <code>State</code>), so
+<code>state.set_entity(...)</code> and <code>state = state.set_entity(...)</code> are
+equivalent.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -5617,7 +5742,7 @@ tuple, not another numbered field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The enum of the entity to set.</p>
+                <p>an <code>Entities</code> key.</p>
               </div>
             </td>
             <td>
@@ -5633,7 +5758,9 @@ tuple, not another numbered field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The entity to set.</p>
+                <p>the new batched entity (its shape may differ
+from the old one - e.g. after a pickup moves an instance
+off-grid).</p>
               </div>
             </td>
             <td>
@@ -5659,7 +5786,7 @@ tuple, not another numbered field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The updated state.</p>
+                <p><code>self</code>.</p>
               </div>
             </td>
           </tr>

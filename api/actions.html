@@ -931,6 +931,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.actions.DEFAULT_ACTION_SET" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DEFAULT_ACTION_SET
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.actions.MINIGRID_ACTION_SET" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2807,7 +2818,23 @@
 <a id="navix.actions"></a>
     <div class="doc doc-contents first">
 
-        <p>The <em>action</em> system determines the next state of the environment given the current state and an action.</p>
+        <p>The action primitives an integer action indexes into.</p>
+<p>Each function here is a pure <code>State -&gt; State</code> transformation of the
+world. An <code>Environment</code> holds an ordered <code>action_set</code> (a tuple of these),
+and <code>transitions_fn</code> applies <code>action_set[a]</code> for an integer action <code>a</code>;
+the environment's <code>action_space</code> is <code>Discrete(len(action_set))</code>. So the
+<em>meaning</em> of action <code>2</code> depends on which set the environment uses - see
+<code>MINIGRID_ACTION_SET</code> (the default) and <code>COMPLETE_ACTION_SET</code>.</p>
+<p>Conventions shared by all of them:</p>
+<ul>
+<li>"the player" is <code>state.get_player(idx=0)</code> (navix is single-agent for
+  now); "in front" is the cell one step along <code>player.direction</code>
+  (<code>0</code> east, <code>1</code> south, <code>2</code> west, <code>3</code> north).</li>
+<li>Movement that would enter a wall or a non-walkable entity is a no-op:
+  the player stays put (and a wall/entity-hit event is recorded).</li>
+<li>Every action is total - it always returns a <code>State</code> of the same
+  structure, so the set can go through <code>jax.lax.switch</code>.</li>
+</ul>
 
 
 
@@ -2842,8 +2869,34 @@
 
     <div class="doc doc-contents ">
 
-        <p>Complete action set for the environment.
-This set includes all the actions that can be taken by the agent, and does not mirror the Minigrid action set.</p>
+        <p>Every action navix defines, in index order:
+<code>0 noop</code>, <code>1 rotate_cw</code>, <code>2 rotate_ccw</code>, <code>3 forward</code>, <code>4 right</code>,
+<code>5 backward</code>, <code>6 left</code>, <code>7 pickup</code>, <code>8 open</code>, <code>9 done</code>. Wider than
+MiniGrid's set (adds strafing and <code>noop</code>); use it for environments that
+need lateral movement.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.actions.DEFAULT_ACTION_SET" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DEFAULT_ACTION_SET</span> <span class="o">=</span> <span class="n">MINIGRID_ACTION_SET</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>action_set</code> an <code>Environment</code> uses unless overridden -
+<code>MINIGRID_ACTION_SET</code>.</p>
 
     </div>
 
@@ -2865,7 +2918,9 @@ This set includes all the actions that can be taken by the agent, and does not m
 
     <div class="doc doc-contents ">
 
-        <p>Default action set from Minigrid. See
+        <p>MiniGrid's seven actions, in the same index order MiniGrid uses:
+<code>0 rotate_ccw</code> (MiniGrid "left"), <code>1 rotate_cw</code> ("right"), <code>2 forward</code>,
+<code>3 pickup</code>, <code>4 drop</code>, <code>5 toggle</code>, <code>6 done</code>. See
 https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.py</p>
 
     </div>
@@ -2886,7 +2941,9 @@ https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.
 
     <div class="doc doc-contents ">
 
-        <p>Steps the player backward without changing the direction.</p>
+        <p>Steps the player one cell backwards (opposite to where it faces)
+without turning. Blocked-move rules as for <code>forward</code>. Not in the
+MiniGrid action set.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2909,7 +2966,7 @@ https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -2935,7 +2992,17 @@ https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player moved backward.</p>
+                <p>the state with the player's <code>position</code> updated (or not, if</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>blocked).</p>
               </div>
             </td>
           </tr>
@@ -2958,8 +3025,11 @@ https://github.com/Farama-Foundation/Minigrid/blob/master/minigrid/core/actions.
 
     <div class="doc doc-contents ">
 
-        <p>A placeholder action that does nothing, but is a signal to the environment that the episode is over.
-This action does not terminate the episode, unless the termination function explicitly checks for it (not default).</p>
+        <p>The agent's "I'm finished" signal. Returns the state unchanged - it
+does <em>not</em> end the episode by itself. Only environments whose
+<code>termination_fn</code> inspects for it (e.g. <code>GoToObject</code>, via
+<code>events.on_target_done</code>) react to it; under the default termination
+it is a no-op.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2982,7 +3052,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3008,7 +3078,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The same state.</p>
+                <p><code>state</code>, unchanged.</p>
               </div>
             </td>
           </tr>
@@ -3031,7 +3101,9 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>Replaces the position in front of the player with the item in the pocket.</p>
+        <p>Places the item currently in <code>player.pocket</code> on the cell in front
+of the player and empties the pocket. No-op if the pocket is empty or
+the cell in front is not walkable (occupied or a wall).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3054,7 +3126,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3080,7 +3152,17 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the item in the pocket dropped in front of the player.</p>
+                <p>the state with the pocketed item back on the grid in front</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>of the player and <code>player.pocket</code> cleared.</p>
               </div>
             </td>
           </tr>
@@ -3103,7 +3185,9 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>Moves the player forward.</p>
+        <p>Moves the player one cell in the direction it faces. No-op if that
+cell is a wall or a non-walkable entity (a hit event is recorded);
+<code>direction</code> never changes.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3126,7 +3210,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3152,7 +3236,17 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player moved forward.</p>
+                <p>the state with the player's <code>position</code> updated (or not, if</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>blocked).</p>
               </div>
             </td>
           </tr>
@@ -3175,7 +3269,9 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>Steps the player to the left without changing the direction.</p>
+        <p>Strafes the player one cell to its left (90 degrees
+counter-clockwise of where it faces) without turning. Blocked-move
+rules as for <code>forward</code>. Not in the MiniGrid action set.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3198,7 +3294,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3224,7 +3320,17 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player moved to the left.</p>
+                <p>the state with the player's <code>position</code> updated (or not, if</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>blocked).</p>
               </div>
             </td>
           </tr>
@@ -3247,7 +3353,8 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>No operation. Does nothing.</p>
+        <p>Does nothing - the world is returned unchanged. Present so an
+action set can include an explicit "wait".</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3270,7 +3377,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3296,7 +3403,7 @@ This action does not terminate the episode, unless the termination function expl
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The same state.</p>
+                <p><code>state</code>, unchanged.</p>
               </div>
             </td>
           </tr>
@@ -3319,8 +3426,17 @@ This action does not terminate the episode, unless the termination function expl
 
     <div class="doc doc-contents ">
 
-        <p>Unlocks and opens an openable object (like a door), or opens a
-box to reveal what it contains, if possible.</p>
+        <p>Opens whatever openable thing is directly in front of the player:</p>
+<ul>
+<li>a <code>Box</code> -&gt; removed, and its contents (a <code>Key</code>) revealed at that
+  cell (see <code>open_box</code>);</li>
+<li>a <code>Door</code> -&gt; opened iff it is closed and either unlocked
+  (<code>requires == -1</code>) or the player is carrying the required key
+  (<code>player.pocket == door.requires</code>), in which case that key is
+  consumed from the pocket. Opening records a door-opening event.</li>
+</ul>
+<p>A <code>Door</code> that is already open, and any other cell, are left
+untouched. <code>toggle</code> is an alias for this.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3343,7 +3459,7 @@ box to reveal what it contains, if possible.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3369,7 +3485,17 @@ box to reveal what it contains, if possible.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the openable object opened.</p>
+                <p>the state with the door/box in front opened if the</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>conditions held.</p>
               </div>
             </td>
           </tr>
@@ -3497,30 +3623,10 @@ the player.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Picks up an item (<code>Key</code>, <code>Box</code>, or <code>Ball</code>) in front of the player
-and puts it in the pocket.
-Args:
-    state (State): The current state.
-Returns:
-    State: The new state with the player entity having the item in the pocket.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="navix.actions.right" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">right</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></code>
-
-</h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Steps the player to the right without changing the direction.</p>
+        <p>Picks up the pickable entity (<code>Key</code>, <code>Box</code>, or <code>Ball</code>) directly in
+front of the player: the entity is moved off the grid and its <code>id</code> is
+written to <code>player.pocket</code>, overwriting whatever was there. No-op if
+the cell in front holds nothing pickable. Records a pickup event.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3543,7 +3649,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3569,7 +3675,101 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player moved to the right.</p>
+                <p>the state with the item removed from the grid and its</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>id</code> in <code>player.pocket</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.actions.right" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">right</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Strafes the player one cell to its right (90 degrees clockwise of
+where it faces) <em>without</em> turning. Blocked-move rules as for
+<code>forward</code>. Not in the MiniGrid action set.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the current state.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>State</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the state with the player's <code>position</code> updated (or not, if</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>blocked).</p>
               </div>
             </td>
           </tr>
@@ -3592,7 +3792,8 @@ Returns:
 
     <div class="doc doc-contents ">
 
-        <p>Rotates the player counter-clockwise.</p>
+        <p>Turns the player 90 degrees counter-clockwise (<code>direction</code> -&gt;
+<code>direction - 1</code> mod 4). Position is unchanged.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3615,7 +3816,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3641,7 +3842,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player rotated counter-clockwise.</p>
+                <p>the state with the player's <code>direction</code> updated.</p>
               </div>
             </td>
           </tr>
@@ -3664,7 +3865,8 @@ Returns:
 
     <div class="doc doc-contents ">
 
-        <p>Rotates the player clockwise.</p>
+        <p>Turns the player 90 degrees clockwise (<code>direction</code> -&gt; <code>direction + 1</code>
+mod 4). Position is unchanged.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3687,7 +3889,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3713,7 +3915,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the player rotated clockwise.</p>
+                <p>the state with the player's <code>direction</code> updated.</p>
               </div>
             </td>
           </tr>
@@ -3736,7 +3938,9 @@ Returns:
 
     <div class="doc doc-contents ">
 
-        <p>Toggles an openable object (like a door) if possible.</p>
+        <p>MiniGrid's <code>toggle</code> action. An alias for <code>open</code>: in navix a door,
+once opened, stays open (there is no close), so "toggle" and "open"
+are the same operation.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3759,7 +3963,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3785,7 +3989,7 @@ Returns:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state with the openable object toggled.</p>
+                <p>see <code>open</code>.</p>
               </div>
             </td>
           </tr>

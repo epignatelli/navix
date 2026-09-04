@@ -1983,6 +1983,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.fetch.Fetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Fetch
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2719,6 +2730,84 @@ random step each turn, which real MiniGrid's <code>Ball</code> doesn't do outsid
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.fetch.Fetch" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>Fetch</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>Navix-Fetch-*</code>. A room scattered with <code>n_objects</code> coloured
+<code>Key</code>/<code>Ball</code> objects; one is named as the target in <code>State.mission</code>.
+Picking up <em>any</em> object ends the episode - reward <code>1</code> only if it was
+the target, <code>0</code> otherwise. See the module docstring for MiniGrid
+parity notes.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.fetch.Fetch.n_objects">n_objects</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>how many objects to scatter (split roughly half keys,
+half balls).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

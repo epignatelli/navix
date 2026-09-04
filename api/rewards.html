@@ -2807,6 +2807,23 @@
 <a id="navix.rewards"></a>
     <div class="doc doc-contents first">
 
+        <p>Reward functions: the scalar reward for one transition.</p>
+<p>An <code>Environment</code>'s <code>reward_fn</code> has the signature shared with
+<code>navix.terminations</code> and <code>navix.events</code>:</p>
+<div class="highlight"><pre><span></span><code>fn(prev_state: State, action: Array, state: State) -&gt; Array
+</code></pre></div>
+<ul>
+<li><code>prev_state</code> is $s_t$, <code>action</code> is $a_t$, <code>state</code> is $s_{t+1}$. Some
+  functions need <code>prev_state</code> to reward a <em>change</em> this step; most only
+  read <code>state</code>.</li>
+<li>The return is a scalar <code>f32[]</code>. <code>Environment.reward_space</code> bounds it
+  (<code>[-1, 1]</code> by default). Positive functions here return <code>1.0</code> on the
+  rewarded event and <code>0.0</code> otherwise; the <code>*_cost</code> functions return a
+  small negative shaping term every step.</li>
+</ul>
+<p><code>compose</code> reduces several into one (summed by default), and
+<code>DEFAULT_TASK</code> is <code>on_goal_reached</code> minus a per-step <code>action_cost</code>.</p>
+
 
 
 
@@ -2840,7 +2857,9 @@
 
     <div class="doc doc-contents ">
 
-        <p>The default task for the game, composed of the <code>on_goal_reached</code> and <code>action_cost</code> reward functions.</p>
+        <p>The <code>reward_fn</code> an <code>Environment</code> uses unless overridden: <code>+1.0</code> on
+reaching the goal, plus a small negative <code>action_cost</code> on every step, so
+shorter successful episodes score higher.</p>
 
     </div>
 
@@ -2860,8 +2879,10 @@
 
     <div class="doc doc-contents ">
 
-        <p>A reward function that returns a negative value when an action is taken. 
-All actions have a cost of <code>cost</code>, except for noops.</p>
+        <p>A per-step penalty of <code>-cost</code> on every action except the one at
+index <code>6</code> (the <code>done</code> action in the default <code>MINIGRID_ACTION_SET</code>),
+which is free. Part of <code>DEFAULT_TASK</code>, where it makes shorter
+successful episodes score higher.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2884,7 +2905,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The previous state of the game.</p>
+                <p>$s_t$ (unused).</p>
               </div>
             </td>
             <td>
@@ -2900,7 +2921,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The action taken.</p>
+                <p>the integer action taken.</p>
               </div>
             </td>
             <td>
@@ -2916,7 +2937,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state of the game.</p>
+                <p>$s_{t+1}$ (unused).</p>
               </div>
             </td>
             <td>
@@ -2932,7 +2953,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The cost of taking an action.</p>
+                <p>the per-action penalty magnitude. Default <code>0.01</code>.</p>
               </div>
             </td>
             <td>
@@ -2958,7 +2979,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A scalar array <code>f32[]</code> with value -<code>cost</code> if the action is not a noop,         and 0 otherwise.</p>
+                <p><code>f32[]</code> - <code>-cost</code> if <code>action != 6</code>, else <code>0.0</code>.</p>
               </div>
             </td>
           </tr>
@@ -2981,8 +3002,7 @@ All actions have a cost of <code>cost</code>, except for noops.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Compose multiple reward functions into a single reward function.
-The functions are called in order and the results are reduced using the <code>operator</code>     function.</p>
+        <p>Combines several reward functions into one.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3001,11 +3021,12 @@ The functions are called in order and the results are reduced using the <code>op
                 <code>*reward_functions</code>
             </td>
             <td>
-                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a>, <span title="jax.Array">Array</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a>], <span title="jax.Array">Array</span>]</code>
+                  <code><span title="typing.Callable">Callable</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A list of reward functions.</p>
+                <p>reward functions to combine, each
+<code>(prev_state, action, state) -&gt; f32[]</code>.</p>
               </div>
             </td>
             <td>
@@ -3021,7 +3042,10 @@ The functions are called in order and the results are reduced using the <code>op
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The operator to reduce the results of the reward functions.</p>
+                <p>reduces the stacked <code>f32[len(reward_functions)]</code>
+results to a scalar <code>f32[]</code>. Default <code>jnp.sum</code> - the rewards
+add up (use <code>on_goal_reached</code> for <code>+1</code> and an <code>action_cost</code>
+for the <code>-</code> shaping term, as <code>DEFAULT_TASK</code> does).</p>
               </div>
             </td>
             <td>
@@ -3047,7 +3071,17 @@ The functions are called in order and the results are reduced using the <code>op
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A composed reward function that applies the <code>operator</code> to the results of the         reward functions.</p>
+                <p>a single <code>(prev_state, action, state) -&gt; f32[]</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>function.</p>
               </div>
             </td>
           </tr>
@@ -3070,70 +3104,9 @@ The functions are called in order and the results are reduced using the <code>op
 
     <div class="doc doc-contents ">
 
-        <p>A reward function that always returns 0, to simulate reward-free learning.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>prev_state</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The state before the action was taken.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>action</code>
-            </td>
-            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The action taken by the player.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>state</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The current state of the game.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>Always <code>0.0</code> - the reward-free setting, for unsupervised or
+exploration-driven training where only the transition dynamics
+matter.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -3151,7 +3124,7 @@ The functions are called in order and the results are reduced using the <code>op
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A scalar array <code>f32[]</code> with value 0.</p>
+                <p><code>f32[]</code>, always <code>0.0</code>.</p>
               </div>
             </td>
           </tr>
@@ -3806,71 +3779,10 @@ Chebyshev distance 1 of the second mission target, 0 otherwise.</p>
 
     <div class="doc doc-contents ">
 
-        <p><code>GoToObject</code>'s reward: 1 if <code>done</code> was called while facing the
-mission target, 0 otherwise.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>prev_state</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The previous state of the game.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>action</code>
-            </td>
-            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The action taken by the player.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>state</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The current state of the game.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p><code>GoToObject</code>'s reward: <code>1.0</code> if the <code>done</code> action was taken while
+the player is orthogonally adjacent to the mission's target object
+(facing it is not required; see <code>events.on_target_done</code>), else
+<code>0.0</code>.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -3888,7 +3800,7 @@ mission target, 0 otherwise.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A scalar array <code>f32[]</code>.</p>
+                <p><code>f32[]</code>.</p>
               </div>
             </td>
           </tr>
@@ -4018,7 +3930,8 @@ on_any_target_pickup</code>).</p>
 
     <div class="doc doc-contents ">
 
-        <p>A reward function that returns a negative value as time passes, paying a cost     of <code>cost</code> at each time step.</p>
+        <p>A flat <code>-cost</code> on every step, regardless of the action (unlike
+<code>action_cost</code>, which exempts <code>done</code>).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4041,7 +3954,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The previous state of the game.</p>
+                <p>$s_t$ (unused).</p>
               </div>
             </td>
             <td>
@@ -4057,7 +3970,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The action taken.</p>
+                <p>the integer action taken (unused).</p>
               </div>
             </td>
             <td>
@@ -4073,7 +3986,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The new state of the game.</p>
+                <p>$s_{t+1}$ (unused).</p>
               </div>
             </td>
             <td>
@@ -4089,7 +4002,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The cost of time passing.</p>
+                <p>the per-step penalty magnitude. Default <code>0.01</code>.</p>
               </div>
             </td>
             <td>
@@ -4115,7 +4028,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A scalar array <code>f32[]</code> with value -<code>cost</code>.</p>
+                <p><code>f32[]</code>, always <code>-cost</code>.</p>
               </div>
             </td>
           </tr>
@@ -4138,7 +4051,9 @@ on_any_target_pickup</code>).</p>
 
     <div class="doc doc-contents ">
 
-        <p>A reward function that returns a negative value when the agent hits a wall,     paying a cost of <code>cost</code> for each wall hit.</p>
+        <p><code>cost</code> on any step where the player moved into a wall this step
+(detected via <code>events.on_wall_hit</code>), <code>0.0</code> otherwise. Opt-in shaping
+for tasks that want to discourage bumping walls.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4154,6 +4069,38 @@ on_any_target_pickup</code>).</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
+                <code>prev_state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>$s_t$ (unused).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the integer action taken (unused).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>state</code>
             </td>
             <td>
@@ -4161,7 +4108,7 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>$s_{t+1}$ - read for the wall-hit event.</p>
               </div>
             </td>
             <td>
@@ -4177,7 +4124,8 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The cost of hitting a wall.</p>
+                <p>the magnitude applied on a wall hit. Default
+<code>0.01</code>.</p>
               </div>
             </td>
             <td>
@@ -4203,7 +4151,27 @@ on_any_target_pickup</code>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A scalar array <code>f32[]</code> with value -<code>cost</code> if the agent hits a wall,         and 0 otherwise.</p>
+                <p><code>f32[]</code> - <code>cost</code> on a wall hit, else <code>0.0</code>. Add it with a</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>negative sign (or via <code>compose</code> with a negating operator) to</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>make it a penalty.</p>
               </div>
             </td>
           </tr>

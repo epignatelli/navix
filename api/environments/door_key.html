@@ -1871,6 +1871,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.door_key.DoorKey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DoorKey
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2698,10 @@
 <a id="navix.environments.door_key"></a>
     <div class="doc doc-contents first">
 
+        <p>MiniGrid's DoorKey environment - fetch a key to unlock a door to the goal.</p>
+<p>See the environment class in this module for the task, layout and
+reward/termination details.</p>
+
 
 
 
@@ -2705,6 +2720,86 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.door_key.DoorKey" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>DoorKey</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>Navix-DoorKey-*</code>. A room split in two by an interior wall with a
+single locked yellow door; a matching key lies in the first half, the
+goal in the second. The agent must pick up the key, unlock and open
+the door, then reach the goal. Default reward/termination (<code>+1</code> at
+the goal minus a step cost). The wall column and door row are
+randomised every reset.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.door_key.DoorKey.random_start">random_start</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>False</code> puts the player at a fixed corner of the
+first room; <code>True</code> (the <code>-Random-</code> ids) samples the player
+and key positions within the first room.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

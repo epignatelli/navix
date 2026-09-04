@@ -1964,6 +1964,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label=" Environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.environment.Environment.create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;create
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.environment.Environment.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.environment.Environment.step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.environment.Environment.termination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;termination
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2029,10 +2079,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.action" class="md-nav__link">
+  <a href="#navix.environments.environment.Timestep.is_done" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;action
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_done
       
     </span>
   </a>
@@ -2040,10 +2090,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.info" class="md-nav__link">
+  <a href="#navix.environments.environment.Timestep.is_start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;info
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_start
       
     </span>
   </a>
@@ -2051,10 +2101,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.observation" class="md-nav__link">
+  <a href="#navix.environments.environment.Timestep.is_termination" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;observation
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_termination
       
     </span>
   </a>
@@ -2062,10 +2112,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.reward" class="md-nav__link">
+  <a href="#navix.environments.environment.Timestep.is_transition" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reward
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_transition
       
     </span>
   </a>
@@ -2073,32 +2123,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.state" class="md-nav__link">
+  <a href="#navix.environments.environment.Timestep.is_truncation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;state
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.step_type" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;step_type
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#navix.environments.environment.Timestep.t" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;t
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;is_truncation
       
     </span>
   </a>
@@ -2842,6 +2870,19 @@
 <a id="navix.environments.environment"></a>
     <div class="doc doc-contents first">
 
+        <p>The <code>Environment</code> class and the <code>Timestep</code> it produces.</p>
+<p>An <code>Environment</code> is a frozen JAX pytree: it holds the grid geometry
+(<code>height</code>, <code>width</code>, <code>max_steps</code>) and a set of <em>pluggable functions</em> -
+<code>observation_fn</code>, <code>reward_fn</code>, <code>termination_fn</code>, <code>transitions_fn</code>,
+<code>action_set</code> - that together define the task. <code>reset</code> and <code>step</code> are pure
+functions of <code>(key)</code> / <code>(timestep, action)</code>, so they compose with
+<code>jax.jit</code>, <code>jax.vmap</code> (a batch of environments) and <code>jax.lax.scan</code> (a
+whole rollout in one compiled loop).</p>
+<p>Concrete environments (<code>navix.environments.Empty</code>, <code>DoorKey</code>, ...)
+subclass <code>Environment</code> and implement <code>_reset</code> to lay out their grid;
+everything else is inherited. Build one with <code>navix.make(id)</code> or
+<code>SomeEnv.create(...)</code>.</p>
+
 
 
 
@@ -2878,6 +2919,212 @@
 
 
 
+        <p>A gridworld task as a frozen JAX pytree.</p>
+<p>The task is defined by five pluggable pieces, each a plain function
+you can override per-<code>make</code>/<code>create</code> call:</p>
+<ul>
+<li><code>observation_fn(state) -&gt; Array</code> - what the agent sees.</li>
+<li><code>transitions_fn(state, action, action_set) -&gt; State</code> - the world
+  dynamics (applies <code>action_set[action]</code>, then any stochastic
+  entity updates).</li>
+<li><code>reward_fn(prev_state, action, state) -&gt; f32[]</code> - the reward for a
+  transition. The <code>(prev_state, action, state)</code> triple is the
+  convention across <code>navix.rewards</code> / <code>terminations</code> / <code>events</code>:
+  <code>prev_state</code> is $s_t$, <code>state</code> is $s_{t+1}$.</li>
+<li><code>termination_fn(prev_state, action, state) -&gt; bool[]</code> - whether
+  $s_{t+1}$ is a genuine terminal state (truncation at <code>max_steps</code>
+  is added on top automatically).</li>
+<li><code>action_set</code> - the tuple of <code>state -&gt; state</code> primitives an integer
+  action indexes into.</li>
+</ul>
+<p>Subclasses only implement <code>_reset</code> (the initial grid layout);
+<code>reset</code>/<code>step</code> are inherited. Instances are immutable - use
+<code>env.replace(...)</code> (from <code>flax.struct</code>) to get a modified copy.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.height">height</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>grid height in cells, including the surrounding wall.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.width">width</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>grid width in cells, including the surrounding wall.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.max_steps">max_steps</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>truncation horizon - <code>step</code> returns <code>StepType.TRUNCATION</code>
+once <code>t &gt;= max_steps</code>. Default (via <code>create</code>) is
+<code>4 * height * width</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.observation_space">observation_space</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Space</code> describing <code>observation_fn</code>'s output
+(shape, dtype, bounds).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.action_space">action_space</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Discrete</code> over <code>len(action_set)</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.reward_space">reward_space</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Continuous</code> bound on the reward, <code>[-1, 1]</code> by
+default.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.disable_autoreset">disable_autoreset</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if <code>False</code> (default), calling <code>step</code> on a
+timestep whose episode already ended returns a fresh <code>reset</code>
+instead of stepping. Set <code>True</code> to handle episode boundaries
+yourself.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.gamma">gamma</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>discount factor. Not used by <code>step</code> itself - carried here
+so agents and <code>reward_fn</code>s (e.g. time-discounted goal
+rewards) can read it off the environment.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.penality_coeff">penality_coeff</span></code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if non-zero, a terminating reward is reduced by
+<code>penality_coeff * (t / max_steps)</code>, i.e. finishing later is
+worth less. <code>0.0</code> disables it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.observation_fn">observation_fn</span></code></td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>state -&gt; observation</code>. One of the functions in
+<code>navix.observations</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.reward_fn">reward_fn</span></code></td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>, <span title="jax.Array">Array</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(prev_state, action, state) -&gt; f32[]</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.termination_fn">termination_fn</span></code></td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>, <span title="jax.Array">Array</span>, <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], <span title="jax.Array">Array</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(prev_state, action, state) -&gt; bool[]</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.transitions_fn">transitions_fn</span></code></td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>, <span title="jax.Array">Array</span>, <span title="typing.Tuple">Tuple</span>[<span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], ...]], <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(state, action, action_set) -&gt; state</code>. Usually
+<code>transitions.deterministic_transition</code> or
+<code>transitions.stochastic_transition</code> (the default, which also
+moves balls).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Environment.action_set">action_set</span></code></td>
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a>], ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>tuple of <code>state -&gt; state</code> callables; an integer
+action <code>a</code> applies <code>action_set[a]</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -2898,6 +3145,670 @@
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.environment.Environment.create" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">observation_fn</span><span class="o">=</span><span class="n">observations</span><span class="o">.</span><span class="n">symbolic</span><span class="p">,</span> <span class="n">reward_fn</span><span class="o">=</span><span class="n">rewards</span><span class="o">.</span><span class="n">DEFAULT_TASK</span><span class="p">,</span> <span class="n">termination_fn</span><span class="o">=</span><span class="n">terminations</span><span class="o">.</span><span class="n">DEFAULT_TERMINATION</span><span class="p">,</span> <span class="n">transitions_fn</span><span class="o">=</span><span class="n">transitions</span><span class="o">.</span><span class="n">DEFAULT_TRANSITION</span><span class="p">,</span> <span class="n">action_set</span><span class="o">=</span><span class="n">DEFAULT_ACTION_SET</span><span class="p">,</span> <span class="n">observation_space</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">action_space</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reward_space</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">disable_autoreset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Builds an environment, filling in the spaces and <code>max_steps</code>
+that weren't given.</p>
+<p>This is the shared constructor concrete environments call from
+their own <code>create</code>; <code>navix.make(id, **kwargs)</code> ends up here too.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>height</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>grid height in cells (walls included).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>width</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>grid width in cells (walls included).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_steps</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>truncation horizon. <code>None</code> -&gt;
+<code>4 * height * width</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>observation_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>state -&gt; observation</code>, from
+<code>navix.observations</code>. Default <code>observations.symbolic</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-function&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;symbolic&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;state&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;/code&gt; (&lt;code&gt;navix.observations.symbolic&lt;/code&gt;)" href="../observations.html#navix.observations.symbolic">symbolic</a></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reward_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(prev_state, action, state) -&gt; f32[]</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;DEFAULT_TASK&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;compose&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;on_goal_reached&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;action_cost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.rewards.DEFAULT_TASK&lt;/code&gt;)" href="../rewards.html#navix.rewards.DEFAULT_TASK">DEFAULT_TASK</a></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>termination_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(prev_state, action, state) -&gt; bool[]</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;DEFAULT_TERMINATION&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;compose&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;on_goal_reached&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;on_lava_fall&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;on_ball_hit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.terminations.DEFAULT_TERMINATION&lt;/code&gt;)" href="../terminations.html#navix.terminations.DEFAULT_TERMINATION">DEFAULT_TERMINATION</a></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transitions_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(state, action, action_set) -&gt; state</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;DEFAULT_TRANSITION&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;stochastic_transition&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.transitions.DEFAULT_TRANSITION&lt;/code&gt;)" href="../transitions.html#navix.transitions.DEFAULT_TRANSITION">DEFAULT_TRANSITION</a></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action_set</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="typing.Callable">Callable</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>state -&gt; state</code>
+primitives indexed by the integer action.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;DEFAULT_ACTION_SET&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;MINIGRID_ACTION_SET&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.actions.DEFAULT_ACTION_SET&lt;/code&gt;)" href="../actions.html#navix.actions.DEFAULT_ACTION_SET">DEFAULT_ACTION_SET</a></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>observation_space</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> infers it from
+<code>observation_fn</code> and the grid size (works for the
+built-in observation functions; pass one explicitly for
+a custom <code>observation_fn</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action_space</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> -&gt; <code>Discrete(len(action_set))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reward_space</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="../spaces.html#navix.spaces.Space">Space</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> -&gt; <code>Continuous((), -1, 1)</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>disable_autoreset</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>see the class attribute.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>extra fields forwarded to the subclass constructor
+(e.g. <code>gamma</code>, <code>penality_coeff</code>, or an environment's own
+layout options like <code>random_start</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Environment</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="#navix.environments.environment.Environment">Environment</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the constructed environment.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.environment.Environment.reset" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">reset</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Starts a new episode.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a <code>jax.random</code> PRNG key. Split it yourself
+across a batch (<code>jax.vmap(env.reset)(keys)</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cache</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;RenderingCache&lt;/code&gt; (&lt;code&gt;navix.rendering.cache.RenderingCache&lt;/code&gt;)" href="../rendering/cache.html#navix.rendering.cache.RenderingCache">RenderingCache</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>optional pre-built rendering
+cache (see <code>_reset</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Timestep</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the first timestep - <code>t = 0</code>, <code>is_start()</code> true,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>info["return"] = 0.0</code>. <code>state.key</code> is a fresh key derived</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>from <code>key</code>, so the environment's own stochasticity is</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>reproducible from the single seed you pass here.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.environment.Environment.step" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">step</span><span class="p">(</span><span class="n">timestep</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Advances one timestep, or auto-resets at an episode boundary.</p>
+<p>If <code>timestep</code> already ended an episode (its <code>step_type &gt; 0</code>) and
+<code>disable_autoreset</code> is <code>False</code>, this ignores <code>action</code> and returns
+a fresh <code>reset</code> seeded from <code>timestep.state.key</code>. Otherwise it
+applies <code>action</code> via <code>transitions_fn</code>, then evaluates
+<code>reward_fn</code>, <code>termination_fn</code> and <code>observation_fn</code> on the result.</p>
+<p>Autoreset is deferred by one call: the terminal timestep is
+returned as-is (so you can read its final reward), and the reset
+happens on the <em>next</em> <code>step</code>. Detect a fresh episode with
+<code>timestep.is_start()</code>, not by looking back at <code>is_done()</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>timestep</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the current timestep (from <code>reset</code> or a
+previous <code>step</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>an integer action, <code>i32[]</code>, in
+<code>[0, len(action_set))</code>. Indexes <code>action_set</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Timestep</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the next timestep. <code>info["return"]</code> accumulates the</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>undiscounted episodic reward.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.environment.Environment.termination" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">termination</span><span class="p">(</span><span class="n">prev_state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Combines the task's <code>termination_fn</code> with the <code>max_steps</code>
+truncation into a single <code>StepType</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prev_state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>$s_t$.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>$a_t$.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>$s_{t+1}$.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>t</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the step count of <code>state</code> (<code>i32[]</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a <code>StepType</code> value - <code>TERMINATION</code> if <code>termination_fn</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>fired, else <code>TRUNCATION</code> if <code>t &gt;= max_steps</code>, else</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>TRANSITION</code>. Termination takes precedence over truncation.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -2923,6 +3834,11 @@
               Bases: <code><span title="flax.struct.PyTreeNode">PyTreeNode</span></code></p>
 
 
+
+        <p>The three kinds of timestep, stored as <code>Timestep.step_type</code>. The
+distinction between the two "episode over" cases matters for
+bootstrapping a value function: bootstrap through a <code>TRUNCATION</code>,
+but not through a <code>TERMINATION</code>.</p>
 
 
 
@@ -2959,7 +3875,8 @@
 
     <div class="doc doc-contents ">
 
-        <p>The episode ended and the current state is an absorbing state.</p>
+        <p>The episode reached a genuine terminal (absorbing) state - the
+goal, lava, a wrong toggle, etc. Its value is 0; do not bootstrap.</p>
 
     </div>
 
@@ -2982,7 +3899,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Standard timestep transition: the episode continues</p>
+        <p>The episode continues; <code>step</code> will keep advancing it.</p>
 
     </div>
 
@@ -3005,9 +3922,9 @@
 
     <div class="doc doc-contents ">
 
-        <p>The environment reached its maximum number of timesteps.
-The episode ended, but the agent could have still collected rewards.
-The value of the state is not 0</p>
+        <p>The episode was cut off at <code>max_steps</code> while still ongoing. The
+final state is <em>not</em> absorbing - its value is non-zero - so a value
+estimate should bootstrap through it.</p>
 
     </div>
 
@@ -3041,6 +3958,120 @@ The value of the state is not 0</p>
 
 
 
+        <p>What <code>Environment.reset</code> and <code>Environment.step</code> return - one moment
+in a trajectory.</p>
+<p>Read it as the <em>result</em> of the transition that produced it: <code>state</code>
+and <code>t</code> describe the world now, and <code>action</code> / <code>reward</code> / <code>step_type</code>
+are the action that got here and its consequences. So after
+<code>ts_next = env.step(ts, a)</code>: <code>ts_next.state</code> is $s_{t+1}$,
+<code>ts_next.action</code> is $a$ (<code>ts.action</code> is discarded), <code>ts_next.reward</code>
+is $R(s_t, a, s_{t+1})$, and <code>ts_next.observation</code> is the observation
+of $s_{t+1}$.</p>
+<p>Every field is a JAX array (or a pytree of them), so a <code>Timestep</code>
+<code>vmap</code>s over a batch of environments and <code>scan</code>s over time.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.t">t</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>steps since the last reset, <code>i32[]</code> (or <code>i32[batch]</code> when
+vmapped). <code>0</code> exactly on a <code>reset</code> output.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.observation">observation</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the agent's view of <code>state</code>, produced by the
+environment's <code>observation_fn</code>. Shape and dtype are described
+by <code>env.observation_space</code>; for a <code>pomdp</code> observation
+function this is a partial (first-person, cropped) view.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.action">action</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the action that led to this timestep, <code>i32[]</code>. On a
+<code>reset</code> output it is a placeholder <code>0</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.reward">reward</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the scalar reward for the transition into this timestep,
+<code>f32[]</code>, produced by the environment's <code>reward_fn</code> (bounds
+given by <code>env.reward_space</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.step_type">step_type</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a <code>StepType</code> value (<code>0</code>/<code>1</code>/<code>2</code>) - see <code>StepType</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.state">state</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;State&lt;/code&gt; (&lt;code&gt;navix.states.State&lt;/code&gt;)" href="../states.html#navix.states.State">State</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the full <code>State</code> (the true MDP state); the observation is
+a function of this. Also carries the PRNG <code>key</code> and the
+rendering <code>cache</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.environment.Timestep.info">info</span></code></td>
+            <td>
+                  <code><span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a plain dict for extra per-step quantities. navix populates
+<code>info["return"]</code> (undiscounted return so far this episode);
+you may add your own keys.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -3059,163 +4090,107 @@ The value of the state is not 0</p>
 
 
 
-<div class="doc doc-object doc-attribute">
 
 
 
-<h4 id="navix.environments.environment.Timestep.action" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">action</span></code>
+<div class="doc doc-object doc-function">
 
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
+
+<h4 id="navix.environments.environment.Timestep.is_done" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">is_done</span><span class="p">()</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>The action taken by the agent at the current timestep a_t = $\pi(s_t)$, where $s_t$ is <code>state</code></p>
+        <p><code>True</code> where the episode has ended for either reason -
+truncation or termination. This is the mask you use to segment
+trajectories or to stop bootstrapping a return.</p>
+
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
+<div class="doc doc-object doc-function">
 
 
-
-<h4 id="navix.environments.environment.Timestep.info" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">info</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
+<h4 id="navix.environments.environment.Timestep.is_start" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">is_start</span><span class="p">()</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>Additional information about the environment. Useful for accumulations (e.g. returns)</p>
+        <p><code>True</code> on the first timestep of an episode (<code>t == 0</code>) - both
+the initial <code>reset</code> and every post-autoreset step. Robust to
+navix deferring autoreset by one <code>step</code> call, unlike checking a
+previous step's <code>is_done()</code>.</p>
+
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
+<div class="doc doc-object doc-function">
 
 
-
-<h4 id="navix.environments.environment.Timestep.observation" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">observation</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
+<h4 id="navix.environments.environment.Timestep.is_termination" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">is_termination</span><span class="p">()</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>The observation corresponding to the current state (for POMDPs)</p>
+        <p><code>True</code> where <code>step_type == StepType.TERMINATION</code> (genuine
+absorbing terminal state). Boolean, same batch shape as
+<code>step_type</code>.</p>
+
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
+<div class="doc doc-object doc-function">
 
 
-
-<h4 id="navix.environments.environment.Timestep.reward" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">reward</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
+<h4 id="navix.environments.environment.Timestep.is_transition" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">is_transition</span><span class="p">()</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>The reward $r_{t=1}$ received by the agent after taking action $a_t$</p>
+        <p><code>True</code> where the episode is still ongoing
+(<code>step_type == StepType.TRANSITION</code>). Boolean.</p>
+
 
     </div>
 
 </div>
 
-<div class="doc doc-object doc-attribute">
+<div class="doc doc-object doc-function">
 
 
-
-<h4 id="navix.environments.environment.Timestep.state" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">state</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
+<h4 id="navix.environments.environment.Timestep.is_truncation" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">is_truncation</span><span class="p">()</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>The true state of the MDP, $s_t$ before taking action <code>action</code></p>
+        <p><code>True</code> where <code>step_type == StepType.TRUNCATION</code> (episode cut off
+at <code>max_steps</code>). Boolean, same batch shape as <code>step_type</code>.</p>
+
 
     </div>
 
 </div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h4 id="navix.environments.environment.Timestep.step_type" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">step_type</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-</h4>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The type of the current timestep, 0 for TRANSITION, 1 for TRUNCATION, 2 for TERMINATION</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h4 id="navix.environments.environment.Timestep.t" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">t</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
-  </span>
-
-</h4>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The number of timesteps elapsed from the last reset of the environment</p>
-
-    </div>
-
-</div>
-
-
-
 
 
 

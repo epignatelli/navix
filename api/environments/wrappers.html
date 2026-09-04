@@ -2403,6 +2403,111 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.GymnaxState" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GymnaxState
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ToGymnax
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ToGymnax">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.default_params" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;default_params
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__init__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.action_space" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;action_space
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.observation_space" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;observation_space
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#navix.environments.wrappers.ToGymnax.wrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;wrap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2792,11 @@
 <a id="navix.environments.wrappers"></a>
     <div class="doc doc-contents first">
 
+        <p>Adapt a navix <code>Environment</code> to the <code>gymnax</code> API, so navix
+environments can be dropped into agents and tooling written against
+gymnax (<code>(obs, state)</code> from <code>reset</code>, <code>(obs, state, reward, done, info)</code>
+from <code>step</code>, with an explicit <code>params</code>).</p>
+
 
 
 
@@ -2705,6 +2815,532 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.wrappers.GymnaxState" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>GymnaxState</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="gymnax.environments.environment.EnvState">EnvState</span></code></p>
+
+
+
+        <p>A gymnax <code>EnvState</code> that simply carries the wrapped navix
+<code>Timestep</code>. <code>ToGymnax.step</code> unwraps <code>timestep</code>, advances the navix
+environment, and rewraps.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.wrappers.GymnaxState.timestep">timestep</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Timestep&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Timestep&lt;/code&gt;)" href="environment.html#navix.environments.environment.Timestep">Timestep</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the underlying navix <code>Timestep</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.wrappers.GymnaxState.time">time</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>timestep.t</code>, exposed at the top level because gymnax reads
+<code>state.time</code> for its own truncation bookkeeping.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.wrappers.ToGymnax" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>ToGymnax</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="gymnax.environments.environment.Environment">Environment</span></code></p>
+
+
+
+        <p>Wraps a navix <code>Environment</code> as a <code>gymnax.environments.Environment</code>.</p>
+<p>Prefer <code>ToGymnax.wrap(env)</code>, which returns the <code>(gymnax_env, params)</code>
+pair gymnax callers expect.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">navix</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">navix.environments.wrappers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToGymnax</span>
+
+<span class="n">gymnax_env</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">ToGymnax</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="s2">"Navix-Empty-5x5-v0"</span><span class="p">))</span>
+<span class="n">obs</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="n">gymnax_env</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+<span class="n">obs</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">done</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">gymnax_env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+</code></pre></div>
+<p><code>done</code> merges navix's truncation and termination into gymnax's single
+boolean; <code>StepType</code> is still available via <code>state.timestep.step_type</code>.
+Autoreset follows navix's rules (see <code>Environment.step</code>), not
+gymnax's.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.default_params" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">default_params</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>A gymnax <code>EnvParams</code> carrying the wrapped env's <code>max_steps</code> as
+<code>max_steps_in_episode</code>.</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.__init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">env</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Args:
+env (Environment): the navix environment to wrap.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.action_space" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">action_space</span><span class="p">(</span><span class="n">params</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The gymnax <code>Discrete</code> action space, <code>len(env.action_set)</code>
+values. <code>params</code> is ignored (kept for API compatibility).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.observation_space" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">observation_space</span><span class="p">(</span><span class="n">params</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The wrapped env's observation <code>Space</code> as a gymnax <code>Box</code>
+(<code>low</code>/<code>high</code>/<code>shape</code>/<code>dtype</code> copied across). <code>params</code> is
+ignored.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.reset" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">reset</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Resets the wrapped environment.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>PRNG key.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="gymnax.environments.environment.EnvParams">EnvParams</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ignored; <code>max_steps</code> comes from the
+wrapped env.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>tuple</code></td>            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="jax.Array">Array</span>, <span title="gymnax.environments.environment.EnvState">EnvState</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(observation, GymnaxState)</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.step" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">step</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Advances the wrapped environment one step.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>PRNG key (unused - navix carries its own key in
+<code>state.timestep.state.key</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>state</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;GymnaxState&lt;/code&gt; (&lt;code&gt;navix.environments.wrappers.GymnaxState&lt;/code&gt;)" href="#navix.environments.wrappers.GymnaxState">GymnaxState</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the state returned by the previous
+<code>reset</code>/<code>step</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>integer action, <code>[0, len(action_set))</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="gymnax.environments.environment.EnvParams">EnvParams</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ignored.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>tuple</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(observation, GymnaxState, reward, done, info)</code>, where</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="gymnax.environments.environment.EnvState">EnvState</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>done = timestep.is_done()</code> (truncation or termination).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.environments.wrappers.ToGymnax.wrap" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">wrap</span><span class="p">(</span><span class="n">env</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Builds the wrapper and its params in one call.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>env</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the navix environment to wrap.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>tuple</code></td>            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="gymnax.environments.environment.Environment">Environment</span>, <span title="gymnax.environments.environment.EnvParams">EnvParams</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(ToGymnax(env), EnvParams(max_steps_in_episode=env.max_steps))</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

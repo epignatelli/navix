@@ -2123,6 +2123,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.lava_gap.LavaGap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;LavaGap
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2698,10 @@
 <a id="navix.environments.lava_gap"></a>
     <div class="doc doc-contents first">
 
+        <p>MiniGrid's LavaGap environment - cross a lava strip through its single gap.</p>
+<p>See the environment class in this module for the task, layout and
+reward/termination details.</p>
+
 
 
 
@@ -2705,6 +2720,59 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.lava_gap.LavaGap" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>LavaGap</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>Navix-LavaGap-*</code>. A room with a vertical strip of <code>Lava</code> spanning
+it, broken by a single one-cell gap at a randomised row. The agent
+starts in one corner, the goal is in the opposite one; it must find
+and pass through the gap. Stepping into lava ends the episode with no
+reward (via the default <code>on_lava_fall</code> termination); reaching the
+goal gives <code>+1</code> minus a step cost.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

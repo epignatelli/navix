@@ -2914,6 +2914,12 @@
 <a id="navix.agents.ppo"></a>
     <div class="doc doc-contents first">
 
+        <p><code>PPO</code>: a Proximal Policy Optimization agent whose whole training run
+(<code>num_updates</code> iterations of rollout collection + minibatch SGD) is one
+<code>jax.lax.scan</code>. <code>PPOHparams</code> holds the knobs; <code>ActorCritic</code> (from
+<code>navix.agents.models</code>) is the network - swap its encoder for
+partial-observability. Structurally mirrored by <code>navix.agents.pqn</code>.</p>
+
 
 
 
@@ -3024,6 +3030,10 @@ class's docstring).</p>
               Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;HParams&lt;/code&gt; (&lt;code&gt;navix.agents.agent.HParams&lt;/code&gt;)" href="agent.html#navix.agents.agent.HParams">HParams</a></code></p>
 
 
+
+        <p>Hyperparameters for <code>PPO</code>. Frozen; <code>.replace(...)</code> for a variant.
+The per-field defaults are tuned for navix's small gridworlds, not
+copied from a CartPole reference.</p>
 
 
 

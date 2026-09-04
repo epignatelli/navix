@@ -1172,6 +1172,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.spaces.Shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;Shape
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.spaces.Continuous" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2759,6 +2770,11 @@
 <a id="navix.spaces"></a>
     <div class="doc doc-contents first">
 
+        <p><code>Space</code> descriptors for an environment's observation, action and
+reward arrays - shape, dtype and element-wise bounds, plus a <code>sample</code>
+that draws a conforming array. <code>Discrete</code> for integers, <code>Continuous</code> for
+floats.</p>
+
 
 
 
@@ -2775,6 +2791,28 @@
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.spaces.Shape" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">Shape</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>An array shape, i.e. a tuple of ints (<code>()</code> for a scalar).</p>
+
+    </div>
+
+</div>
 
 
 
@@ -2794,6 +2832,12 @@
               Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Space&lt;/code&gt; (&lt;code&gt;navix.spaces.Space&lt;/code&gt;)" href="#navix.spaces.Space">Space</a></code></p>
 
 
+
+        <p>A floating-point space: every element lies in <code>[minimum, maximum]</code>.</p>
+<p>navix uses it for <code>reward_space</code> (<code>shape=()</code>, bounds <code>[-1, 1]</code> by
+default) and for float observations. Bounds may be infinite
+(<code>-jnp.inf</code> / <code>jnp.inf</code>) to express "unbounded"; <code>sample</code> then falls
+back to a finite range (see below).</p>
 
 
 
@@ -2831,7 +2875,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Create a continuous space with a given shape, minimum and maximum values.</p>
+        <p>Builds a <code>Continuous</code> space.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2850,11 +2894,12 @@
                 <code>shape</code>
             </td>
             <td>
-                  <code><span title="navix.spaces.Shape">Shape</span></code>
+                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, ...]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The shape of the space.</p>
+                <p>shape of the array the space
+describes. <code>()</code> is a scalar (e.g. a reward).</p>
               </div>
             </td>
             <td>
@@ -2870,7 +2915,8 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The minimum value of the space.</p>
+                <p>element-wise lower bound (inclusive); a
+scalar broadcasts to <code>shape</code>. May be <code>-jnp.inf</code>.</p>
               </div>
             </td>
             <td>
@@ -2886,7 +2932,8 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The maximum value of the space.</p>
+                <p>element-wise upper bound (inclusive); a
+scalar broadcasts to <code>shape</code>. May be <code>jnp.inf</code>.</p>
               </div>
             </td>
             <td>
@@ -2898,11 +2945,11 @@
                 <code>dtype</code>
             </td>
             <td>
-                  <code><span title="jax.numpy.dtype">dtype</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The data type of the space.</p>
+                <p>floating dtype of the sampled array (default
+<code>jnp.float32</code>).</p>
               </div>
             </td>
             <td>
@@ -2928,7 +2975,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A continuous space with the given shape, minimum and maximum values.</p>
+                <p>the space.</p>
               </div>
             </td>
           </tr>
@@ -2951,7 +2998,10 @@
 
     <div class="doc doc-contents ">
 
-        <p>Generate a random sample from the space.</p>
+        <p>Draws values uniformly from <code>[minimum, maximum)</code>, independently
+per element. Infinite bounds are first mapped to the largest
+finite value of <code>dtype</code> (via <code>jnp.nan_to_num</code>), so an unbounded
+space still yields a finite draw rather than <code>nan</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2974,7 +3024,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random key to generate the sample.</p>
+                <p>a <code>jax.random</code> PRNG key.</p>
               </div>
             </td>
             <td>
@@ -3000,7 +3050,30 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random sample from the space.</p>
+                <p>shape <code>shape</code>, dtype <code>dtype</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="AssertionError">AssertionError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if <code>dtype</code> is not a floating type.</p>
               </div>
             </td>
           </tr>
@@ -3037,6 +3110,14 @@
 
 
 
+        <p>An integer-valued space: every element is one of the <code>n_elements</code>
+integers <code>0, 1, ..., n_elements - 1</code>.</p>
+<p>With <code>shape=()</code> it describes a single categorical value - the usual
+case for an action index (<code>Environment.action_space</code>). With a
+non-empty <code>shape</code> it describes an array of independent categoricals,
+e.g. a <code>categorical</code> observation is <code>Discrete</code> over entity tags with
+<code>shape=(H, W)</code>.</p>
+
 
 
 
@@ -3071,30 +3152,8 @@
 
     <div class="doc doc-contents ">
 
-        <p>The number of elements in the space.</p>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>Array</code></td>            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The number of elements in the space.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>The number of distinct values, <code>n_elements</code> (i.e.
+<code>maximum + 1</code>). For an action space, <code>len(env.action_set)</code>.</p>
 
     </div>
 
@@ -3118,7 +3177,7 @@
 
     <div class="doc doc-contents ">
 
-        <p>Create a discrete space with a given number of elements.</p>
+        <p>Builds a <code>Discrete</code> space over <code>0 .. n_elements - 1</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3141,7 +3200,9 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The number of elements in the space.</p>
+                <p>number of distinct values; must be
+<code>&gt;= 1</code>. Stored as <code>maximum = n_elements - 1</code> (with
+<code>minimum = 0</code>), so <code>space.n</code> recovers it.</p>
               </div>
             </td>
             <td>
@@ -3153,11 +3214,12 @@
                 <code>shape</code>
             </td>
             <td>
-                  <code><span title="navix.spaces.Shape">Shape</span></code>
+                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, ...]</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The shape of the space.</p>
+                <p>shape of the integer array the space
+describes. <code>()</code> (the default) is a single scalar.</p>
               </div>
             </td>
             <td>
@@ -3169,11 +3231,12 @@
                 <code>dtype</code>
             </td>
             <td>
-                  <code><span title="jax.numpy.dtype">dtype</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The data type of the space.</p>
+                <p>integer dtype of the sampled array (default
+<code>jnp.int32</code>). Unsigned dtypes are allowed - <code>sample</code>
+draws with a signed generator and casts.</p>
               </div>
             </td>
             <td>
@@ -3199,7 +3262,17 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A discrete space with the given number of elements.</p>
+                <p>the space, with <code>minimum = 0</code> and</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Discrete&lt;/code&gt; (&lt;code&gt;navix.spaces.Discrete&lt;/code&gt;)" href="#navix.spaces.Discrete">Discrete</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>maximum = n_elements - 1</code>.</p>
               </div>
             </td>
           </tr>
@@ -3222,7 +3295,8 @@
 
     <div class="doc doc-contents ">
 
-        <p>Generate a random sample from the space.</p>
+        <p>Draws integers uniformly from <code>0 .. n_elements - 1</code>,
+independently per element.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3245,7 +3319,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random key to generate the sample.</p>
+                <p>a <code>jax.random</code> PRNG key.</p>
               </div>
             </td>
             <td>
@@ -3271,7 +3345,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random sample from the space.</p>
+                <p>shape <code>shape</code>, dtype <code>dtype</code>.</p>
               </div>
             </td>
           </tr>
@@ -3308,20 +3382,88 @@
 
 
 
-        <p>Base class for all spaces in the game. Spaces define the shape and type of the         observations, actions and rewards in the game.
-    The <code>sample</code> method is used to generate random samples from the space.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>To initialize a space, use the <code>create</code> method of the specific space class.</p>
-</div>
+        <p>Describes one array that flows through an environment: its shape, its
+dtype, and its element-wise value bounds.</p>
+<p>An <a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt;" href="environments/environment.html#navix.environments.environment.Environment"><code>Environment</code></a> exposes
+three of these - <code>observation_space</code>, <code>action_space</code> and
+<code>reward_space</code> - so a caller knows what <code>reset</code>/<code>step</code> will return and
+what <code>step</code> expects, without having to run the environment. <code>sample</code>
+draws a random array that conforms to the space, which is useful for
+smoke tests and for shaping neural-network inputs/outputs.</p>
+<p>Use the <code>create</code> classmethod of a concrete subclass
+(<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Discrete&lt;/code&gt;" href="#navix.spaces.Discrete"><code>Discrete</code></a> or
+<a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Continuous&lt;/code&gt;" href="#navix.spaces.Continuous"><code>Continuous</code></a>) to build one; the bare
+constructor does no validation or bound broadcasting.</p>
 
 
-<details class="todo" open>
-  <summary>TODO</summary>
-  <ul>
-<li>maximum and minimum should be static objects, not arrays.</li>
-</ul>
-</details>        <p>But how do we handle the case when they are not scalars? Maybe numpy arrays?</p>
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.spaces.Space.shape">shape</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-attribute&quot;&gt;&lt;/code&gt;            &lt;code class=&quot;highlight language-python&quot;&gt;&lt;span class=&quot;n&quot;&gt;Shape&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Tuple&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;...&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class=&quot;doc doc-labels&quot;&gt;
+      &lt;small class=&quot;doc doc-label doc-label-module-attribute&quot;&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;navix.spaces.Shape&lt;/code&gt;)" href="#navix.spaces.Shape">Shape</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the shape of the array the space describes. <code>()</code> means a
+single scalar (e.g. a discrete action index or a scalar
+reward); <code>(H, W)</code> / <code>(H, W, 3)</code> etc. describe a grid or image
+observation, with every element independently constrained to
+<code>[minimum, maximum]</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.spaces.Space.dtype">dtype</span></code></td>
+            <td>
+                  <code><span title="jax.numpy.dtype">dtype</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the array's dtype (e.g. <code>jnp.int32</code> for a <code>Discrete</code>
+action, <code>jnp.uint8</code> for a pixel observation, <code>jnp.float32</code>
+for a reward).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.spaces.Space.minimum">minimum</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>element-wise lower bound (inclusive). A scalar array
+broadcasts to <code>shape</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.spaces.Space.maximum">maximum</span></code></td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>element-wise upper bound (inclusive). A scalar array
+broadcasts to <code>shape</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3355,7 +3497,8 @@
 
     <div class="doc doc-contents ">
 
-        <p>Generate a random sample from the space.</p>
+        <p>Draws one array of shape <code>shape</code> and dtype <code>dtype</code> whose
+elements lie within <code>[minimum, maximum]</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3378,7 +3521,7 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random key to generate the sample.</p>
+                <p>a <code>jax.random</code> PRNG key.</p>
               </div>
             </td>
             <td>
@@ -3404,7 +3547,31 @@
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A random sample from the space.</p>
+                <p>the sampled array, shape <code>shape</code>, dtype <code>dtype</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Space</code> is abstract; call <code>sample</code> on a
+<code>Discrete</code> or <code>Continuous</code> instance.</p>
               </div>
             </td>
           </tr>

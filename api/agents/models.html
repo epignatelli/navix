@@ -1532,6 +1532,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.agents.models.MLPEncoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MLPEncoder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.agents.models.PostNet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3155,6 +3166,61 @@ is a separate thing - different <code>__call__</code> shape, no carry.)</p>
 
 
 
+        <p>PPO's network: two independent <code>Encoder</code> towers (actor, critic)
+each followed by a linear head - a categorical policy over
+<code>action_dim</code> and a scalar value. Swap <code>actor_encoder</code> /
+<code>critic_encoder</code> to change what the agent sees (e.g.
+<code>TransformerEncoder</code> for frame history); the training loop is
+unchanged.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.agents.models.ActorCritic.action_dim">action_dim</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>number of discrete actions (<code>len(env.action_set)</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.agents.models.ActorCritic.actor_encoder">actor_encoder</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Encoder&lt;/code&gt; (&lt;code&gt;navix.agents.models.Encoder&lt;/code&gt;)" href="#navix.agents.models.Encoder">Encoder</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Encoder</code> for the policy tower.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.agents.models.ActorCritic.critic_encoder">critic_encoder</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Encoder&lt;/code&gt; (&lt;code&gt;navix.agents.models.Encoder&lt;/code&gt;)" href="#navix.agents.models.Encoder">Encoder</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Encoder</code> for the value tower. Must produce the
+same carry shape as <code>actor_encoder</code> (they share one carry).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
 
 
@@ -3417,6 +3483,56 @@ isn't silently upcast (e.g. <code>uint8</code> pixels -&gt; <code>float32</code>
     </div>
 
 </div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.agents.models.MLPEncoder" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>MLPEncoder</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Encoder&lt;/code&gt; (&lt;code&gt;navix.agents.models.Encoder&lt;/code&gt;)" href="#navix.agents.models.Encoder">Encoder</a></code></p>
+
+
+
+        <p>Two <code>tanh</code> <code>Dense</code> layers - the default <code>ActorCritic</code> encoder for
+a flat (fully-observable / pre-flattened) observation. Stateless (see
+<code>Encoder</code>); its output is <code>hidden_size</code>-wide.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
 
 
 

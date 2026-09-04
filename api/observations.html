@@ -1116,6 +1116,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.observations.RADIUS" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;RADIUS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.observations.categorical" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1164,6 +1175,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rgb_first_person
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.observations.set_radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;set_radius
       
     </span>
   </a>
@@ -2719,6 +2741,32 @@
 <a id="navix.observations"></a>
     <div class="doc doc-contents first">
 
+        <p>Observation functions: how a <code>State</code> is turned into what the agent sees.</p>
+<p>Pick one and pass it as <code>observation_fn</code> to <code>navix.make</code> / <code>Environment.create</code>.
+Two families:</p>
+<ul>
+<li><strong>Fully observable</strong> (<code>categorical</code>, <code>symbolic</code>, <code>rgb</code>) - the whole
+  <code>height x width</code> grid, always the same orientation.</li>
+<li><strong>First person / POMDP</strong> (<code>categorical_first_person</code>,
+  <code>symbolic_first_person</code>, <code>rgb_first_person</code>) - cropped to a
+  <code>(2 * RADIUS + 1)</code> square with the player at the bottom-centre facing
+  <em>up</em>, so the observation is egocentric and rotation-invariant. Cells
+  the player cannot see (behind a wall, outside the view cone) are masked
+  to a "not seen" fill.</li>
+</ul>
+<p>Three encodings, shared by both families:</p>
+<ul>
+<li><strong>categorical</strong> - one integer per cell, the entity's tag (see
+  <code>entities.EntityIds</code>); shape <code>(H, W)</code>.</li>
+<li><strong>symbolic</strong> - three integers per cell <code>(tag, colour, state)</code> as in
+  MiniGrid; shape <code>(H, W, 3)</code>, <code>uint8</code>.</li>
+<li><strong>rgb</strong> - a rendered image, <code>uint8</code>, each cell a <code>TILE_SIZE x TILE_SIZE</code>
+  sprite; shape <code>(H * TILE_SIZE, W * TILE_SIZE, 3)</code>.</li>
+</ul>
+<p><code>Environment</code> infers the matching <code>observation_space</code> for these built-in
+functions; a custom <code>observation_fn</code> needs <code>observation_space</code> passed
+explicitly.</p>
+
 
 
 
@@ -2736,6 +2784,31 @@
 
 
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.observations.RADIUS" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">RADIUS</span> <span class="o">=</span> <span class="mi">3</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Half-size of the first-person view: those observations are
+<code>(2 * RADIUS + 1)</code> cells on a side (default <code>3</code> -&gt; a 7x7 window). Change
+it with <code>set_radius</code> <em>before</em> building an environment - <code>Environment</code>
+reads it when it computes <code>observation_space</code>.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -2750,8 +2823,9 @@
 
     <div class="doc doc-contents ">
 
-        <p>Fully observable grid with a categorical state representation.
-Each entity is represented by its unique integer tag.</p>
+        <p>The whole grid as one integer per cell: the tag of whatever entity
+occupies it (<code>0</code> for empty floor, <code>-1</code>-marked walls become their tag
+via <code>entities.EntityIds</code>), fully observable.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2774,7 +2848,7 @@ Each entity is represented by its unique integer tag.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -2800,7 +2874,17 @@ Each entity is represented by its unique integer tag.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A grid of integers, where each integer represents an entity,         represented as an array of shape <code>i32[H, W]</code>, where <code>H</code> and <code>W</code> are the height         and width of the grid.</p>
+                <p><code>i32[H, W]</code> (<code>H = env.height</code>, <code>W = env.width</code>). Entities</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>that have been picked up (off-grid) do not appear.</p>
               </div>
             </td>
           </tr>
@@ -2823,7 +2907,10 @@ Each entity is represented by its unique integer tag.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Categorical state representation, but cropped to the agent's view, and aligned     with the agent's direction, such that the agent always points upwards.</p>
+        <p>The egocentric version of <code>categorical</code>: one tag per cell, cropped
+to a <code>(2 * RADIUS + 1)</code> square around the player and rotated so the
+player sits at the bottom-centre facing up. Cells outside the view
+cone or occluded by a wall are set to <code>0</code> (not seen).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2846,7 +2933,7 @@ Each entity is represented by its unique integer tag.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -2872,7 +2959,7 @@ Each entity is represented by its unique integer tag.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A grid of integers, where each integer represents an entity,         represented as an array of shape <code>i32[2 * RADIUS + 1, 2 * RADIUS + 1]</code>.</p>
+                <p><code>i32[2 * RADIUS + 1, 2 * RADIUS + 1]</code>.</p>
               </div>
             </td>
           </tr>
@@ -2895,8 +2982,9 @@ Each entity is represented by its unique integer tag.</p>
 
     <div class="doc doc-contents ">
 
-        <p>An empty observation represented as an array of shape f32[0].
-Useful for testing purposes.</p>
+        <p>The empty observation - shape <code>f32[0]</code>. Use it when the agent
+should learn from <code>state</code>/<code>reward</code> directly (e.g. debugging, or a
+hand-coded policy) and never looks at <code>observation</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2919,7 +3007,7 @@ Useful for testing purposes.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state (ignored).</p>
               </div>
             </td>
             <td>
@@ -2945,7 +3033,7 @@ Useful for testing purposes.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A 0-shaped array <code>f32[0]</code>.</p>
+                <p>an empty <code>f32[0]</code> array.</p>
               </div>
             </td>
           </tr>
@@ -2968,8 +3056,9 @@ Useful for testing purposes.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Fully observable grid with an RGB state representation.
-Each entity is represented by its unique RGB sprite. The RGB sprites are     stored in a cache, and the entities are placed on the grid according to their     positions.</p>
+        <p>The whole grid rendered as an RGB image, fully observable. Each
+cell is a <code>TILE_SIZE x TILE_SIZE</code> sprite (walls, floor grid lines,
+entities) drawn from <code>state.cache</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2992,7 +3081,7 @@ Each entity is represented by its unique RGB sprite. The RGB sprites are     sto
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3018,7 +3107,7 @@ Each entity is represented by its unique RGB sprite. The RGB sprites are     sto
             </td>
             <td>
               <div class="doc-md-description">
-                <p>An RGB image of the grid, represented as an array of shape         <code>u8[H * S, W * S, 3]</code>, where <code>H</code> and <code>W</code> are the height and width of the grid,</p>
+                <p><code>u8[H * TILE_SIZE, W * TILE_SIZE, 3]</code> (<code>H = env.height</code>,</p>
               </div>
             </td>
           </tr>
@@ -3028,7 +3117,7 @@ Each entity is represented by its unique RGB sprite. The RGB sprites are     sto
             </td>
             <td>
               <div class="doc-md-description">
-                <p>and <code>S</code> is the size of the tile.</p>
+                <p><code>W = env.width</code>).</p>
               </div>
             </td>
           </tr>
@@ -3051,9 +3140,10 @@ Each entity is represented by its unique RGB sprite. The RGB sprites are     sto
 
     <div class="doc doc-contents ">
 
-        <p>First person view with an RGB state representation.
-The image is cropped to the agent's view, and aligned with the agent's direction,     such that the agent always points upwards. See <code>rgb</code> for more details.
-See <code>rgb</code> for more details.</p>
+        <p>The egocentric version of <code>rgb</code>: the rendered image cropped to a
+<code>(2 * RADIUS + 1)</code>-tile square around the player and rotated so the
+player faces up. Out-of-view / occluded tiles are filled with the
+dimmed "unseen" grey.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3076,7 +3166,7 @@ See <code>rgb</code> for more details.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3102,18 +3192,60 @@ See <code>rgb</code> for more details.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>An RGB image of the agent's view, represented as an array of shape         <code>u8[(2 * RADIUS + 1) * S, (2 * RADIUS + 1) * S, 3]</code>, where </p>
+                <p><code>u8[(2 * RADIUS + 1) * TILE_SIZE, (2 * RADIUS + 1) * TILE_SIZE, 3]</code>.</p>
               </div>
             </td>
           </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.observations.set_radius" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">set_radius</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sets the module-global <code>RADIUS</code> used by every <code>*_first_person</code>
+observation. Call it before <code>navix.make</code> so the environment's
+<code>observation_space</code> picks up the new size.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
           <tr class="doc-section-item">
-<td></td>            <td>
-                  <code><span title="jax.Array">Array</span></code>
+            <td>
+                <code>radius</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>S</code> is the size of the tile.</p>
+                <p>the new half-window size; the view becomes
+<code>(2 * radius + 1)</code> cells square.</p>
               </div>
+            </td>
+            <td>
+                <em>required</em>
             </td>
           </tr>
       </tbody>
@@ -3135,10 +3267,12 @@ See <code>rgb</code> for more details.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Fully observable grid with a symbolic state representation as originally     proposed in the MiniGrid environment.
-The symbol is a triple of (OBJECT_TAG, COLOUR_IDX, OPEN/CLOSED/LOCKED). The
-last layer might also contain the direction of the entity, for example, the
-direction of the agent.</p>
+        <p>MiniGrid's symbolic encoding: three integers per cell,
+<code>(object_tag, colour_index, state)</code>, fully observable. <code>object_tag</code> is
+the entity id (empty floor and walls have their own tags);
+<code>colour_index</code> indexes the palette (<code>0</code> when the entity has no
+colour); the third channel is the entity's own discrete state - a
+door's open/closed/locked, or the player's facing direction.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3161,7 +3295,7 @@ direction of the agent.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3187,7 +3321,7 @@ direction of the agent.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A grid of integers, where each integer represents an entity,         represented as an array of shape <code>u8[H, W, 3]</code>, where <code>H</code> and <code>W</code> are the height         and width of the grid.</p>
+                <p><code>u8[H, W, 3]</code> (<code>H = env.height</code>, <code>W = env.width</code>).</p>
               </div>
             </td>
           </tr>
@@ -3210,7 +3344,11 @@ direction of the agent.</p>
 
     <div class="doc doc-contents ">
 
-        <p>First person view with a symbolic state representation, but cropped to the     agent's view, and aligned with the agent's direction, such that the agent always     points upwards. See <code>symbolic</code> for more details.</p>
+        <p>The egocentric version of <code>symbolic</code>: the <code>(tag, colour, state)</code>
+triple per cell, cropped to a <code>(2 * RADIUS + 1)</code> square around the
+player and rotated so the player faces up. Out-of-view / occluded
+cells are filled with the wall symbol; the player's own cell shows
+what it is carrying.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3233,7 +3371,7 @@ direction of the agent.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The current state of the game.</p>
+                <p>the current state.</p>
               </div>
             </td>
             <td>
@@ -3259,7 +3397,7 @@ direction of the agent.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A grid of integers, where each integer represents an entity,         represented as an array of shape <code>u8[2 * RADIUS + 1, 2 * RADIUS + 1, 3]</code>.</p>
+                <p><code>u8[2 * RADIUS + 1, 2 * RADIUS + 1, 3]</code>.</p>
               </div>
             </td>
           </tr>

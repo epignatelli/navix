@@ -2039,6 +2039,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#navix.environments.go_to_door.GoToDoor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;GoToDoor
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2687,6 +2698,10 @@
 <a id="navix.environments.go_to_door"></a>
     <div class="doc doc-contents first">
 
+        <p>MiniGrid's GoToDoor environment - signal <code>done</code> at the named coloured door.</p>
+<p>See the environment class in this module for the task, layout and
+reward/termination details.</p>
+
 
 
 
@@ -2705,6 +2720,83 @@
 
 
 
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="navix.environments.go_to_door.GoToDoor" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>GoToDoor</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="&lt;code class=&quot;doc-symbol doc-symbol-heading doc-symbol-class&quot;&gt;&lt;/code&gt;            &lt;code&gt;Environment&lt;/code&gt; (&lt;code&gt;navix.environments.environment.Environment&lt;/code&gt;)" href="environment.html#navix.environments.environment.Environment">Environment</a></code></p>
+
+
+
+        <p><code>Navix-GoToDoor-*</code>. A room with a coloured <code>Door</code> on each of the
+four walls; one is named in <code>State.mission</code>. The agent succeeds by
+signalling <code>done</code> next to the target door. Door positions and colours
+and the room size are randomised each reset.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="navix.environments.go_to_door.GoToDoor.split_lava">split_lava</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>unused by <code>GoToDoor</code>; kept for constructor
+compatibility.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

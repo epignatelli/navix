@@ -948,6 +948,61 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.components.DISCARD_PILE_COORDS" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DISCARD_PILE_COORDS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.components.DISCARD_PILE_IDX" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;DISCARD_PILE_IDX
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.components.EMPTY_POCKET_ID" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;EMPTY_POCKET_ID
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.components.UNSET_CONSUMED" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;UNSET_CONSUMED
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.components.UNSET_DIRECTION" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;UNSET_DIRECTION
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.components.Component" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -955,6 +1010,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" Component">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.components.Component.check_ndim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;check_ndim
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1022,6 +1094,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label=" HasSprite">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#navix.components.HasSprite.sprite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;sprite
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1201,6 +1290,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.components.field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;field
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2899,6 +2999,15 @@
 <a id="navix.components"></a>
     <div class="doc doc-contents first">
 
+        <p>The reusable "capability" mixins that <code>navix.entities</code> compose into
+concrete entities.</p>
+<p>Each <code>Component</code> subclass adds one field (or one abstract property) plus
+its semantics: <code>Positionable</code> -&gt; <code>position</code>, <code>Directional</code> -&gt;
+<code>direction</code>, <code>Openable</code> -&gt; <code>requires</code>/<code>open</code>, and so on. An entity like
+<code>Door</code> is just <code>Positionable + Directional + Openable + HasColour + ...</code>.
+Every field is a JAX array and the leading axis is the entity-instance
+axis, so a whole batch of doors is one <code>Door</code> struct.</p>
+
 
 
 
@@ -2915,6 +3024,120 @@
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.components.DISCARD_PILE_COORDS" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DISCARD_PILE_COORDS</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The off-grid <code>(row, col)</code> an entity's <code>position</code> is set to once it has
+been picked up / consumed. Column <code>-1</code> is outside every grid, so such an
+entity renders nowhere and matches no real cell.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.components.DISCARD_PILE_IDX" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DISCARD_PILE_IDX</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The flat patch index that <code>DISCARD_PILE_COORDS</code> maps to; rendering
+slices it off (<code>patches[:DISCARD_PILE_IDX]</code>).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.components.EMPTY_POCKET_ID" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">EMPTY_POCKET_ID</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>Holder.pocket</code> / <code>Player.pocket</code> value meaning "carrying nothing".</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.components.UNSET_CONSUMED" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">UNSET_CONSUMED</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sentinel for a "consumed key" slot that has not been used yet.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="navix.components.UNSET_DIRECTION" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">UNSET_DIRECTION</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>Directional.direction</code> sentinel for an entity whose facing is
+irrelevant (it is never used as a rotation).</p>
+
+    </div>
+
+</div>
 
 
 
@@ -2935,8 +3158,9 @@
 
 
 
-        <p>Base class for all components in the game.
-Components are used to store the data of the entities in the game.</p>
+        <p>Base of every capability mixin. A <code>Component</code> is a frozen
+<code>flax.struct</code> pytree; concrete entities inherit from several at once.
+Carries no data itself.</p>
 
 
 
@@ -2958,6 +3182,58 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="navix.components.Component.check_ndim" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">check_ndim</span><span class="p">(</span><span class="n">batched</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Hook for asserting each field has the expected rank (one extra
+axis when <code>batched</code>). The base implementation does nothing;
+subclasses may override. Not called on the hot path.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>batched</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>whether an extra leading instance axis is
+expected.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 
@@ -2984,7 +3260,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as directional, and provides the <code>direction</code> attribute</p>
+        <p>Entity has a facing direction.</p>
 
 
 
@@ -3021,7 +3297,8 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The direction the entity: 0 = east, 1 = south, 2 = west, 3 = north</p>
+        <p><code>i32[]</code> in <code>0..3</code>: <code>0</code> east, <code>1</code> south, <code>2</code> west, <code>3</code> north
+(clockwise). Used directly by <code>grid.translate</code> / <code>grid.rotate</code>.</p>
 
     </div>
 
@@ -3055,7 +3332,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as having a colour, and provides the <code>colour</code> attribute</p>
+        <p>Entity is drawn/encoded in one of the palette colours.</p>
 
 
 
@@ -3092,7 +3369,10 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The colour of the object for rendering.</p>
+        <p><code>i32[]</code> index into <code>navix.rendering.registry.PALETTE</code> (<code>0</code> red,
+<code>1</code> green, <code>2</code> blue, <code>3</code> purple, <code>4</code> yellow, <code>5</code> grey). This is the
+<code>colour</code> channel of a <code>symbolic</code> observation and picks the sprite
+variant for <code>rgb</code>.</p>
 
     </div>
 
@@ -3126,7 +3406,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as having a sprite, and provides the <code>sprite</code> attribute. The sprite is used to render the entity in the game.</p>
+        <p>Entity has an RGB sprite for <code>rgb</code> rendering.</p>
 
 
 
@@ -3145,6 +3425,52 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h4 id="navix.components.HasSprite.sprite" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">sprite</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>u8[TILE_SIZE, TILE_SIZE, 3]</code> (or with leading instance /
+direction axes) - the tile drawn for this entity.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>on the base class.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
 
 
 
@@ -3174,7 +3500,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as having a tag, and provides the <code>tag</code> attribute. The tag is used to identify the type of the entity in the observations.</p>
+        <p>Entity has an integer tag identifying its <em>type</em> in observations.</p>
 
 
 
@@ -3210,7 +3536,32 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The tag of the component, used to identify the type of the component in <code>observations.categorical</code></p>
+        <p><code>i32[]</code> - the value this entity's cells take in a <code>categorical</code>
+observation and the first channel of a <code>symbolic</code> one. Constant
+per entity type (see <code>entities.EntityIds</code>).</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="NotImplementedError">NotImplementedError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>on the base class.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
     </div>
 
@@ -3244,7 +3595,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as a holder, and provides the <code>pocket</code> attribute. The pocket is used to store the id of the item in the pocket.</p>
+        <p>Entity can carry one <code>Pickable</code> in a pocket (the <code>Player</code>).</p>
 
 
 
@@ -3281,7 +3632,8 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The id of the item in the pocket (0 if empty)</p>
+        <p><code>i32[]</code> - the <code>Pickable.id</code> currently carried, or <code>EMPTY_POCKET_ID</code>
+(<code>-1</code>) when empty.</p>
 
     </div>
 
@@ -3315,7 +3667,7 @@ Components are used to store the data of the entities in the game.</p>
 
 
 
-        <p>Flags an entity as openable, and provides the <code>requires</code> and <code>open</code> attributes</p>
+        <p>Entity (a <code>Door</code>) can be opened, possibly after unlocking.</p>
 
 
 
@@ -3352,7 +3704,8 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Open is jnp.asarray(0) if the entity is closed and 1 if open.</p>
+        <p><code>0</code> closed, <code>1</code> open. navix doors do not re-close, so this only
+ever goes <code>0 -&gt; 1</code>.</p>
 
     </div>
 
@@ -3375,8 +3728,9 @@ Components are used to store the data of the entities in the game.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The id of the item required to consume this item. If set, it must be &gt; 0.
-If -1, the door is unlocked and does not require any key to open.</p>
+        <p><code>i32[]</code> - the <code>Pickable.id</code> of the key that unlocks this door, or
+<code>-1</code> if it needs no key. Set to <code>-1</code> once the door has been
+unlocked.</p>
 
     </div>
 
@@ -3410,7 +3764,7 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
 
 
-        <p>Flags an entity as pickable, and provides the <code>id</code> attribute, which is used to identify the item in the inventory</p>
+        <p>Entity can be picked up into a pocket (<code>Key</code>, <code>Ball</code>, <code>Box</code>).</p>
 
 
 
@@ -3447,7 +3801,8 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The id of the item. If set, it must be &gt;= 1.</p>
+        <p><code>i32[] &gt;= 1</code> - the identity written to <code>player.pocket</code> when this
+entity is picked up, and matched against <code>Openable.requires</code>.</p>
 
     </div>
 
@@ -3481,7 +3836,7 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
 
 
-        <p>Flags an entity as positionable in the grid, and provides the <code>position</code> attribute</p>
+        <p>Entity has a location on the grid.</p>
 
 
 
@@ -3518,7 +3873,9 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The (row, column) position of the entity in the grid as a JAX array, defaults to the discard pile (-1, -1)</p>
+        <p><code>(row, col)</code> as <code>i32[2]</code> (or <code>i32[n_instances, 2]</code> batched).
+<code>DISCARD_PILE_COORDS</code> (<code>(0, -1)</code>) once the entity has been picked up
+or consumed.</p>
 
     </div>
 
@@ -3552,15 +3909,9 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
 
 
-        <p>Flags an entity as stochastic, and provides the <code>probability</code> attribute</p>
+        <p>Entity's reward (e.g. a <code>Goal</code>) is granted only with some
+probability when reached.</p>
 
-
-<details class="todo" open>
-  <summary>TODO</summary>
-  <ul>
-<li>consider replace probability (Array) with a distrax.Distribution</li>
-</ul>
-</details>
 
 
 
@@ -3596,7 +3947,8 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
     <div class="doc doc-contents ">
 
-        <p>The probability of receiving the reward, if reached.</p>
+        <p><code>f32[]</code> in <code>[0, 1]</code> - the chance the reward fires on contact.
+<code>1.0</code> for a deterministic goal.</p>
 
     </div>
 
@@ -3613,6 +3965,95 @@ If -1, the door is unlocked and does not require any key to open.</p>
 
 </div>
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.components.field" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">field</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>A <code>dataclasses.field</code> that also records the per-instance <code>shape</code>
+of the array (excluding the leading instance axis) in its metadata,
+so <code>Component.check_ndim</code> can validate batched vs unbatched structs.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>shape</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="int">int</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the shape of one instance's value -
+<code>()</code> for a scalar field, <code>(2,)</code> for a <code>(row, col)</code> position.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>forwarded to <code>dataclasses.field</code> (e.g. <code>default_factory</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>dataclasses.Field: the field descriptor.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
 
 
 

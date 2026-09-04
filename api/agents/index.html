@@ -2687,6 +2687,13 @@
 <a id="navix.agents"></a>
     <div class="doc doc-contents first">
 
+        <p>Reference JAX RL agents you can train on navix environments:
+<code>PPO</code>, <code>PQN</code> (a replay/target-free deep Q-network) and <code>Dreamer</code>
+(DreamerV3). Each pairs with an <code>HParams</code> struct and plugs into
+<code>navix.experiment.Experiment</code>. <code>models</code> holds the shared network pieces,
+including the carry-based <code>Encoder</code> family (swap <code>TransformerEncoder</code> in
+for a history-conditioned policy on partially observable tasks).</p>
+
 
 
 
