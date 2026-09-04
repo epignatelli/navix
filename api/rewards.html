@@ -2821,8 +2821,9 @@
   rewarded event and <code>0.0</code> otherwise; the <code>*_cost</code> functions return a
   small negative shaping term every step.</li>
 </ul>
-<p><code>compose</code> reduces several into one (summed by default), and
-<code>DEFAULT_TASK</code> is <code>on_goal_reached</code> minus a per-step <code>action_cost</code>.</p>
+<p><code>compose</code> reduces several into one (summed by default). <code>DEFAULT_TASK</code>
+is just <code>on_goal_reached</code> - <code>+1</code> at the goal, no per-step shaping; add a
+<code>time_cost</code> yourself if you want to reward faster solutions.</p>
 
 
 
@@ -2846,7 +2847,7 @@
 
 
 <h3 id="navix.rewards.DEFAULT_TASK" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DEFAULT_TASK</span> <span class="o">=</span> <span class="n">compose</span><span class="p">(</span><span class="n">on_goal_reached</span><span class="p">,</span> <span class="n">action_cost</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">DEFAULT_TASK</span> <span class="o">=</span> <span class="n">on_goal_reached</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
@@ -2858,8 +2859,8 @@
     <div class="doc doc-contents ">
 
         <p>The <code>reward_fn</code> an <code>Environment</code> uses unless overridden: <code>+1.0</code> on
-reaching the goal, plus a small negative <code>action_cost</code> on every step, so
-shorter successful episodes score higher.</p>
+reaching the goal, <code>0.0</code> every other step - no per-step shaping. Compose
+<code>time_cost</code> in yourself if you want to reward faster solutions.</p>
 
     </div>
 
@@ -2879,10 +2880,12 @@ shorter successful episodes score higher.</p>
 
     <div class="doc doc-contents ">
 
-        <p>A per-step penalty of <code>-cost</code> on every action except the one at
-index <code>6</code> (the <code>done</code> action in the default <code>MINIGRID_ACTION_SET</code>),
-which is free. Part of <code>DEFAULT_TASK</code>, where it makes shorter
-successful episodes score higher.</p>
+        <p>Deprecated alias of <code>time_cost</code>.</p>
+<p>It used to exempt the action at index <code>6</code> (<code>done</code> in
+<code>MINIGRID_ACTION_SET</code>), but a reward function has no way to know
+which action set an environment uses, so the exemption was
+action-set-dependent and wrong for any non-default set. Every action
+now costs <code>cost</code> - identical to <code>time_cost</code> - so use that instead.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2921,7 +2924,7 @@ successful episodes score higher.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>the integer action taken.</p>
+                <p>the integer action taken (unused).</p>
               </div>
             </td>
             <td>
@@ -2953,7 +2956,7 @@ successful episodes score higher.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>the per-action penalty magnitude. Default <code>0.01</code>.</p>
+                <p>the per-step penalty magnitude. Default <code>0.01</code>.</p>
               </div>
             </td>
             <td>
@@ -2979,7 +2982,7 @@ successful episodes score higher.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>f32[]</code> - <code>-cost</code> if <code>action != 6</code>, else <code>0.0</code>.</p>
+                <p><code>f32[]</code>, always <code>-cost</code>.</p>
               </div>
             </td>
           </tr>
@@ -3044,8 +3047,8 @@ successful episodes score higher.</p>
               <div class="doc-md-description">
                 <p>reduces the stacked <code>f32[len(reward_functions)]</code>
 results to a scalar <code>f32[]</code>. Default <code>jnp.sum</code> - the rewards
-add up (use <code>on_goal_reached</code> for <code>+1</code> and an <code>action_cost</code>
-for the <code>-</code> shaping term, as <code>DEFAULT_TASK</code> does).</p>
+add up, e.g. <code>compose(on_goal_reached, time_cost)</code> for <code>+1</code> at
+the goal minus a small per-step cost.</p>
               </div>
             </td>
             <td>
@@ -3930,8 +3933,9 @@ on_any_target_pickup</code>).</p>
 
     <div class="doc doc-contents ">
 
-        <p>A flat <code>-cost</code> on every step, regardless of the action (unlike
-<code>action_cost</code>, which exempts <code>done</code>).</p>
+        <p>A flat <code>-cost</code> on every step. Compose it with a goal reward
+(<code>compose(on_goal_reached, time_cost)</code>) to make shorter successful
+episodes score higher.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4054,7 +4058,7 @@ on_any_target_pickup</code>).</p>
         <p><code>-cost</code> on any step where the player moved into a wall this step
 (detected via <code>events.on_wall_hit</code>), <code>0.0</code> otherwise. Opt-in shaping
 for tasks that want to discourage bumping walls; same sign convention
-as <code>action_cost</code> / <code>time_cost</code>.</p>
+as <code>time_cost</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
