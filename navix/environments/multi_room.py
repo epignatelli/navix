@@ -113,6 +113,14 @@ MAX_LAYOUT_RESTARTS = 32  # a single room's own retry (MAX_PLACEMENT_TRIES,
 # restarts the *entire* room chain from scratch with a fresh key,
 # rather than trying to locally patch just the one room that failed.
 
+# MultiRoom keeps `DEFAULT_TASK`'s old shaped reward (goal `+1` minus a
+# per-step cost) even after `rewards.DEFAULT_TASK` dropped the cost.
+# Module-level (one shared object), so two MultiRoom instances of the
+# same id compare equal - `test_registry` checks a v1-alias redirect
+# builds an env `==` the direct one, which a fresh per-call `compose`
+# lambda would break.
+MULTI_ROOM_REWARD_FN = rewards.compose(rewards.on_goal_reached, rewards.time_cost)
+
 
 def room_top_left_east(key: Array, entry_row: Array, entry_col: Array, size_h: Array, size_w: Array) -> Array:
     # entered via the new room's own EAST wall -> room extends west
@@ -535,10 +543,7 @@ def register_multi_room(env_id: str, num_rooms: int, max_room_size: int) -> None
             max_room_size=max_room_size,
             max_steps=kwargs.pop("max_steps", num_rooms * 20),
             observation_fn=kwargs.pop("observation_fn", observations.symbolic),
-            reward_fn=kwargs.pop(
-                "reward_fn",
-                rewards.compose(rewards.on_goal_reached, rewards.time_cost),
-            ),
+            reward_fn=kwargs.pop("reward_fn", MULTI_ROOM_REWARD_FN),
             termination_fn=kwargs.pop("termination_fn", terminations.DEFAULT_TERMINATION),
             *args,
             **kwargs,
