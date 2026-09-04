@@ -189,8 +189,8 @@ class Environment(struct.PyTreeNode):
         gamma: discount factor. Not used by `step` itself - carried here
             so agents and `reward_fn`s (e.g. time-discounted goal
             rewards) can read it off the environment.
-        penality_coeff: if non-zero, a terminating reward is reduced by
-            `penality_coeff * (t / max_steps)`, i.e. finishing later is
+        penalty_coeff: if non-zero, a terminating reward is reduced by
+            `penalty_coeff * (t / max_steps)`, i.e. finishing later is
             worth less. `0.0` disables it.
         observation_fn: `state -> observation`. One of the functions in
             `navix.observations`.
@@ -212,7 +212,7 @@ class Environment(struct.PyTreeNode):
     reward_space: Space = struct.field(pytree_node=False)
     disable_autoreset: bool = struct.field(pytree_node=False, default=False)
     gamma: float = struct.field(pytree_node=False, default=0.99)
-    penality_coeff: float = struct.field(pytree_node=False, default=0.0)
+    penalty_coeff: float = struct.field(pytree_node=False, default=0.0)
     observation_fn: Callable[[State], Array] = struct.field(
         pytree_node=False, default=observations.none
     )
@@ -276,7 +276,7 @@ class Environment(struct.PyTreeNode):
             reward_space (Space | None): `None` -> `Continuous((), -1, 1)`.
             disable_autoreset (bool): see the class attribute.
             **kwargs: extra fields forwarded to the subclass constructor
-                (e.g. `gamma`, `penality_coeff`, or an environment's own
+                (e.g. `gamma`, `penalty_coeff`, or an environment's own
                 layout options like `random_start`).
 
         Returns:
@@ -421,7 +421,7 @@ class Environment(struct.PyTreeNode):
         reward = self.reward_fn(timestep.state, action, state)
         reward = jax.lax.cond(
             step_type == StepType.TERMINATION,
-            lambda reward: reward - self.penality_coeff * (t / self.max_steps),
+            lambda reward: reward - self.penalty_coeff * (t / self.max_steps),
             lambda reward: reward,
             reward,
         )
