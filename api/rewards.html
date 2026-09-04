@@ -4051,9 +4051,10 @@ on_any_target_pickup</code>).</p>
 
     <div class="doc doc-contents ">
 
-        <p><code>cost</code> on any step where the player moved into a wall this step
+        <p><code>-cost</code> on any step where the player moved into a wall this step
 (detected via <code>events.on_wall_hit</code>), <code>0.0</code> otherwise. Opt-in shaping
-for tasks that want to discourage bumping walls.</p>
+for tasks that want to discourage bumping walls; same sign convention
+as <code>action_cost</code> / <code>time_cost</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4124,7 +4125,7 @@ for tasks that want to discourage bumping walls.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>the magnitude applied on a wall hit. Default
+                <p>the penalty magnitude on a wall hit. Default
 <code>0.01</code>.</p>
               </div>
             </td>
@@ -4151,27 +4152,7 @@ for tasks that want to discourage bumping walls.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>f32[]</code> - <code>cost</code> on a wall hit, else <code>0.0</code>. Add it with a</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td></td>            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>negative sign (or via <code>compose</code> with a negating operator) to</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td></td>            <td>
-                  <code><span title="jax.Array">Array</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>make it a penalty.</p>
+                <p><code>f32[]</code> - <code>-cost</code> on a wall hit, else <code>0.0</code>.</p>
               </div>
             </td>
           </tr>
