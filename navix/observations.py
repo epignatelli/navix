@@ -60,7 +60,7 @@ from .grid import (
     align,
     idx_from_coordinates,
     crop,
-    view_cone,
+    first_person_view,
 )
 from .entities import EntityIds
 
@@ -155,13 +155,18 @@ def categorical_first_person(state: State) -> Array:
     col = jnp.where(on_grid, col, W)
     transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
-    # apply view mask. crop() places the agent at the *bottom* row of
-    # the 2*RADIUS+1 view, so the far row is 2*RADIUS cells forward of
-    # the agent, not RADIUS - view_cone's diffusion needs to reach that
-    # far, or the forward half of the view is permanently marked
-    # unseen regardless of whether real walls are there.
+    # apply view mask, using MiniGrid's own occlusion rule
+    # (Grid.process_vis) rather than view_cone's diffusion, which
+    # spreads through the whole 8-neighbourhood each step and so
+    # reports cells behind a solid wall as seen. first_person_view
+    # computes it in the cropped frame - where MiniGrid defines it -
+    # and hands back a full-grid mask, so the pipeline below is
+    # unchanged. It needs no doubled radius: the window is the crop, so
+    # the far row is covered by construction.
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, RADIUS * 2)
+    view = first_person_view(
+        transparency_map, player.position, player.direction, RADIUS
+    )
 
     # get categorical representation
     tags = state.get_tags()
@@ -343,13 +348,14 @@ def rgb_first_person(state: State) -> Array:
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
-    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
-    # view, so the far row is 2*RADIUS cells forward of the agent, not
-    # RADIUS - view_cone's diffusion needs to reach that far, or the
-    # forward half of the view is permanently marked unseen regardless
-    # of whether real walls are there.
-    view = view_cone(transparency_map, player.position, RADIUS * 2)  # (H, W)
-    view = jnp.asarray(view, dtype=jnp.bool)
+    # MiniGrid's own occlusion rule (Grid.process_vis), not view_cone's
+    # diffusion - see categorical_first_person. Computed in the cropped
+    # frame and returned over the full grid, so the crop below is
+    # unchanged, and needing no doubled radius since the window is the
+    # crop.
+    view = first_person_view(
+        transparency_map, player.position, player.direction, RADIUS
+    )  # (H, W)
     patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 
     # crop grid to agent's view
