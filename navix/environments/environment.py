@@ -179,7 +179,8 @@ class Environment(struct.PyTreeNode):
             once `t >= max_steps`. Default (via `create`) is
             `4 * height * width`.
         observation_space: `Space` describing `observation_fn`'s output
-            (shape, dtype, bounds).
+            (shape, dtype, bounds). A `distrax` distribution - see
+            `navix.spaces`.
         action_space: `Discrete` over `len(action_set)`.
         reward_space: `Continuous` bound on the reward, `[-1, 1]` by
             default.

@@ -52,8 +52,9 @@ Layout:
 - `navix.grid` - array helpers for grid geometry (cropping, rotation,
   line of sight).
 - `navix.rendering` - sprite/tile rendering for RGB observations.
-- `navix.spaces` - `Space` descriptors for observations, actions and
-  rewards.
+- `navix.spaces` - `Space` descriptors (shape / dtype / bounds) for
+  observations, actions and rewards; each is a `distrax` distribution
+  (`Discrete` <- `distrax.Categorical`, `Continuous` <- `distrax.Uniform`).
 - `navix.agents` - reference JAX implementations of PPO, PQN and
   DreamerV3, plus `navix.experiment.Experiment` to run and log them.
 - `navix.benchmarks` - experimental protocols that pin an environment,
