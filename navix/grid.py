@@ -36,7 +36,8 @@ about `State` or `Entity`. Groups:
   `from_ascii_map`) and the multi-room grid helpers (`room_grid*`,
   `room_*`, `RoomsGrid`);
 - cropping and first-person rendering (`crop`, `view_cone`,
-  `draw_grid_lines`, `apply_minigrid_opacity`).
+  `process_vis`, `first_person_view`, `draw_grid_lines`,
+  `apply_minigrid_opacity`).
 
 Convention: positions are `(row, col)`, directions are `0` east, `1`
 south, `2` west, `3` north, and a "grid" is `i32[H, W]` with `0` = floor
@@ -736,6 +737,120 @@ def draw_grid_lines(
     tile = tile.at[:, :line_thickness].set(luminosity)
     tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
     return tile
+
+
+def _sweep(seed: Array, transparent: Array) -> Array:
+    """One of MiniGrid's two inner passes: visibility flowing left to right.
+
+    `out[i]` is set when some `seed[k]`, `k <= i`, reaches `i` with every
+    cell in `[k, i-1]` transparent. MiniGrid writes this as a sequential
+    loop whose next cell depends on the one just written; the same result
+    is two cumulative maxima, so a row costs `O(log n)` parallel work
+    instead of an unrolled `n`-step Python loop. An opaque cell ends the
+    run *behind* it, so the wall itself is still reached and only what is
+    past it is not.
+
+    Args:
+        seed (Array): `bool[n]`, cells already visible before this pass.
+        transparent (Array): `bool[n]`, whether each cell can be seen through.
+
+    Returns:
+        Array: `bool[n]`, the cells visible after the pass."""
+    n = seed.shape[-1]
+    positions = jnp.arange(n)
+    last_seed = jax.lax.cummax(jnp.where(seed, positions, -1))
+    run_start = jax.lax.cummax(jnp.where(~transparent, positions + 1, 0))
+    # Exclusive scan: a cell's own opacity must not start its own run.
+    run_start = jnp.concatenate([jnp.zeros((1,), run_start.dtype), run_start[:-1]])
+    return jnp.asarray(last_seed >= run_start, dtype=jnp.bool)
+
+
+def process_vis(transparent: Array) -> Array:
+    """MiniGrid's `Grid.process_vis`, over an already-cropped first-person view.
+
+    `transparent` is the egocentric window `crop` returns, with the agent
+    at the bottom-centre of the last row - the frame MiniGrid computes
+    visibility in. The agent's own cell is seeded, and visibility is
+    propagated one row at a time towards the front: within a row it flows
+    sideways through transparent cells (left to right, then right to left
+    over that result - MiniGrid's two passes), and every cell carrying it
+    also lights the cell directly ahead plus its two diagonal neighbours
+    in the next row.
+
+    This is deliberately not line of sight, and not `view_cone`. MiniGrid
+    spreads one step sideways per row advanced, so it rounds corners a
+    little; `view_cone` diffuses through the whole 8-neighbourhood every
+    step, so it rounds them completely and reports cells behind a solid
+    wall as seen. Matching MiniGrid exactly is the point: NAVIX's
+    observations are compared against MiniGrid's, and a different
+    occlusion rule is a different task.
+
+    Rows never depend on anything further ahead of them, so cropping the
+    result afterwards gives the same answer as running on the smaller
+    window.
+
+    Args:
+        transparent (Array): `bool[rows, cols]`, the cropped, rotated view.
+
+    Returns:
+        Array: `bool[rows, cols]`, which of those cells the agent sees."""
+    cols = transparent.shape[-1]
+    positions = jnp.arange(cols)
+    agent = positions == cols // 2
+
+    def advance(carry: Array, row: Array):
+        rightward = _sweep(carry, row)
+        both = _sweep(rightward[::-1], row[::-1])[::-1]
+        # MiniGrid's passes stop one column short of each edge, so the
+        # cell that would push off the grid never does - which is also
+        # what keeps the rolls below from wrapping around the row.
+        pushes_right = rightward & row & (positions < cols - 1)
+        pushes_left = both & row & (positions >= 1)
+        ahead = (
+            pushes_right
+            | jnp.roll(pushes_right, 1)
+            | pushes_left
+            | jnp.roll(pushes_left, -1)
+        )
+        return ahead, both
+
+    # MiniGrid walks rows from the agent's own row outwards, so scan bottom-up.
+    _, mask = jax.lax.scan(advance, agent, jnp.asarray(transparent, dtype=jnp.bool)[::-1])
+    return jnp.asarray(mask[::-1], dtype=jnp.bool)
+
+
+def first_person_view(
+    transparency_map: Array, origin: Array, direction: Array, radius: int
+) -> Array:
+    """MiniGrid-faithful visibility, as a full-grid mask.
+
+    Crops `transparency_map` to the first-person window, runs
+    `process_vis` there - the frame MiniGrid defines visibility in - and
+    scatters the result back to grid coordinates, so it drops into the
+    same place `view_cone` occupies in the observation pipeline. Cells
+    outside the window are not visible.
+
+    Args:
+        transparency_map (Array): `bool[H, W]`, `1` where sight passes.
+        origin (Array): the agent's `(row, col)`.
+        direction (Array): the agent's direction (see this module's convention).
+        radius (int): the view radius; the window is `(2 * radius + 1)` square.
+
+    Returns:
+        Array: `bool[H, W]`, the cells the agent sees."""
+    height, width = transparency_map.shape
+    # Off-grid pads as opaque, so sight can never leave the map and come back.
+    window = crop(transparency_map, origin, direction, radius, padding_value=0)
+    seen = process_vis(window > 0)
+
+    # Crop a grid of flat indices the same way to learn where each window
+    # cell came from, rather than re-deriving the crop geometry per
+    # direction. Padding indexes out of range and is dropped on scatter.
+    indices = jnp.arange(height * width, dtype=jnp.int32).reshape(height, width)
+    source = crop(indices, origin, direction, radius, padding_value=height * width)
+    flat = jnp.zeros((height * width,), dtype=jnp.bool)
+    flat = flat.at[source.reshape(-1)].set(seen.reshape(-1), mode="drop")
+    return flat.reshape(height, width)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
