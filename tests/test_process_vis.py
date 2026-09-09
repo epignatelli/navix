@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from navix.grid import crop, process_vis, first_person_view
+from navix.grid import crop, process_vis
 
 
 def parse(rows, true_char):
@@ -267,42 +267,16 @@ def test_process_vis_rejects_a_window_with_no_centre():
         process_vis(jnp.ones((7, 8), dtype=jnp.bool))
 
 
-def test_first_person_view_agrees_with_process_vis_on_the_crop():
-    # first_person_view scatters process_vis' answer back to grid
-    # coordinates; cropping it again returns what it started from. The
-    # agent is placed far enough from every edge that the whole window is
-    # on-grid, so nothing is lost to the scatter's out-of-range drop.
-    rng = np.random.default_rng(3)
-    transparency = jnp.asarray(rng.random((17, 17)) > 0.25).at[8, 8].set(True)
-    origin = jnp.asarray((8, 8))
-    for direction in range(4):
-        full = first_person_view(transparency, origin, jnp.asarray(direction), 3)
-        window = crop(transparency, origin, jnp.asarray(direction), 3, padding_value=0)
-        np.testing.assert_array_equal(
-            np.asarray(crop(full, origin, jnp.asarray(direction), 3, padding_value=0)),
-            np.asarray(process_vis(window > 0)),
-        )
-
-
-def test_first_person_view_sees_nothing_outside_the_window():
-    # An empty room with the agent clear of every edge: exactly the
-    # (2 * radius + 1) window may be visible, never the whole grid.
-    transparency = jnp.ones((17, 17), dtype=jnp.bool)
-    seen = first_person_view(transparency, jnp.asarray((8, 8)), jnp.asarray(3), 3)
-    assert int(jnp.sum(seen)) == 7 * 7
-    assert seen.dtype == jnp.bool
-
-
-def test_first_person_view_does_not_leak_off_grid():
-    # Standing in a corner facing east: crop() puts the agent on the near
-    # edge of the window, so it reaches 6 cells forward and 3 to each
-    # side. Sight must stay inside that and must not wrap around the
-    # array edges the way a roll-based flood would.
+def test_process_vis_does_not_wrap_around_the_row():
+    # Standing in the corner of an all-transparent grid facing east: the
+    # crop pads the two columns that fall off the map with opaque cells,
+    # and sight must stop at the first of them rather than wrapping
+    # around the row edge the way a roll-based flood would.
     transparency = jnp.ones((9, 9), dtype=jnp.bool)
-    seen = first_person_view(transparency, jnp.asarray((1, 1)), jnp.asarray(0), 3)
-    assert not bool(jnp.any(seen[5:, :])), "reached behind the agent's row band"
-    assert not bool(jnp.any(seen[:, 8:])), "reached past the forward extent"
-    assert not bool(jnp.any(seen[:, :1])), "reached behind the agent"
+    window = crop(transparency, jnp.asarray((1, 1)), jnp.asarray(0), 3, padding_value=0)
+    seen = process_vis(window > 0)
+    assert bool(jnp.all(seen[:, 1])), "the padding cell itself should be seen"
+    assert not bool(jnp.any(seen[:, 0])), "sight wrapped around the row"
 
 
 if __name__ == "__main__":
@@ -314,6 +288,4 @@ if __name__ == "__main__":
     test_process_vis_returns_bool()
     test_process_vis_is_jittable_and_batchable()
     test_process_vis_rejects_a_window_with_no_centre()
-    test_first_person_view_agrees_with_process_vis_on_the_crop()
-    test_first_person_view_sees_nothing_outside_the_window()
-    test_first_person_view_does_not_leak_off_grid()
+    test_process_vis_does_not_wrap_around_the_row()

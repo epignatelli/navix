@@ -60,7 +60,7 @@ from .grid import (
     align,
     idx_from_coordinates,
     crop,
-    first_person_view,
+    process_vis,
 )
 from .entities import EntityIds
 
@@ -129,8 +129,9 @@ def categorical(state: State) -> Array:
 def categorical_first_person(state: State) -> Array:
     """The egocentric version of `categorical`: one tag per cell, cropped
     to a `(2 * RADIUS + 1)` square around the player and rotated so the
-    player sits at the bottom-centre facing up. Cells outside the view
-    cone or occluded by a wall are set to `0` (not seen).
+    player sits at the bottom-centre facing up. Cells occluded by a wall,
+    outside MiniGrid's visibility rule, or off the map are set to `0`
+    (`EntityIds.UNKNOWN`, not seen).
 
     Args:
         state (State): the current state.
@@ -158,22 +159,30 @@ def categorical_first_person(state: State) -> Array:
     # apply view mask, using MiniGrid's own occlusion rule
     # (Grid.process_vis) rather than view_cone's diffusion, which
     # spreads through the whole 8-neighbourhood each step and so
-    # reports cells behind a solid wall as seen. first_person_view
-    # computes it in the cropped frame - where MiniGrid defines it -
-    # and hands back a full-grid mask, so the pipeline below is
-    # unchanged. It needs no doubled radius: the window is the crop, so
-    # the far row is covered by construction.
+    # reports cells behind a solid wall as seen. It is defined on the
+    # egocentric window, so crop first and mask the crop: no doubled
+    # radius (the far row is inside the window by construction), and no
+    # full-grid intermediate. Off-grid pads as opaque, so sight can
+    # never leave the map and come back.
     player = state.get_player()
-    view = first_person_view(
-        transparency_map, player.position, player.direction, RADIUS
+    window = crop(
+        transparency_map, player.position, player.direction, RADIUS, padding_value=0
     )
+    view = process_vis(window > 0)
 
     # get categorical representation
     tags = state.get_tags()
-    obs = state.grid.at[row, col].set(tags, mode="drop") * view
+    obs = state.grid.at[row, col].set(tags, mode="drop")
 
-    # crop grid to agent's view
+    # crop grid to agent's view, then hide what the agent cannot see.
+    # Masking after the crop also blanks the off-map cells crop() pads
+    # in: they used to survive as the padding value 100, which is not an
+    # EntityId and sits outside the Discrete(MAX_CATEGORICAL_VALUE)
+    # space this observation declares. They are now UNKNOWN (0), the tag
+    # EntityIds already documents for a cell a first-person view has not
+    # seen.
     obs = crop(obs, player.position, player.direction, RADIUS)
+    obs = obs * view
 
     return obs
 
@@ -332,36 +341,37 @@ def rgb_first_person(state: State) -> Array:
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
 
-    # apply fov. Unseen/out-of-map tiles use the *opacity-adjusted*
-    # wall grey, not the raw (100, 100, 100) constant: every other
-    # cell in `patchwork` already went through apply_minigrid_opacity
-    # above, but dark_cell_colour is inserted as a flat literal after
-    # that, bypassing it - using the raw constant here made real,
-    # visible walls (opacity-adjusted, ~146) visually inconsistent
-    # with the unseen/padding fill (100) in the same image, a seam
-    # that isn't in MiniGrid's own rendering. A scalar still works for
-    # both the jnp.where fill below and crop()'s padding_value, since
-    # grey has equal R/G/B and both broadcast it across the full
-    # (..., 3) tile.
+    # Unseen/out-of-map tiles use the *opacity-adjusted* wall grey, not
+    # the raw (100, 100, 100) constant: every other cell in `patchwork`
+    # already went through apply_minigrid_opacity above, but
+    # dark_cell_colour is inserted as a flat literal after that,
+    # bypassing it - using the raw constant here made real, visible walls
+    # (opacity-adjusted, ~146) visually inconsistent with the
+    # unseen/padding fill (100) in the same image, a seam that isn't in
+    # MiniGrid's own rendering. A scalar still works for both the
+    # jnp.where fill below and crop()'s padding_value, since grey has
+    # equal R/G/B and both broadcast it across the full (..., 3) tile.
     dark_cell_colour = apply_minigrid_opacity(jnp.asarray(100, dtype=jnp.uint8))
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
     # MiniGrid's own occlusion rule (Grid.process_vis), not view_cone's
-    # diffusion - see categorical_first_person. Computed in the cropped
-    # frame and returned over the full grid, so the crop below is
-    # unchanged, and needing no doubled radius since the window is the
-    # crop.
-    view = first_person_view(
-        transparency_map, player.position, player.direction, RADIUS
-    )  # (H, W)
-    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
+    # diffusion - see categorical_first_person. It is defined on the
+    # egocentric window, so crop first and mask the crop, which also
+    # keeps the jnp.where off the full (H, W, TILE, TILE, 3) patchwork.
+    window = crop(
+        transparency_map, player.position, player.direction, RADIUS, padding_value=0
+    )
+    view = process_vis(window > 0)  # (RADIUS * 2 + 1, RADIUS * 2 + 1)
 
     # crop grid to agent's view
     patchwork = crop(
         patchwork, player.position, player.direction, RADIUS, dark_cell_colour
     )  # (RADIUS * 2 + 1, RADIUS * 2 + 1, TILE_SIZE, TILE_SIZE, 3)
+
+    # apply fov
+    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)

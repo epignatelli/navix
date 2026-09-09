@@ -36,8 +36,7 @@ about `State` or `Entity`. Groups:
   `from_ascii_map`) and the multi-room grid helpers (`room_grid*`,
   `room_*`, `RoomsGrid`);
 - cropping and first-person rendering (`crop`, `view_cone`,
-  `process_vis`, `first_person_view`, `draw_grid_lines`,
-  `apply_minigrid_opacity`).
+  `process_vis`, `draw_grid_lines`, `apply_minigrid_opacity`).
 
 Convention: positions are `(row, col)`, directions are `0` east, `1`
 south, `2` west, `3` north, and a "grid" is `i32[H, W]` with `0` = floor
@@ -842,40 +841,6 @@ def process_vis(transparent: Array) -> Array:
         reaching, seen = advance(reaching, rows[row])
         mask.append(seen)
     return jnp.asarray(jnp.stack(mask[::-1]), dtype=jnp.bool)
-
-
-def first_person_view(
-    transparency_map: Array, origin: Array, direction: Array, radius: int
-) -> Array:
-    """MiniGrid-faithful visibility, as a full-grid mask.
-
-    Crops `transparency_map` to the first-person window, runs
-    `process_vis` there - the frame MiniGrid defines visibility in - and
-    scatters the result back to grid coordinates, so it drops into the
-    same place `view_cone` occupies in the observation pipeline. Cells
-    outside the window are not visible.
-
-    Args:
-        transparency_map (Array): `bool[H, W]`, `1` where sight passes.
-        origin (Array): the agent's `(row, col)`.
-        direction (Array): the agent's direction (see this module's convention).
-        radius (int): the view radius; the window is `(2 * radius + 1)` square.
-
-    Returns:
-        Array: `bool[H, W]`, the cells the agent sees."""
-    height, width = transparency_map.shape
-    # Off-grid pads as opaque, so sight can never leave the map and come back.
-    window = crop(transparency_map, origin, direction, radius, padding_value=0)
-    seen = process_vis(window > 0)
-
-    # Crop a grid of flat indices the same way to learn where each window
-    # cell came from, rather than re-deriving the crop geometry per
-    # direction. Padding indexes out of range and is dropped on scatter.
-    indices = jnp.arange(height * width, dtype=jnp.int32).reshape(height, width)
-    source = crop(indices, origin, direction, radius, padding_value=height * width)
-    flat = jnp.zeros((height * width,), dtype=jnp.bool)
-    flat = flat.at[source.reshape(-1)].set(seen.reshape(-1), mode="drop")
-    return flat.reshape(height, width)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:
