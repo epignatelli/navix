@@ -136,3 +136,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Agent tooling scratch (Claude Code, aider, ...)
+.claude/
+.aider*
