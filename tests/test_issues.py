@@ -300,11 +300,14 @@ def test_147():
     # the agent - but categorical_first_person()/rgb_first_person()
     # only diffused view_cone's visibility RADIUS cells, so the
     # forward half of every first-person view was permanently marked
-    # unseen regardless of whether real walls were there. Verified
-    # against a real MiniGrid render of the identical scenario (open
-    # room, agent centred, no walls within 2*RADIUS in any direction):
-    # pre-fix, Navix's forward half is solid black where MiniGrid
-    # shows open floor; post-fix they closely match.
+    # unseen regardless of whether real walls were there. The radius
+    # coupling is gone entirely now that visibility is process_vis over
+    # the crop, which covers the whole window by construction; this
+    # still guards the symptom. Verified against a real MiniGrid render
+    # of the identical scenario (open room, agent centred, no walls
+    # within 2*RADIUS in any direction): pre-fix, Navix's forward half
+    # is solid black where MiniGrid shows open floor; post-fix they
+    # closely match.
     import gymnasium as gym
     import minigrid  # noqa: F401 - registers MiniGrid-* env ids
 

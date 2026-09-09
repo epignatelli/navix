@@ -1,7 +1,7 @@
 """Tests for MiniGrid-faithful first-person occlusion (`grid.process_vis`).
 
 The golden windows below were produced by running MiniGrid's own
-`minigrid.core.grid.Grid.process_vis` (v3.0.0) on the given transparency
+`minigrid.core.grid.Grid.process_vis` (v3.1.0) on the given transparency
 map with the agent at the bottom-centre, and are pasted here verbatim so
 the suite does not need MiniGrid installed to pin the behaviour.
 """
