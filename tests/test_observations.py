@@ -189,12 +189,10 @@ def test_rgb_first_person():
 
 
 def test_categorical_first_person_stays_inside_its_space():
-    # crop() pads the cells that fall off the map with 100, which is not
-    # an EntityId and sits outside the Discrete(MAX_CATEGORICAL_VALUE)
-    # space the observation declares. Masking the crop rather than the
-    # full grid turns them into UNKNOWN, the tag for a cell the agent has
-    # not seen. Empty-8x8 is small enough that every pose has off-map
-    # cells in view.
+    # crop() pads off-map cells with 100, which is not an EntityId and
+    # sits outside the Discrete(MAX_CATEGORICAL_VALUE) space the
+    # observation declares; masking the crop turns them into UNKNOWN.
+    # Empty-8x8 is small enough that every pose has off-map cells in view.
     env = nx.make(
         "Navix-Empty-8x8-v0", observation_fn=nx.observations.categorical_first_person
     )

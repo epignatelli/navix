@@ -191,11 +191,10 @@ def test_process_vis_matches_minigrid():
 
 
 def test_process_vis_flows_through_a_gap_in_a_wall():
-    # Taken from Navix-FourRooms-v0 (seed 0, agent at row 8 col 6 facing
-    # south), where the current view_cone disagrees with MiniGrid on 23 of
-    # the 49 cells. MiniGrid propagates sideways without limit within a
-    # row, so a single gap at the far edge of the wall lights everything
-    # past it - permissive, but it is the reference behaviour.
+    # A wall with one gap, taken from Navix-FourRooms-v0 (seed 0, agent at
+    # row 8 col 6 facing south). MiniGrid propagates sideways without limit
+    # within a row, so a single gap at the far edge lights everything past
+    # it - permissive, but it is the reference behaviour.
     transparency = parse(
         (
             "#......",
@@ -262,7 +261,7 @@ def test_process_vis_is_jittable_and_batchable():
 def test_process_vis_rejects_a_window_with_no_centre():
     # The agent's place in the window is a convention shared with crop(),
     # not something the window states, so an even width means the crop
-    # layout changed underneath it rather than a window it can answer for.
+    # layout changed underneath it.
     with pytest.raises(ValueError, match="bottom-centre"):
         process_vis(jnp.ones((7, 8), dtype=jnp.bool))
 
@@ -270,8 +269,8 @@ def test_process_vis_rejects_a_window_with_no_centre():
 def test_process_vis_does_not_wrap_around_the_row():
     # Standing in the corner of an all-transparent grid facing east: the
     # crop pads the two columns that fall off the map with opaque cells,
-    # and sight must stop at the first of them rather than wrapping
-    # around the row edge the way a roll-based flood would.
+    # and sight must stop at the first of them instead of wrapping around
+    # the row edge.
     transparency = jnp.ones((9, 9), dtype=jnp.bool)
     window = crop(transparency, jnp.asarray((1, 1)), jnp.asarray(0), 3, padding_value=0)
     seen = process_vis(window > 0)

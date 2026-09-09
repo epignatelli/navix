@@ -776,13 +776,8 @@ def process_vis(transparent: Array) -> Array:
     also lights the cell directly ahead plus its two diagonal neighbours
     in the next row.
 
-    This is deliberately not line of sight, and not `view_cone`. MiniGrid
-    spreads one step sideways per row advanced, so it rounds corners a
-    little; `view_cone` diffuses through the whole 8-neighbourhood every
-    step, so it rounds them completely and reports cells behind a solid
-    wall as seen. Matching MiniGrid exactly is the point: NAVIX's
-    observations are compared against MiniGrid's, and a different
-    occlusion rule is a different task.
+    This is MiniGrid's rule verbatim: permissive, rounds corners, not
+    line of sight.
 
     Rows never depend on anything further ahead of them, so cropping the
     result afterwards gives the same answer as running on the smaller
@@ -798,11 +793,9 @@ def process_vis(transparent: Array) -> Array:
     Returns:
         Array: `bool[rows, cols]`, which of those cells the agent sees."""
     cols = transparent.shape[-1]
-    # Where the agent stands is a convention shared with crop(), not
-    # something the window carries: bottom row, centre column. An even
-    # width has no centre, so it is a changed crop layout rather than a
-    # window this can answer for - fail here instead of silently
-    # computing visibility from half a cell off.
+    # The agent stands bottom-centre by crop()'s convention, which the
+    # window itself does not carry. An even width has no centre column: a
+    # changed crop layout, not a window this can answer for.
     if cols % 2 == 0:
         raise ValueError(
             "process_vis expects an odd-width window with the agent at the "
@@ -827,13 +820,9 @@ def process_vis(transparent: Array) -> Array:
         )
         return ahead, both
 
-    # MiniGrid walks rows from the agent's own row outwards, so walk
-    # bottom-up. Unlike the sideways sweep there is no closed form here -
-    # each row genuinely needs the one behind it - but the trip count is a
-    # static `2 * RADIUS + 1`, so a Python loop unrolls it into straight-line
-    # code XLA can fuse across rows, instead of a `lax.scan` that has to
-    # materialise the carry at every step. Measured bit-identical to the
-    # scan, ~1.5-1.9x faster on GPU and a third less scratch memory.
+    # Bottom-up, MiniGrid's order: each row needs the one behind it. The
+    # trip count is a static `2 * RADIUS + 1`, so a plain loop unrolls into
+    # straight-line code XLA fuses across rows.
     rows = jnp.asarray(transparent, dtype=jnp.bool)
     reaching = agent
     mask = []

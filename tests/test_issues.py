@@ -295,19 +295,11 @@ def test_146():
 
 def test_147():
     # https://github.com/epignatelli/navix/issues/147
-    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
-    # first-person view, so the far row is 2*RADIUS cells forward of
-    # the agent - but categorical_first_person()/rgb_first_person()
-    # only diffused view_cone's visibility RADIUS cells, so the
-    # forward half of every first-person view was permanently marked
-    # unseen regardless of whether real walls were there. The radius
-    # coupling is gone entirely now that visibility is process_vis over
-    # the crop, which covers the whole window by construction; this
-    # still guards the symptom. Verified against a real MiniGrid render
-    # of the identical scenario (open room, agent centred, no walls
-    # within 2*RADIUS in any direction): pre-fix, Navix's forward half
-    # is solid black where MiniGrid shows open floor; post-fix they
-    # closely match.
+    # crop() places the agent at the bottom row of the 2*RADIUS+1
+    # first-person view, so the far row is 2*RADIUS cells ahead and the
+    # visibility mask has to cover the whole window. In an open room with
+    # no walls within 2*RADIUS, every tile of that window is floor, as a
+    # real MiniGrid render of the same scenario shows.
     import gymnasium as gym
     import minigrid  # noqa: F401 - registers MiniGrid-* env ids
 
