@@ -13,7 +13,7 @@ import numpy as np
 from navix.grid import crop, process_vis, first_person_view
 
 
-def _parse(rows, true_char):
+def parse(rows, true_char):
     return jnp.asarray([[c == true_char for c in row] for row in rows])
 
 
@@ -185,10 +185,8 @@ MINIGRID_CASES = (
 
 def test_process_vis_matches_minigrid():
     for transparency, expected in MINIGRID_CASES:
-        got = process_vis(_parse(transparency, "."))
-        np.testing.assert_array_equal(
-            np.asarray(got), np.asarray(_parse(expected, "V"))
-        )
+        got = process_vis(parse(transparency, "."))
+        np.testing.assert_array_equal(np.asarray(got), np.asarray(parse(expected, "V")))
 
 
 def test_process_vis_flows_through_a_gap_in_a_wall():
@@ -197,7 +195,7 @@ def test_process_vis_flows_through_a_gap_in_a_wall():
     # the 49 cells. MiniGrid propagates sideways without limit within a
     # row, so a single gap at the far edge of the wall lights everything
     # past it - permissive, but it is the reference behaviour.
-    transparency = _parse(
+    transparency = parse(
         (
             "#......",
             "#......",
@@ -215,7 +213,7 @@ def test_process_vis_flows_through_a_gap_in_a_wall():
 def test_process_vis_hides_what_a_solid_wall_blocks():
     # The same window with the gap closed: now nothing past the wall is
     # reachable, and only the wall itself and the agent's row remain.
-    transparency = _parse(
+    transparency = parse(
         (
             "#......",
             "#......",

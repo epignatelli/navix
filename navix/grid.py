@@ -739,16 +739,16 @@ def draw_grid_lines(
     return tile
 
 
-def _sweep(seed: Array, transparent: Array) -> Array:
+def sweep(seed: Array, transparent: Array) -> Array:
     """One of MiniGrid's two inner passes: visibility flowing left to right.
 
     `out[i]` is set when some `seed[k]`, `k <= i`, reaches `i` with every
     cell in `[k, i-1]` transparent. MiniGrid writes this as a sequential
     loop whose next cell depends on the one just written; the same result
     is two cumulative maxima, so a row costs `O(log n)` parallel work
-    instead of an unrolled `n`-step Python loop. An opaque cell ends the
-    run *behind* it, so the wall itself is still reached and only what is
-    past it is not.
+    rather than an `n`-long chain of scalar dependencies. An opaque cell
+    ends the run *behind* it, so the wall itself is still reached and only
+    what is past it is not.
 
     Args:
         seed (Array): `bool[n]`, cells already visible before this pass.
@@ -799,8 +799,8 @@ def process_vis(transparent: Array) -> Array:
     agent = positions == cols // 2
 
     def advance(carry: Array, row: Array):
-        rightward = _sweep(carry, row)
-        both = _sweep(rightward[::-1], row[::-1])[::-1]
+        rightward = sweep(carry, row)
+        both = sweep(rightward[::-1], row[::-1])[::-1]
         # MiniGrid's passes stop one column short of each edge, so the
         # cell that would push off the grid never does - which is also
         # what keeps the rolls below from wrapping around the row.
