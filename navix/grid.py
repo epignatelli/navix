@@ -792,9 +792,23 @@ def process_vis(transparent: Array) -> Array:
     Args:
         transparent (Array): `bool[rows, cols]`, the cropped, rotated view.
 
+    Raises:
+        ValueError: if the window has no centre column to stand the agent
+            in, i.e. `cols` is even.
+
     Returns:
         Array: `bool[rows, cols]`, which of those cells the agent sees."""
     cols = transparent.shape[-1]
+    # Where the agent stands is a convention shared with crop(), not
+    # something the window carries: bottom row, centre column. An even
+    # width has no centre, so it is a changed crop layout rather than a
+    # window this can answer for - fail here instead of silently
+    # computing visibility from half a cell off.
+    if cols % 2 == 0:
+        raise ValueError(
+            "process_vis expects an odd-width window with the agent at the "
+            f"bottom-centre, as crop() returns; got {cols} columns."
+        )
     positions = jnp.arange(cols)
     agent = positions == cols // 2
 

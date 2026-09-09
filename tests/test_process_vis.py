@@ -9,6 +9,7 @@ the suite does not need MiniGrid installed to pin the behaviour.
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from navix.grid import crop, process_vis, first_person_view
 
@@ -258,6 +259,14 @@ def test_process_vis_is_jittable_and_batchable():
         )
 
 
+def test_process_vis_rejects_a_window_with_no_centre():
+    # The agent's place in the window is a convention shared with crop(),
+    # not something the window states, so an even width means the crop
+    # layout changed underneath it rather than a window it can answer for.
+    with pytest.raises(ValueError, match="bottom-centre"):
+        process_vis(jnp.ones((7, 8), dtype=jnp.bool))
+
+
 def test_first_person_view_agrees_with_process_vis_on_the_crop():
     # first_person_view scatters process_vis' answer back to grid
     # coordinates; cropping it again returns what it started from. The
@@ -304,6 +313,7 @@ if __name__ == "__main__":
     test_process_vis_sees_only_the_agent_when_boxed_in()
     test_process_vis_returns_bool()
     test_process_vis_is_jittable_and_batchable()
+    test_process_vis_rejects_a_window_with_no_centre()
     test_first_person_view_agrees_with_process_vis_on_the_crop()
     test_first_person_view_sees_nothing_outside_the_window()
     test_first_person_view_does_not_leak_off_grid()
