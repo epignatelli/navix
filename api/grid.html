@@ -1292,6 +1292,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#navix.grid.process_vis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;process_vis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#navix.grid.random_colour" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1439,6 +1450,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;rotate_tile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#navix.grid.sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;sweep
       
     </span>
   </a>
@@ -3094,7 +3116,7 @@ about <code>State</code> or <code>Entity</code>. Groups:</p>
   <code>from_ascii_map</code>) and the multi-room grid helpers (<code>room_grid*</code>,
   <code>room_*</code>, <code>RoomsGrid</code>);</li>
 <li>cropping and first-person rendering (<code>crop</code>, <code>view_cone</code>,
-  <code>draw_grid_lines</code>, <code>apply_minigrid_opacity</code>).</li>
+  <code>process_vis</code>, <code>draw_grid_lines</code>, <code>apply_minigrid_opacity</code>).</li>
 </ul>
 <p>Convention: positions are <code>(row, col)</code>, directions are <code>0</code> east, <code>1</code>
 south, <code>2</code> west, <code>3</code> north, and a "grid" is <code>i32[H, W]</code> with <code>0</code> = floor
@@ -4740,6 +4762,115 @@ then controls whether the player can actually pass through.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="navix.grid.process_vis" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">process_vis</span><span class="p">(</span><span class="n">transparent</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>MiniGrid's <code>Grid.process_vis</code>, over an already-cropped first-person view.</p>
+<p><code>transparent</code> is the egocentric window <code>crop</code> returns, with the agent
+at the bottom-centre of the last row - the frame MiniGrid computes
+visibility in. The agent's own cell is seeded, and visibility is
+propagated one row at a time towards the front: within a row it flows
+sideways through transparent cells (left to right, then right to left
+over that result - MiniGrid's two passes), and every cell carrying it
+also lights the cell directly ahead plus its two diagonal neighbours
+in the next row.</p>
+<p>This is MiniGrid's rule verbatim: permissive, rounds corners, not
+line of sight.</p>
+<p>Rows never depend on anything further ahead of them, so cropping the
+result afterwards gives the same answer as running on the smaller
+window.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>transparent</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>bool[rows, cols]</code>, the cropped, rotated view.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if the window has no centre column to stand the agent
+in, i.e. <code>cols</code> is even.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>bool[rows, cols]</code>, which of those cells the agent sees.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="navix.grid.random_colour" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">random_colour</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
 
@@ -6265,6 +6396,101 @@ wall, not its interior) in a <code>room_grid</code> layout.</p>
             <td>
               <div class="doc-md-description">
                 <p>A patch of the grid rotated by the given number of 90-degree rotations.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="navix.grid.sweep" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">sweep</span><span class="p">(</span><span class="n">seed</span><span class="p">,</span> <span class="n">transparent</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>One of MiniGrid's two inner passes: visibility flowing left to right.</p>
+<p><code>out[i]</code> is set when some <code>seed[k]</code>, <code>k &lt;= i</code>, reaches <code>i</code> with every
+cell in <code>[k, i-1]</code> transparent. MiniGrid writes this as a sequential
+loop whose next cell depends on the one just written; the same result
+is two cumulative maxima, so a row costs <code>O(log n)</code> parallel work
+rather than an <code>n</code>-long chain of scalar dependencies. An opaque cell
+ends the run <em>behind</em> it, so the wall itself is still reached and only
+what is past it is not.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>bool[n]</code>, cells already visible before this pass.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transparent</code>
+            </td>
+            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>bool[n]</code>, whether each cell can be seen through.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Array</code></td>            <td>
+                  <code><span title="jax.Array">Array</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>bool[n]</code>, the cells visible after the pass.</p>
               </div>
             </td>
           </tr>

@@ -2909,8 +2909,9 @@ via <code>entities.EntityIds</code>), fully observable.</p>
 
         <p>The egocentric version of <code>categorical</code>: one tag per cell, cropped
 to a <code>(2 * RADIUS + 1)</code> square around the player and rotated so the
-player sits at the bottom-centre facing up. Cells outside the view
-cone or occluded by a wall are set to <code>0</code> (not seen).</p>
+player sits at the bottom-centre facing up. Cells occluded by a wall,
+outside MiniGrid's visibility rule, or off the map are set to <code>0</code>
+(<code>EntityIds.UNKNOWN</code>, not seen).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
