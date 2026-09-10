@@ -402,7 +402,7 @@ def test_160():
         for k in keys:
             timestep = env.reset(k)
             positions = timestep.state.get_doors().position
-            # the walls connect_all leaves shut all wait on the discard pile
+            # unused candidate doors all share the off-grid discard pile
             positions = positions[jnp.all(positions >= 0, axis=-1)]
             n_unique = jnp.unique(positions, axis=0).shape[0]
             assert n_unique == positions.shape[0], (

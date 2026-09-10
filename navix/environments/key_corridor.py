@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import List, Tuple, Union
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import Array
 
 from navix import observations, rewards, terminations
@@ -51,25 +52,18 @@ class KeyCorridor(Environment):
     """Find a key hidden behind unlocked doors, then use it to open the one
     locked door guarding the goal.
 
-    Rooms form an `n_rows x 3` grid: the middle column is one corridor (its
-    inter-row walls are removed), the key lives in a left-column room, and
-    the goal lives in a right-column room behind the episode's one locked
-    door.
+    Rooms form an `n_rows x 3` grid: the middle column is one corridor, the
+    key lives in a left-column room and the goal in a right-column room
+    behind the one locked door.
 
-    Every other door follows MiniGrid's `RoomGrid.connect_all`, which draws
-    walls uniformly with replacement and puts a closed door on each new one
-    that does not touch the locked room, stopping as soon as every room is
-    reachable. The order in which distinct eligible walls are first drawn is
-    a uniform permutation, so the doors it adds are exactly the shortest
-    prefix of a random permutation of eligible walls that connects the rooms
-    - walls between rooms that were already connected included. `_reset`
-    computes that prefix in one fixed-length pass, counting components with a
-    union-find.
+    Every other door follows MiniGrid's `RoomGrid.connect_all`: each wall not
+    touching the locked room gets a door, in uniformly random order, until
+    every room is reachable. MiniGrid draws walls with replacement, but the
+    order distinct walls are first drawn in is a uniform permutation, so one
+    pass over a permutation adds the same doors.
 
-    `jax.jit` needs a fixed entity count, so every candidate wall is a `Door`
-    entity. The ones `connect_all` never reaches sit at `DISCARD_PILE_COORDS`
-    and leave their cell a wall, so they render, encode and block exactly as
-    MiniGrid's plain walls do.
+    `jax.jit` needs a fixed entity count, so every candidate wall is a `Door`;
+    the ones left shut sit at `DISCARD_PILE_COORDS` and their cell stays a wall.
     """
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
@@ -104,26 +98,33 @@ class KeyCorridor(Environment):
         # `parent[parent]` pass after each union always restores it, and a
         # lookup is one gather however many rooms have merged.
         num_rooms = 3 * n_rows
-        # (row, u, v, col, side) - `col`/`side` are `position_on_border`'s
-        # own args for this wall; `u`/`v` are the two rooms it connects.
-        candidates: List[Tuple[int, int, int, int, int]] = []
+        # (row, u, v, wall cell before the offset, offset axis) - `u`/`v` are
+        # the two rooms the wall connects; the door sits `1..room_size` cells
+        # along the wall, uniformly, as MiniGrid's `door_pos` does.
+        candidates: List[Tuple[int, int, int, Tuple[int, int], int]] = []
         for row in range(n_rows):
-            candidates.append((row, _room_id(row, 0), _room_id(row, 1), 0, 1))
-            candidates.append((row, _room_id(row, 1), _room_id(row, 2), 2, 0))
+            r = row * pitch
+            candidates.append((row, _room_id(row, 0), _room_id(row, 1), (r, pitch), 0))
+            candidates.append(
+                (row, _room_id(row, 1), _room_id(row, 2), (r, 2 * pitch), 0)
+            )
         for row in range(n_rows - 1):
-            candidates.append((row, _room_id(row, 0), _room_id(row + 1, 0), 0, 3))
-            candidates.append((row, _room_id(row, 2), _room_id(row + 1, 2), 2, 3))
+            r = (row + 1) * pitch
+            candidates.append((row, _room_id(row, 0), _room_id(row + 1, 0), (r, 0), 1))
+            candidates.append(
+                (row, _room_id(row, 2), _room_id(row + 1, 2), (r, 2 * pitch), 1)
+            )
         num_candidates = len(candidates)
 
-        door_keys = jax.random.split(k_doors, num=num_candidates + 2)
-        positions = jnp.stack(
-            [
-                grid.position_on_border(row, col, side, key=door_keys[i])
-                for i, (row, _, _, col, side) in enumerate(candidates)
-            ]
+        k_offsets, k_colours, k_perm = jax.random.split(k_doors, num=3)
+        offsets = jax.random.randint(
+            k_offsets, (num_candidates,), minval=1, maxval=room_size + 1
         )
-        colours = random_colour(door_keys[num_candidates], num_candidates)
-        perm = jax.random.permutation(door_keys[num_candidates + 1], num_candidates)
+        wall_cells = jnp.asarray([cell for *_, cell, _ in candidates], dtype=jnp.int32)
+        along = jnp.asarray(np.eye(2, dtype=np.int32)[[a for *_, a in candidates]])
+        positions = wall_cells + offsets[:, None] * along
+        colours = random_colour(k_colours, num_candidates)
+        perm = jax.random.permutation(k_perm, num_candidates)
 
         row_ids = jnp.asarray([row for row, *_ in candidates])
         u_ids = jnp.asarray([u for _, u, _, _, _ in candidates])
@@ -149,16 +150,17 @@ class KeyCorridor(Environment):
         # the corridor merges `n_rows` rooms into one, the locked door one more
         components = jnp.asarray(num_rooms - n_rows)
 
-        added = jnp.zeros((num_candidates,), dtype=jnp.bool_)
+        u_perm, v_perm, eligible_perm = u_ids[perm], v_ids[perm], eligible[perm]
+        adds = []
         for i in range(num_candidates):
-            idx = perm[i]
-            ru, rv = parent[u_ids[idx]], parent[v_ids[idx]]
-            add = eligible[idx] & (components > 1)
+            ru, rv = parent[u_perm[i]], parent[v_perm[i]]
+            add = eligible_perm[i] & (components > 1)
             merge = add & (ru != rv)
             parent = parent.at[ru].set(jnp.where(merge, rv, ru))
             parent = parent[parent]  # one pointer-doubling pass restores flatness
             components = components - merge
-            added = added.at[idx].set(add)
+            adds.append(add)
+        added = jnp.zeros((num_candidates,), dtype=jnp.bool_).at[perm].set(jnp.stack(adds))
 
         on_grid = is_goal_slot | added
         door_colours = jnp.where(is_goal_slot, key_colour, colours)
@@ -168,33 +170,35 @@ class KeyCorridor(Environment):
             colour=door_colours,
             open=jnp.zeros((num_candidates,), dtype=jnp.int32),
         )
-        walls = grid.get_grid()
-        walls = walls.at[pitch : self.height - 1 : pitch, pitch + 1 : 2 * pitch].set(0)
+        # room walls with the corridor's inter-row walls removed, fixed per
+        # env, so built once at trace time as a constant
+        walls = np.zeros((self.height, self.width), dtype=np.float32)
+        walls[::pitch, :] = -1
+        walls[:, ::pitch] = -1
+        walls[pitch : self.height - 1 : pitch, pitch + 1 : 2 * pitch] = 0
         # a wall `connect_all` never reached stays a wall: its carve goes to
         # row `self.height`, out of bounds, which `mode="drop"` discards
         carved = jnp.where(on_grid[:, None], positions, jnp.asarray([self.height, 0]))
-        grid = walls.at[carved[:, 0], carved[:, 1]].set(0, mode="drop")
+        grid = jnp.asarray(walls).at[carved[:, 0], carved[:, 1]].set(0, mode="drop")
 
-        # agent: MiniGrid's `place_agent(1, n_rows // 2)`, which runs before
-        # `connect_all`. A uniform pose on any free cell of the middle corridor
-        # room's box, its corridor openings included, redrawn while it faces
-        # the locked door - the only object in front of that box at the time.
-        top = (n_rows // 2) * pitch
-        rows, cols = jnp.meshgrid(
-            jnp.arange(top, top + pitch + 1),
-            jnp.arange(pitch, 2 * pitch + 1),
-            indexing="ij",
-        )
-        cells = jnp.stack([rows.reshape(-1), cols.reshape(-1)], axis=-1)
-        # east, south, west, north, in `translate`'s direction order
-        fronts = cells[:, None] + jnp.asarray([[0, 1], [1, 0], [0, -1], [-1, 0]])
-        locked_door = positions[jnp.argmax(is_goal_slot)]
-        free = walls[cells[:, 0], cells[:, 1]] == 0
-        valid = free[:, None] & ~jnp.all(fronts == locked_door, axis=-1)
-        pose = jax.random.categorical(
-            k_agent, jnp.where(valid, 0.0, -jnp.inf).reshape(-1)
-        )
-        player = Player.create(cells[pose // 4], pose % 4, pocket=EMPTY_POCKET_ID)
+        # agent: MiniGrid's `place_agent(1, n_rows // 2)`, a uniform (cell,
+        # direction) in the middle corridor room, never facing the locked door.
+        # The free cells form a rectangle and only the east-facing pose beside
+        # the locked door can be invalid, so draw one index over the valid
+        # count and map that pose's slot to the last (north-facing) pose.
+        middle = n_rows // 2
+        first_row = middle * pitch + (0 if middle > 0 else 1)
+        last_row = middle * pitch + (pitch if middle < n_rows - 1 else room_size)
+        num_poses = (last_row - first_row + 1) * room_size * 4
+        locked_door_row = positions[jnp.argmax(is_goal_slot), 0]
+        blocked = (goal_room_row == middle).astype(jnp.int32)
+        blocked_pose = ((locked_door_row - first_row) * room_size + room_size - 1) * 4
+        pose = jax.random.randint(k_agent, (), minval=0, maxval=num_poses - blocked)
+        pose = jnp.where((blocked == 1) & (pose == blocked_pose), num_poses - 1, pose)
+        cell = pose // 4
+        agent_pos = jnp.stack([first_row + cell // room_size, pitch + 1 + cell % room_size])
+        # direction indices follow `translate`: east, south, west, north
+        player = Player.create(agent_pos, pose % 4, pocket=EMPTY_POCKET_ID)
 
         entities = {
             "player": player[None],
