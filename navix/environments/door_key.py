@@ -45,15 +45,16 @@ from .registry import register_env
 class DoorKey(Environment):
     """`Navix-DoorKey-*`. A room split in two by an interior wall with a
     single locked yellow door; a matching key lies in the first half, the
-    goal in the second. The agent must pick up the key, unlock and open
-    the door, then reach the goal. Default reward/termination (`+1` at
-    the goal minus a step cost). The wall column and door row are
-    randomised every reset.
+    goal in the bottom-right corner of the second. The agent must pick up
+    the key, unlock and open the door, then reach the goal. Default
+    reward/termination (`+1` at the goal minus a step cost). The wall
+    column, door row and key are drawn as in MiniGrid's
+    `DoorKeyEnv._gen_grid`.
 
     Attributes:
-        random_start: `False` puts the player at a fixed corner of the
-            first room; `True` (the `-Random-` ids) samples the player
-            and key positions within the first room.
+        random_start: `True` (the `-Random-` ids) draws the player's cell
+            and direction uniformly in the first room, as MiniGrid does;
+            `False` puts the player at `(1, 1)` facing east.
     """
 
     random_start: bool = struct.field(pytree_node=False, default=False)
@@ -67,15 +68,14 @@ class DoorKey(Environment):
             self.width > 4
         ), f"Room width must be greater than 5, got {self.width} instead"
 
-        key, k1, k2, k3, k4 = jax.random.split(key, 5)
+        key, k_col, k_row, k_player_pos, k_player_dir, k_key = jax.random.split(key, 6)
 
         grid = room(height=self.height, width=self.width)
 
-        # door positions
-        # col can be between 1 and height - 2
-        door_col = jax.random.randint(k4, (), 2, self.width - 2)  # col
-        # row can be between 1 and height - 2
-        door_row = jax.random.randint(k3, (), 1, self.height - 1)  # row
+        # MiniGrid's `splitIdx` and `doorIdx`: the wall column is one of
+        # 2..width-3 and the door row one of 1..height-3
+        door_col = jax.random.randint(k_col, (), 2, self.width - 2)
+        door_row = jax.random.randint(k_row, (), 1, self.height - 2)
         door_pos = jnp.asarray((door_row, door_col))
         doors = Door.create(
             position=door_pos,
@@ -99,20 +99,15 @@ class DoorKey(Environment):
             grid, (jnp.asarray(self.height), door_col), jnp.less
         )
         first_room = jnp.where(first_room_mask, grid, -1)  # put walls where not mask
-        second_room_mask = mask_by_coordinates(
-            grid, (jnp.asarray(0), door_col), jnp.greater
-        )
-        second_room = jnp.where(second_room_mask, grid, -1)  # put walls where not mask
 
         # set player and goal pos
         if self.random_start:
-            player_pos = random_positions(k1, first_room)
-            player_dir = random_directions(k2)
-            goal_pos = random_positions(k2, second_room)
+            player_pos = random_positions(k_player_pos, first_room)
+            player_dir = random_directions(k_player_dir)
         else:
             player_pos = jnp.asarray([1, 1])
             player_dir = jnp.asarray(0)
-            goal_pos = jnp.asarray([self.height - 2, self.width - 2])
+        goal_pos = jnp.asarray([self.height - 2, self.width - 2])
 
         # spawn goal and player
         player = Player.create(
@@ -121,7 +116,7 @@ class DoorKey(Environment):
         goals = Goal.create(position=goal_pos, probability=jnp.asarray(1.0))
 
         # spawn key
-        key_pos = random_positions(k2, first_room, exclude=player_pos)
+        key_pos = random_positions(k_key, first_room, exclude=player_pos)
         keys = Key.create(position=key_pos, id=jnp.asarray(3), colour=PALETTE.YELLOW)
 
         # remove the wall beneath the door
