@@ -17,12 +17,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 """KeyCorridor's door placement mirrors MiniGrid's RoomGrid.connect_all
-- a randomised union-find that must guarantee every non-goal room stays
-reachable from the agent's start, the goal room never gets a second
-(openable) connector, and no two doors ever share a cell. #160 and #161
-were both silent regressions of exactly these invariants, so this
-checks them directly across many seeds rather than relying on luck."""
+- every room stays reachable from the corridor, the locked room never gets
+a second (openable) connector, no two doors ever share a cell, every wall
+connect_all does not open is a real wall, and the number of doors follows
+MiniGrid's. #160 and #161 were both silent regressions of these invariants,
+so this checks them directly across many seeds rather than relying on luck."""
 
 from typing import Optional, Set, Tuple
 
@@ -32,7 +33,7 @@ import jax.numpy as jnp
 import pytest
 
 import navix as nx
-from navix.environments.key_corridor import _UNOPENABLE
+from navix.components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
 
 _ENV_IDS = (
     "Navix-KeyCorridorS3R1-v0",
@@ -44,6 +45,18 @@ _ENV_IDS = (
 )
 _N_SEEDS = 200
 _N_ROWS_CONFIG = {3: 1, 5: 2}
+
+# Frequencies of the number of unlocked doors in real MiniGrid 3.1.0,
+# `KeyCorridorEnv(room_size, num_rows)` reset on seeds 0-2999. The count
+# depends only on the room graph, so the four R3 sizes are pooled (12000
+# resets). Keyed by `num_rows`.
+_MINIGRID_UNLOCKED_DOORS = {
+    1: {1: 1.0},
+    2: {3: 0.754, 4: 0.246},
+    3: {5: 0.414, 6: 0.366, 7: 0.220},
+}
+_N_COUNT_SEEDS = 2000
+_COUNT_TOLERANCE = 0.05  # over four standard errors at these sample sizes
 
 
 def _room_of(pos: Tuple[int, int], room_size: int) -> Optional[Tuple[int, int]]:
@@ -97,6 +110,10 @@ def _reachable_rooms(
     return seen
 
 
+def _cells(mask: np.ndarray) -> Set[Tuple[int, int]]:
+    return set(map(tuple, np.argwhere(mask).tolist()))
+
+
 @pytest.mark.parametrize("env_id", _ENV_IDS)
 def test_connect_all_reachability_and_door_uniqueness(env_id):
     env = nx.make(env_id)
@@ -109,12 +126,14 @@ def test_connect_all_reachability_and_door_uniqueness(env_id):
     positions = np.asarray(timestep.state.entities["door"].position)
     requires = np.asarray(timestep.state.entities["door"].requires)
     key_ids = np.asarray(timestep.state.entities["key"].id)[:, 0]
-    agent_positions = np.asarray(timestep.state.entities["player"].position)[:, 0]
-    unopenable = int(_UNOPENABLE)
 
     for seed in range(_N_SEEDS):
-        seed_positions = positions[seed]
-        seed_requires = requires[seed]
+        on_grid = np.all(positions[seed] >= 0, axis=-1)
+        assert np.all(positions[seed][~on_grid] == np.asarray(DISCARD_PILE_COORDS)), (
+            f"{env_id} seed={seed}: an off-grid door is not on the discard pile"
+        )
+        seed_positions = positions[seed][on_grid]
+        seed_requires = requires[seed][on_grid]
         key_id = int(key_ids[seed])
 
         unique_positions = set(map(tuple, seed_positions.tolist()))
@@ -128,27 +147,108 @@ def test_connect_all_reachability_and_door_uniqueness(env_id):
             f"{env_id} seed={seed}: expected exactly one locked goal door, "
             f"got {goal_mask.sum()}"
         )
+        assert np.all(seed_requires[~goal_mask] == EMPTY_POCKET_ID)
         goal_touching = _rooms_touching_wall(
             tuple(seed_positions[goal_mask][0]), room_size, n_rows
         )
         assert len(goal_touching) == 2
         locked_room = next(r for r in goal_touching if r[1] == 2)
 
-        agent_room = _room_of(tuple(agent_positions[seed]), room_size)
-        assert agent_room is not None and agent_room[1] == 1
-
-        reach = _reachable_rooms(seed_positions, room_size, n_rows, agent_room)
-        non_locked = {(r, c) for r in range(n_rows) for c in range(3)} - {locked_room}
-        assert non_locked.issubset(reach), (
-            f"{env_id} seed={seed}: unreachable non-goal rooms "
-            f"{non_locked - reach}"
+        reach = _reachable_rooms(seed_positions, room_size, n_rows, (0, 1))
+        all_rooms = {(r, c) for r in range(n_rows) for c in range(3)}
+        assert reach == all_rooms, (
+            f"{env_id} seed={seed}: unreachable rooms {all_rooms - reach}"
         )
 
-        for pos, req in zip(seed_positions, seed_requires):
-            if req == key_id or req == unopenable:
-                continue
+        for pos in seed_positions[~goal_mask]:
             touching = _rooms_touching_wall(tuple(pos), room_size, n_rows)
             assert locked_room not in touching, (
-                f"{env_id} seed={seed}: openable door at {tuple(pos)} "
-                f"(requires={req}) bypasses the locked room"
+                f"{env_id} seed={seed}: unlocked door at {tuple(pos)} "
+                "bypasses the locked room"
             )
+
+
+@pytest.mark.parametrize("env_id", _ENV_IDS)
+def test_unopened_candidate_walls_are_walls(env_id):
+    """The only floor cells on the room walls are doors and the corridor."""
+    env = nx.make(env_id)
+    pitch = (env.width - 3) // 3 + 1
+
+    keys = jax.vmap(jax.random.PRNGKey)(jnp.arange(_N_SEEDS))
+    timestep = jax.jit(jax.vmap(env.reset))(keys)
+    grids = np.asarray(timestep.state.grid)
+    positions = np.asarray(timestep.state.entities["door"].position)
+
+    rows, cols = np.indices(grids.shape[1:])
+    wall_lines = (rows % pitch == 0) | (cols % pitch == 0)
+    corridor = (
+        (rows % pitch == 0)
+        & (0 < rows)
+        & (rows < env.height - 1)
+        & (pitch < cols)
+        & (cols < 2 * pitch)
+    )
+    for seed in range(_N_SEEDS):
+        doors = {tuple(p) for p in positions[seed].tolist() if min(p) >= 0}
+        openings = _cells(wall_lines & (grids[seed] == 0))
+        assert openings == doors | _cells(corridor), (
+            f"{env_id} seed={seed}: wall openings {sorted(openings)} are not "
+            f"exactly the doors {sorted(doors)} plus the corridor"
+        )
+
+
+@pytest.mark.parametrize("env_id", _ENV_IDS)
+def test_agent_starts_as_in_minigrid(env_id):
+    """MiniGrid's `place_agent(1, num_rows // 2)`: any free cell of the middle
+    corridor room, its corridor openings included, never facing the locked
+    door."""
+    env = nx.make(env_id)
+    n_rows = _N_ROWS_CONFIG.get(env.height, 3)
+    pitch = (env.width - 3) // 3 + 1
+
+    def start(key):
+        entities = env.reset(key).state.entities
+        return entities["player"], entities["door"], entities["key"].id
+
+    keys = jax.vmap(jax.random.PRNGKey)(jnp.arange(_N_COUNT_SEEDS))
+    player, doors, key_ids = jax.jit(jax.vmap(start))(keys)
+    positions = np.asarray(player.position)[:, 0]
+    directions = np.asarray(player.direction)[:, 0]
+
+    steps = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0]])  # east, south, west, north
+    locked = np.asarray(doors.requires) == np.asarray(key_ids)
+    locked_doors = np.asarray(doors.position)[locked]
+    assert not np.any(np.all(positions + steps[directions] == locked_doors, axis=-1)), (
+        f"{env_id}: an agent starts facing the locked door"
+    )
+
+    top = (n_rows // 2) * pitch
+    rows, cols = np.indices((env.height, env.width))
+    interior = (rows % pitch != 0) & (cols % pitch != 0)
+    corridor = (rows % pitch == 0) & (0 < rows) & (rows < env.height - 1)
+    box = (top <= rows) & (rows <= top + pitch) & (pitch < cols) & (cols < 2 * pitch)
+    assert set(map(tuple, positions.tolist())) == _cells(box & (interior | corridor))
+    # S3R1's middle room is one cell, and east of it is always the locked door
+    assert set(directions.tolist()) == ({1, 2, 3} if n_rows == 1 else {0, 1, 2, 3})
+
+
+@pytest.mark.parametrize("env_id", _ENV_IDS)
+def test_door_count_matches_minigrid(env_id):
+    env = nx.make(env_id)
+    expected = _MINIGRID_UNLOCKED_DOORS[_N_ROWS_CONFIG.get(env.height, 3)]
+
+    keys = jax.vmap(jax.random.PRNGKey)(jnp.arange(_N_COUNT_SEEDS))
+    doors = jax.jit(jax.vmap(lambda k: env.reset(k).state.entities["door"]))(keys)
+    on_grid = np.all(np.asarray(doors.position) >= 0, axis=-1)
+    unlocked = on_grid & (np.asarray(doors.requires) == EMPTY_POCKET_ID)
+    counts = np.bincount(unlocked.sum(axis=1), minlength=16) / _N_COUNT_SEEDS
+
+    assert counts[list(expected)].sum() == pytest.approx(1.0), (
+        f"{env_id}: unlocked-door counts {np.nonzero(counts)[0].tolist()} "
+        f"outside MiniGrid's {sorted(expected)}"
+    )
+    for n, frequency in expected.items():
+        assert abs(counts[n] - frequency) < _COUNT_TOLERANCE, (
+            f"{env_id}: {n} unlocked doors in {counts[n]:.3f} of resets, "
+            f"MiniGrid {frequency:.3f}"
+        )

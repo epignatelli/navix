@@ -60,6 +60,17 @@ def test_random_positions():
         assert jnp.array_equal(grid[tuple(position)], 0), positions
 
 
+def test_position_in_room_covers_the_whole_interior():
+    rooms = nx.grid.RoomsGrid.create(2, 3, (3, 2))
+    keys = jax.random.split(jax.random.PRNGKey(0), 500)
+    positions = jax.vmap(lambda k: rooms.position_in_room(1, 2, key=k))(keys)
+    start_row, start_col = rooms.room_starts[1, 2].tolist()
+    interior = {
+        (start_row + r, start_col + c) for r in range(1, 4) for c in range(1, 3)
+    }
+    assert set(map(tuple, positions.tolist())) == interior
+
+
 def test_position_equal():
     # one to one
     a = jnp.array([1, 1])
