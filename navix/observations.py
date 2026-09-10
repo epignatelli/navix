@@ -60,7 +60,7 @@ from .grid import (
     align,
     idx_from_coordinates,
     crop,
-    view_cone,
+    process_vis,
 )
 from .entities import EntityIds
 
@@ -129,8 +129,9 @@ def categorical(state: State) -> Array:
 def categorical_first_person(state: State) -> Array:
     """The egocentric version of `categorical`: one tag per cell, cropped
     to a `(2 * RADIUS + 1)` square around the player and rotated so the
-    player sits at the bottom-centre facing up. Cells outside the view
-    cone or occluded by a wall are set to `0` (not seen).
+    player sits at the bottom-centre facing up. Cells occluded by a wall,
+    outside MiniGrid's visibility rule, or off the map are set to `0`
+    (`EntityIds.UNKNOWN`, not seen).
 
     Args:
         state (State): the current state.
@@ -155,20 +156,24 @@ def categorical_first_person(state: State) -> Array:
     col = jnp.where(on_grid, col, W)
     transparency_map = transparency_map.at[row, col].set(transparent, mode="drop")
 
-    # apply view mask. crop() places the agent at the *bottom* row of
-    # the 2*RADIUS+1 view, so the far row is 2*RADIUS cells forward of
-    # the agent, not RADIUS - view_cone's diffusion needs to reach that
-    # far, or the forward half of the view is permanently marked
-    # unseen regardless of whether real walls are there.
+    # process_vis is defined on the egocentric window, so crop first and
+    # mask the crop. padding_value=0 reads off-grid as opaque, so sight
+    # cannot leave the map and come back.
     player = state.get_player()
-    view = view_cone(transparency_map, player.position, RADIUS * 2)
+    window = crop(
+        transparency_map, player.position, player.direction, RADIUS, padding_value=0
+    )
+    view = process_vis(window > 0)
 
     # get categorical representation
     tags = state.get_tags()
-    obs = state.grid.at[row, col].set(tags, mode="drop") * view
+    obs = state.grid.at[row, col].set(tags, mode="drop")
 
-    # crop grid to agent's view
+    # Mask after the crop so crop()'s off-map padding (100, not an
+    # EntityId, outside the Discrete(MAX_CATEGORICAL_VALUE) space this
+    # observation declares) also becomes UNKNOWN (0).
     obs = crop(obs, player.position, player.direction, RADIUS)
+    obs = obs * view
 
     return obs
 
@@ -327,35 +332,31 @@ def rgb_first_person(state: State) -> Array:
     # apply minigrid opacity
     patchwork = apply_minigrid_opacity(patchwork)
 
-    # apply fov. Unseen/out-of-map tiles use the *opacity-adjusted*
-    # wall grey, not the raw (100, 100, 100) constant: every other
-    # cell in `patchwork` already went through apply_minigrid_opacity
-    # above, but dark_cell_colour is inserted as a flat literal after
-    # that, bypassing it - using the raw constant here made real,
-    # visible walls (opacity-adjusted, ~146) visually inconsistent
-    # with the unseen/padding fill (100) in the same image, a seam
-    # that isn't in MiniGrid's own rendering. A scalar still works for
-    # both the jnp.where fill below and crop()'s padding_value, since
-    # grey has equal R/G/B and both broadcast it across the full
-    # (..., 3) tile.
+    # Unseen and off-map tiles take the opacity-adjusted wall grey: every
+    # cell in `patchwork` went through apply_minigrid_opacity above, so a
+    # raw (100, 100, 100) fill would seam against real walls (~146). Grey
+    # has equal R/G/B, so a scalar broadcasts across (..., 3) for both the
+    # jnp.where fill and crop()'s padding_value.
     dark_cell_colour = apply_minigrid_opacity(jnp.asarray(100, dtype=jnp.uint8))
     transparency_map = jnp.where(state.grid == 0, 1, 0)  # (H, W)
     positions = state.get_positions()
     transparent = state.get_transparency()
     transparency_map = transparency_map.at[tuple(positions.T)].set(transparent)
-    # crop() places the agent at the *bottom* row of the 2*RADIUS+1
-    # view, so the far row is 2*RADIUS cells forward of the agent, not
-    # RADIUS - view_cone's diffusion needs to reach that far, or the
-    # forward half of the view is permanently marked unseen regardless
-    # of whether real walls are there.
-    view = view_cone(transparency_map, player.position, RADIUS * 2)  # (H, W)
-    view = jnp.asarray(view, dtype=jnp.bool)
-    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
+    # process_vis is defined on the egocentric window, so crop first and
+    # mask the crop, which also keeps the jnp.where below off the full
+    # (H, W, TILE, TILE, 3) patchwork.
+    window = crop(
+        transparency_map, player.position, player.direction, RADIUS, padding_value=0
+    )
+    view = process_vis(window > 0)  # (RADIUS * 2 + 1, RADIUS * 2 + 1)
 
     # crop grid to agent's view
     patchwork = crop(
         patchwork, player.position, player.direction, RADIUS, dark_cell_colour
     )  # (RADIUS * 2 + 1, RADIUS * 2 + 1, TILE_SIZE, TILE_SIZE, 3)
+
+    # apply fov
+    patchwork = jnp.where(view[..., None, None, None], patchwork, dark_cell_colour)
 
     # reconstruct image
     obs = jnp.swapaxes(patchwork, 1, 2)

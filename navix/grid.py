@@ -36,7 +36,7 @@ about `State` or `Entity`. Groups:
   `from_ascii_map`) and the multi-room grid helpers (`room_grid*`,
   `room_*`, `RoomsGrid`);
 - cropping and first-person rendering (`crop`, `view_cone`,
-  `draw_grid_lines`, `apply_minigrid_opacity`).
+  `process_vis`, `draw_grid_lines`, `apply_minigrid_opacity`).
 
 Convention: positions are `(row, col)`, directions are `0` east, `1`
 south, `2` west, `3` north, and a "grid" is `i32[H, W]` with `0` = floor
@@ -736,6 +736,100 @@ def draw_grid_lines(
     tile = tile.at[:, :line_thickness].set(luminosity)
     tile = tile.at[:line_thickness, :line_thickness].set(corner_luminosity)
     return tile
+
+
+def sweep(seed: Array, transparent: Array) -> Array:
+    """One of MiniGrid's two inner passes: visibility flowing left to right.
+
+    `out[i]` is set when some `seed[k]`, `k <= i`, reaches `i` with every
+    cell in `[k, i-1]` transparent. MiniGrid writes this as a sequential
+    loop whose next cell depends on the one just written; the same result
+    is two cumulative maxima, so a row costs `O(log n)` parallel work
+    rather than an `n`-long chain of scalar dependencies. An opaque cell
+    ends the run *behind* it, so the wall itself is still reached and only
+    what is past it is not.
+
+    Args:
+        seed (Array): `bool[n]`, cells already visible before this pass.
+        transparent (Array): `bool[n]`, whether each cell can be seen through.
+
+    Returns:
+        Array: `bool[n]`, the cells visible after the pass."""
+    n = seed.shape[-1]
+    positions = jnp.arange(n)
+    last_seed = jax.lax.cummax(jnp.where(seed, positions, -1))
+    run_start = jax.lax.cummax(jnp.where(~transparent, positions + 1, 0))
+    # Exclusive scan: a cell's own opacity must not start its own run.
+    run_start = jnp.concatenate([jnp.zeros((1,), run_start.dtype), run_start[:-1]])
+    return jnp.asarray(last_seed >= run_start, dtype=jnp.bool)
+
+
+def process_vis(transparent: Array) -> Array:
+    """MiniGrid's `Grid.process_vis`, over an already-cropped first-person view.
+
+    `transparent` is the egocentric window `crop` returns, with the agent
+    at the bottom-centre of the last row - the frame MiniGrid computes
+    visibility in. The agent's own cell is seeded, and visibility is
+    propagated one row at a time towards the front: within a row it flows
+    sideways through transparent cells (left to right, then right to left
+    over that result - MiniGrid's two passes), and every cell carrying it
+    also lights the cell directly ahead plus its two diagonal neighbours
+    in the next row.
+
+    This is MiniGrid's rule verbatim: permissive, rounds corners, not
+    line of sight.
+
+    Rows never depend on anything further ahead of them, so cropping the
+    result afterwards gives the same answer as running on the smaller
+    window.
+
+    Args:
+        transparent (Array): `bool[rows, cols]`, the cropped, rotated view.
+
+    Raises:
+        ValueError: if the window has no centre column to stand the agent
+            in, i.e. `cols` is even.
+
+    Returns:
+        Array: `bool[rows, cols]`, which of those cells the agent sees."""
+    cols = transparent.shape[-1]
+    # The agent stands bottom-centre by crop()'s convention, which the
+    # window itself does not carry. An even width has no centre column: a
+    # changed crop layout, not a window this can answer for.
+    if cols % 2 == 0:
+        raise ValueError(
+            "process_vis expects an odd-width window with the agent at the "
+            f"bottom-centre, as crop() returns; got {cols} columns."
+        )
+    positions = jnp.arange(cols)
+    agent = positions == cols // 2
+
+    def advance(carry: Array, row: Array):
+        rightward = sweep(carry, row)
+        both = sweep(rightward[::-1], row[::-1])[::-1]
+        # MiniGrid's passes stop one column short of each edge, so the
+        # cell that would push off the grid never does - which is also
+        # what keeps the rolls below from wrapping around the row.
+        pushes_right = rightward & row & (positions < cols - 1)
+        pushes_left = both & row & (positions >= 1)
+        ahead = (
+            pushes_right
+            | jnp.roll(pushes_right, 1)
+            | pushes_left
+            | jnp.roll(pushes_left, -1)
+        )
+        return ahead, both
+
+    # Bottom-up, MiniGrid's order: each row needs the one behind it. The
+    # trip count is a static `2 * RADIUS + 1`, so a plain loop unrolls into
+    # straight-line code XLA fuses across rows.
+    rows = jnp.asarray(transparent, dtype=jnp.bool)
+    reaching = agent
+    mask = []
+    for row in range(rows.shape[-2] - 1, -1, -1):
+        reaching, seen = advance(reaching, rows[row])
+        mask.append(seen)
+    return jnp.asarray(jnp.stack(mask[::-1]), dtype=jnp.bool)
 
 
 def view_cone(transparency_map: Array, origin: Array, radius: int) -> Array:

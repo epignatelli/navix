@@ -9,6 +9,7 @@ from navix.entities import Entities, EntityIds, Player, Goal, Key, Door
 from navix.components import EMPTY_POCKET_ID
 from navix.rendering.cache import RenderingCache, TILE_SIZE
 from navix.rendering.registry import SPRITES_REGISTRY, PALETTE
+from navix.environments.environment import MAX_CATEGORICAL_VALUE
 
 
 def test_rgb():
@@ -187,7 +188,21 @@ def test_rgb_first_person():
     obs = obs["image"]
 
 
+def test_categorical_first_person_stays_inside_its_space():
+    # crop() pads off-map cells with 100, which is not an EntityId and
+    # sits outside the Discrete(MAX_CATEGORICAL_VALUE) space the
+    # observation declares; masking the crop turns them into UNKNOWN.
+    # Empty-8x8 is small enough that every pose has off-map cells in view.
+    env = nx.make(
+        "Navix-Empty-8x8-v0", observation_fn=nx.observations.categorical_first_person
+    )
+    obs = env.reset(jax.random.PRNGKey(0)).observation
+    assert jnp.any(obs == EntityIds.UNKNOWN), obs
+    assert int(jnp.max(obs)) < MAX_CATEGORICAL_VALUE, obs
+
+
 if __name__ == "__main__":
     test_rgb()
+    test_categorical_first_person_stays_inside_its_space()
     # test_categorical_first_person()
     # jax.jit(test_categorical_first_person)()
