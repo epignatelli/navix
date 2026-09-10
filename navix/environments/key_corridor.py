@@ -33,7 +33,7 @@ from jax import Array
 
 from navix import observations, rewards, terminations
 
-from ..components import EMPTY_POCKET_ID
+from ..components import DISCARD_PILE_COORDS, EMPTY_POCKET_ID
 from ..rendering.cache import RenderingCache
 from ..environments import Environment
 from ..entities import Goal, Player, Key, Door
@@ -41,14 +41,6 @@ from ..states import State
 from ..environments import Timestep
 from ..grid import random_directions, random_colour, RoomsGrid
 from .registry import register_env
-
-# A room stand-in for "no key will ever match this" - distinct from
-# EMPTY_POCKET_ID (-1, "no key needed") and from any real key id, so a
-# door assigned this permanently fails Door's `open` check. Used for
-# candidate connector walls that connect_all decides not to open, so
-# they act as ordinary walls (still a Door entity, for a fixed
-# per-n_rows entity count, but never passable).
-_UNOPENABLE = jnp.asarray(-2, dtype=jnp.int32)
 
 
 def _room_id(row: int, col: int) -> int:
@@ -59,36 +51,25 @@ class KeyCorridor(Environment):
     """Find a key hidden behind unlocked doors, then use it to open the one
     locked door guarding the goal.
 
-    Rooms form an `n_rows x 3` grid: the agent starts in the middle column
-    (always connected top-to-bottom - the "corridor"), keys live in the left
-    column, the goal lives in the right column behind the episode's one
-    locked door.
+    Rooms form an `n_rows x 3` grid: the middle column is one corridor (its
+    inter-row walls are removed), the key lives in a left-column room, and
+    the goal lives in a right-column room behind the episode's one locked
+    door.
 
-    Every other connector - including corridor<->key-room doors - comes from
-    a `jax.jit`-shaped port of MiniGrid's `RoomGrid.connect_all`: a
-    randomised search that keeps adding doors until every non-goal room is
-    reachable from the agent's start, without ever adding a second connector
-    to the goal room. Door positions, counts, and which side of the grid
-    gets inter-row connectors therefore vary per episode, rather than
-    following a fixed layout.
+    Every other door follows MiniGrid's `RoomGrid.connect_all`, which draws
+    walls uniformly with replacement and puts a closed door on each new one
+    that does not touch the locked room, stopping as soon as every room is
+    reachable. The order in which distinct eligible walls are first drawn is
+    a uniform permutation, so the doors it adds are exactly the shortest
+    prefix of a random permutation of eligible walls that connects the rooms
+    - walls between rooms that were already connected included. `_reset`
+    computes that prefix in one fixed-length pass, counting components with a
+    union-find.
 
-    Implemented as a single-pass, randomised Kruskal-style union-find
-    (activate a candidate wall iff it still joins two different components),
-    since MiniGrid's own sample-with-replacement retry loop has no static
-    iteration bound and can't be represented as a fixed-shape `jax.jit`
-    program. Candidate walls that end up not connecting anything still exist
-    as `Door` entities - a fixed count per `n_rows` is required for
-    `jax.jit` - but are permanently unopenable, so they behave as ordinary
-    walls.
-
-    Note:
-        Because those non-connecting candidates are still `Door` entities,
-        `observations.rgb`/`symbolic` render a closed, locked door sprite at
-        every candidate wall - including the ones that are functionally
-        solid walls. MiniGrid renders those as plain walls instead; there is
-        no way to tell them apart visually, only by checking
-        `state.entities["door"].requires` for the sentinel "no key can open
-        this" value.
+    `jax.jit` needs a fixed entity count, so every candidate wall is a `Door`
+    entity. The ones `connect_all` never reaches sit at `DISCARD_PILE_COORDS`
+    and leave their cell a wall, so they render, encode and block exactly as
+    MiniGrid's plain walls do.
     """
 
     def _reset(self, key: Array, cache: Union[RenderingCache, None] = None) -> Timestep:
@@ -122,12 +103,11 @@ class KeyCorridor(Environment):
         goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k4)
         goal = Goal.create(goal_pos, probability=jnp.asarray(1.0))
 
-        # Doors: connect_all port - see the class docstring for the full
-        # design. `parent` (union-find) is kept fully flat as an invariant:
-        # a union from a flat state only ever strands nodes one hop further
-        # off, so a single `parent[parent]` pass after each union always
-        # restores it - cheaper than scanning up to `num_rooms` hops per
-        # lookup, which matters since this loop's steps are sequential.
+        # Doors: connect_all - see the class docstring. `parent` (union-find)
+        # is kept fully flat as an invariant: a union from a flat state only
+        # ever strands nodes one hop further off, so a single
+        # `parent[parent]` pass after each union always restores it, and a
+        # lookup is one gather however many rooms have merged.
         num_rooms = 3 * n_rows
         # (row, u, v, col, side) - `col`/`side` are `position_on_border`'s
         # own args for this wall; `u`/`v` are the two rooms it connects.
@@ -171,27 +151,31 @@ class KeyCorridor(Environment):
         parent = parent.at[locked_room].set(corridor_root)
 
         eligible = (u_ids != locked_room) & (v_ids != locked_room)
+        # the corridor merges `n_rows` rooms into one, the locked door one more
+        components = jnp.asarray(num_rooms - n_rows)
 
-        active = jnp.zeros((num_candidates,), dtype=jnp.bool_)
+        added = jnp.zeros((num_candidates,), dtype=jnp.bool_)
         for i in range(num_candidates):
             idx = perm[i]
-            u, v, elig = u_ids[idx], v_ids[idx], eligible[idx]
-            ru, rv = parent[u], parent[v]  # O(1): parent enters every step flat
-            connect = elig & (ru != rv)
-            parent = parent.at[ru].set(jnp.where(connect, rv, ru))
+            ru, rv = parent[u_ids[idx]], parent[v_ids[idx]]
+            add = eligible[idx] & (components > 1)
+            merge = add & (ru != rv)
+            parent = parent.at[ru].set(jnp.where(merge, rv, ru))
             parent = parent[parent]  # one pointer-doubling pass restores flatness
-            active = active.at[idx].set(connect)
+            components = components - merge
+            added = added.at[idx].set(add)
 
-        requires = jnp.where(
-            is_goal_slot, key_id, jnp.where(active, EMPTY_POCKET_ID, _UNOPENABLE)
-        )
+        on_grid = is_goal_slot | added
         door_colours = jnp.where(is_goal_slot, key_colour, colours)
         doors = Door.create(
-            position=positions,
-            requires=requires,
+            position=jnp.where(on_grid[:, None], positions, DISCARD_PILE_COORDS),
+            requires=jnp.where(is_goal_slot, key_id, EMPTY_POCKET_ID),
             colour=door_colours,
             open=jnp.zeros((num_candidates,), dtype=jnp.int32),
         )
+        # a wall `connect_all` never reached stays a wall: its carve goes to
+        # row `self.height`, out of bounds, which `mode="drop"` discards
+        carved = jnp.where(on_grid[:, None], positions, jnp.asarray([self.height, 0]))
 
         entities = {
             "player": player[None],
@@ -200,7 +184,7 @@ class KeyCorridor(Environment):
             "goal": goal[None],
         }
 
-        grid = grid.get_grid(occupied_positions=doors.position)
+        grid = grid.get_grid().at[carved[:, 0], carved[:, 1]].set(0, mode="drop")
         grid = grid.at[
             1 + room_size : self.height - 1 : room_size + 1,
             1 + room_size + 1 : 1 + room_size + 1 + room_size,

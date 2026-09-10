@@ -179,7 +179,8 @@ def test_98():
     # actually control whether the agent can pass, since _can_walk_there
     # requires both the grid cell and the entity to be walkable
     doors = state.get_doors()
-    door_cells = state.grid[tuple(doors.position.T)]
+    on_grid = jnp.all(doors.position >= 0, axis=-1)
+    door_cells = state.grid[tuple(doors.position[on_grid].T)]
     assert jnp.all(door_cells == 0), (
         "Expected every door position to be floor (0) in the base grid, "
         "got {}".format(door_cells)
@@ -401,6 +402,8 @@ def test_160():
         for k in keys:
             timestep = env.reset(k)
             positions = timestep.state.get_doors().position
+            # the walls connect_all leaves shut all wait on the discard pile
+            positions = positions[jnp.all(positions >= 0, axis=-1)]
             n_unique = jnp.unique(positions, axis=0).shape[0]
             assert n_unique == positions.shape[0], (
                 f"{env_id}: expected every door to occupy its own cell, got "
