@@ -198,6 +198,41 @@ def test_unopened_candidate_walls_are_walls(env_id):
 
 
 @pytest.mark.parametrize("env_id", _ENV_IDS)
+def test_agent_starts_as_in_minigrid(env_id):
+    """MiniGrid's `place_agent(1, num_rows // 2)`: any free cell of the middle
+    corridor room, its corridor openings included, never facing the locked
+    door."""
+    env = nx.make(env_id)
+    n_rows = _N_ROWS_CONFIG.get(env.height, 3)
+    pitch = (env.width - 3) // 3 + 1
+
+    def start(key):
+        entities = env.reset(key).state.entities
+        return entities["player"], entities["door"], entities["key"].id
+
+    keys = jax.vmap(jax.random.PRNGKey)(jnp.arange(_N_COUNT_SEEDS))
+    player, doors, key_ids = jax.jit(jax.vmap(start))(keys)
+    positions = np.asarray(player.position)[:, 0]
+    directions = np.asarray(player.direction)[:, 0]
+
+    steps = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0]])  # east, south, west, north
+    locked = np.asarray(doors.requires) == np.asarray(key_ids)
+    locked_doors = np.asarray(doors.position)[locked]
+    assert not np.any(np.all(positions + steps[directions] == locked_doors, axis=-1)), (
+        f"{env_id}: an agent starts facing the locked door"
+    )
+
+    top = (n_rows // 2) * pitch
+    rows, cols = np.indices((env.height, env.width))
+    interior = (rows % pitch != 0) & (cols % pitch != 0)
+    corridor = (rows % pitch == 0) & (0 < rows) & (rows < env.height - 1)
+    box = (top <= rows) & (rows <= top + pitch) & (pitch < cols) & (cols < 2 * pitch)
+    assert set(map(tuple, positions.tolist())) == _cells(box & (interior | corridor))
+    # S3R1's middle room is one cell, and east of it is always the locked door
+    assert set(directions.tolist()) == ({1, 2, 3} if n_rows == 1 else {0, 1, 2, 3})
+
+
+@pytest.mark.parametrize("env_id", _ENV_IDS)
 def test_door_count_matches_minigrid(env_id):
     env = nx.make(env_id)
     expected = _MINIGRID_UNLOCKED_DOORS[_N_ROWS_CONFIG.get(env.height, 3)]

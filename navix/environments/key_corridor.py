@@ -39,7 +39,7 @@ from ..environments import Environment
 from ..entities import Goal, Player, Key, Door
 from ..states import State
 from ..environments import Timestep
-from ..grid import random_directions, random_colour, RoomsGrid
+from ..grid import random_colour, RoomsGrid
 from .registry import register_env
 
 
@@ -76,31 +76,26 @@ class KeyCorridor(Environment):
         n_rows_config = {3: 1, 5: 2}
         n_rows = n_rows_config.get(self.height, 3)
         room_size = (self.width - 3) // 3
-        k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
+        pitch = room_size + 1
+        k_key_row, k_key_pos, k_colour, k_goal_row, k_goal_pos, k_doors, k_agent = (
+            jax.random.split(key, num=7)
+        )
 
         # grid of rooms
         grid = RoomsGrid.create(n_rows, 3, (room_size, room_size))
 
         # key
-        key_room_row = jax.random.randint(k1, (), minval=0, maxval=n_rows)
+        key_room_row = jax.random.randint(k_key_row, (), minval=0, maxval=n_rows)
         key_pos = grid.position_in_room(
-            key_room_row, jnp.asarray(0, dtype=jnp.int32), key=k1
+            key_room_row, jnp.asarray(0, dtype=jnp.int32), key=k_key_pos
         )
-        key_colour = random_colour(k4)
+        key_colour = random_colour(k_colour)
         key_id = jnp.asarray(1)
         key_obj = Key.create(key_pos, key_colour, key_id)
 
-        # agent
-        pk_1, pk_2, pk_3 = jax.random.split(k2, num=3)
-        agent_room_row = jax.random.randint(pk_1, (), minval=0, maxval=n_rows)
-        agent_pos = grid.position_in_room(agent_room_row, jnp.asarray(1), key=pk_2)
-        player = Player.create(
-            agent_pos, random_directions(pk_3), pocket=EMPTY_POCKET_ID
-        )
-
         # goal
-        goal_room_row = jax.random.randint(k3, (), minval=0, maxval=n_rows)
-        goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k4)
+        goal_room_row = jax.random.randint(k_goal_row, (), minval=0, maxval=n_rows)
+        goal_pos = grid.position_in_room(goal_room_row, jnp.asarray(2), key=k_goal_pos)
         goal = Goal.create(goal_pos, probability=jnp.asarray(1.0))
 
         # Doors: connect_all - see the class docstring. `parent` (union-find)
@@ -120,7 +115,7 @@ class KeyCorridor(Environment):
             candidates.append((row, _room_id(row, 2), _room_id(row + 1, 2), 2, 3))
         num_candidates = len(candidates)
 
-        door_keys = jax.random.split(k5, num=num_candidates + 2)
+        door_keys = jax.random.split(k_doors, num=num_candidates + 2)
         positions = jnp.stack(
             [
                 grid.position_on_border(row, col, side, key=door_keys[i])
@@ -173,9 +168,33 @@ class KeyCorridor(Environment):
             colour=door_colours,
             open=jnp.zeros((num_candidates,), dtype=jnp.int32),
         )
+        walls = grid.get_grid()
+        walls = walls.at[pitch : self.height - 1 : pitch, pitch + 1 : 2 * pitch].set(0)
         # a wall `connect_all` never reached stays a wall: its carve goes to
         # row `self.height`, out of bounds, which `mode="drop"` discards
         carved = jnp.where(on_grid[:, None], positions, jnp.asarray([self.height, 0]))
+        grid = walls.at[carved[:, 0], carved[:, 1]].set(0, mode="drop")
+
+        # agent: MiniGrid's `place_agent(1, n_rows // 2)`, which runs before
+        # `connect_all`. A uniform pose on any free cell of the middle corridor
+        # room's box, its corridor openings included, redrawn while it faces
+        # the locked door - the only object in front of that box at the time.
+        top = (n_rows // 2) * pitch
+        rows, cols = jnp.meshgrid(
+            jnp.arange(top, top + pitch + 1),
+            jnp.arange(pitch, 2 * pitch + 1),
+            indexing="ij",
+        )
+        cells = jnp.stack([rows.reshape(-1), cols.reshape(-1)], axis=-1)
+        # east, south, west, north, in `translate`'s direction order
+        fronts = cells[:, None] + jnp.asarray([[0, 1], [1, 0], [0, -1], [-1, 0]])
+        locked_door = positions[jnp.argmax(is_goal_slot)]
+        free = walls[cells[:, 0], cells[:, 1]] == 0
+        valid = free[:, None] & ~jnp.all(fronts == locked_door, axis=-1)
+        pose = jax.random.categorical(
+            k_agent, jnp.where(valid, 0.0, -jnp.inf).reshape(-1)
+        )
+        player = Player.create(cells[pose // 4], pose % 4, pocket=EMPTY_POCKET_ID)
 
         entities = {
             "player": player[None],
@@ -184,11 +203,6 @@ class KeyCorridor(Environment):
             "goal": goal[None],
         }
 
-        grid = grid.get_grid().at[carved[:, 0], carved[:, 1]].set(0, mode="drop")
-        grid = grid.at[
-            1 + room_size : self.height - 1 : room_size + 1,
-            1 + room_size + 1 : 1 + room_size + 1 + room_size,
-        ].set(0)
         state = State(
             key=key,
             grid=grid,
