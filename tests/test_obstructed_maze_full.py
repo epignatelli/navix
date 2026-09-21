@@ -474,6 +474,13 @@ def solve_one_quarter(env, timestep):
     assert bool(timestep.state.get_doors().open[door_idx]), "door not opened"
     assert timestep.step_type == 0, "episode ended before reaching the target"
 
+    # the key stays in hand after unlocking, so step into the doorway and
+    # drop it back the way we came to free the pocket
+    approach_dir = int(timestep.state.get_player().direction)
+    timestep = env.step(timestep, jnp.asarray(FORWARD))
+    timestep = face_via_step(env, timestep, (approach_dir + 2) % 4)
+    timestep = env.step(timestep, jnp.asarray(DROP))
+
     timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row, target_col)
     return env.step(timestep, jnp.asarray(PICKUP))
 

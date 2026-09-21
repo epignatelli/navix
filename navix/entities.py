@@ -286,8 +286,8 @@ class Goal(Entity, HasColour, Stochastic):
 class Key(Entity, Pickable, HasColour):
     """A pickable key. Not walkable, transparent. `pickup` puts its `id`
     in the player's pocket; a `Door` whose `requires` equals that `id`
-    can then be opened, consuming the key. Its `colour` matches the door
-    it opens."""
+    can then be opened; the key stays in the pocket. Its `colour` matches
+    the door it opens."""
 
     @classmethod
     def create(
@@ -338,8 +338,8 @@ class Door(Entity, Openable, HasColour):
     """A door in a wall. While closed it is not walkable and not
     transparent; once open it is both. Opening needs the `open` action
     while facing it and, if `requires != -1`, the matching `Key` in the
-    pocket (which is then consumed and `requires` set to `-1`). navix
-    doors do not re-close."""
+    pocket, after which `requires` is `-1`. `toggle` closes an open door
+    again; `open` does not."""
 
     @classmethod
     def create(

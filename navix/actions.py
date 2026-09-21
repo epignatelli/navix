@@ -204,8 +204,11 @@ def left(state: State) -> State:
 def pickup(state: State) -> State:
     """Picks up the pickable entity (`Key`, `Box`, or `Ball`) directly in
     front of the player: the entity is moved off the grid and its `id` is
-    written to `player.pocket`, overwriting whatever was there. No-op if
-    the cell in front holds nothing pickable. Records a pickup event.
+    written to `player.pocket`. No-op if the cell in front holds nothing
+    pickable, or if the pocket is already full: the player carries one
+    object at a time, as in MiniGrid's `pickup` (`if self.carrying is
+    None`), so what is held stays held and stays reachable by `drop`.
+    Records a pickup event.
 
     Args:
         state (State): the current state.
@@ -239,7 +242,13 @@ def pickup(state: State) -> State:
         player = state.get_player(idx=0)
         position_in_front = translate(player.position, player.direction)
 
-        found = positions_equal(position_in_front, entity.position)
+        # an occupied pocket blocks the pickup entirely: no event, no
+        # discard, nothing written to the pocket. `pickup` handles each
+        # pickable type in turn and re-reads the player each time, so a
+        # pickup made here also blocks the types handled after it.
+        found = positions_equal(position_in_front, entity.position) & (
+            player.pocket == EMPTY_POCKET_ID
+        )
 
         # update events - before entity is moved to the discard pile
         # below, so the recorded event keeps the item's real pickup
@@ -335,16 +344,40 @@ def drop(state: State) -> State:
 
 
 def toggle(state: State) -> State:
-    """MiniGrid's `toggle` action. An alias for `open`: in navix a door,
-    once opened, stays open (there is no close), so "toggle" and "open"
-    are the same operation.
+    """MiniGrid's `toggle` action: flips whatever is in front of the
+    player. A `Box` is opened (see `open_box`); a closed `Door` is opened
+    when it is unlocked or the player carries the key it requires (see
+    `open`); an **open** `Door` is closed again, which is what separates
+    this from `open` and what MiniGrid's `Door.toggle` does.
+
+    Closing takes no key and records no event - only opening does.
 
     Args:
         state (State): the current state.
 
     Returns:
-        State: see `open`."""
-    return open(state)
+        State: the state with the thing in front toggled."""
+    if Entities.DOOR not in state.entities:
+        return open(state)
+
+    player = state.get_player(idx=0)
+    position_in_front = translate(player.position, player.direction)
+    doors = state.get_doors()
+    # read before `open` runs: a door it opens this step must not be
+    # closed again by the same action.
+    was_open = positions_equal(position_in_front, doors.position) & jnp.asarray(
+        doors.open, dtype=jnp.bool_
+    )
+
+    state = open(state)
+
+    # `doors.open`'s dtype (int or bool, depending on the environment that
+    # built the door) is preserved through jnp.where's weak-type
+    # promotion, as in `open`; jax.lax.switch needs every action branch to
+    # agree on it.
+    doors = state.get_doors()
+    doors = doors.replace(open=jnp.where(was_open, False, doors.open))
+    return state.set_doors(doors)
 
 
 def open_box(state: State, position_in_front: Array) -> State:
@@ -391,11 +424,12 @@ def open(state: State) -> State:
       cell (see `open_box`);
     - a `Door` -> opened iff it is closed and either unlocked
       (`requires == -1`) or the player is carrying the required key
-      (`player.pocket == door.requires`), in which case that key is
-      consumed from the pocket. Opening records a door-opening event.
+      (`player.pocket == door.requires`). The key stays in the pocket,
+      as in MiniGrid's `Door.toggle`. Opening records a door-opening
+      event.
 
     A `Door` that is already open, and any other cell, are left
-    untouched. `toggle` is an alias for this.
+    untouched - unlike `toggle`, which closes an open door.
 
     Args:
         state (State): the current state.
@@ -435,18 +469,6 @@ def open(state: State) -> State:
     requires = jnp.where(do_open, -1, doors.requires)
     doors = doors.replace(open=open, requires=requires)
 
-    # remove key from player's pocket, but only when this action actually
-    # unlocked a previously-closed, locked door with a matching key - not
-    # merely because the door in front happened to already be open (some
-    # environments, e.g. KeyCorridor, construct a door that is already open
-    # while still marked locked; `do_open` is False there, so the key is
-    # correctly left untouched)
-    unlocked = do_open & locked & key_match
-    pocket = jnp.where(jnp.any(unlocked), EMPTY_POCKET_ID, player.pocket)
-    player = jax.lax.cond(
-        jnp.any(unlocked), lambda: player.replace(pocket=pocket), lambda: player
-    )
-
     # update events
     events = jax.lax.cond(
         jnp.any(do_open),
@@ -454,7 +476,6 @@ def open(state: State) -> State:
         lambda: state.events,
     )
 
-    state = state.set_player(player)
     state = state.set_doors(doors)
     state = state.set_events(events)
 

@@ -337,6 +337,13 @@ def test_unlock_pickup_gameplay_and_reward_termination():
         assert not timestep.state.events.happened((Entities.BOX, EventType.PICKUP))
         assert timestep.step_type == 0, f"seed={seed}: episode ended before picking up the box"
 
+        # the key stays in hand after unlocking, so step into the doorway and
+        # drop it back the way we came to free the pocket
+        approach_dir = int(timestep.state.get_player().direction)
+        timestep = env.step(timestep, jnp.asarray(FORWARD))
+        timestep = face_via_step(env, timestep, (approach_dir + 2) % 4)
+        timestep = env.step(timestep, jnp.asarray(DROP))
+
         # cross through the door before navigating within the second
         # room - see module docstring for why a direct beeline can't
         # reach anything past the door's own wall column.
@@ -523,12 +530,8 @@ def test_blocked_unlock_pickup_gameplay_and_reward_termination():
     # row-then-column walk (confirmed directly: seed 0 failed this way
     # with the heuristic navigation).
     #
-    # Solve order matters: pickup() overwrites whatever's already in
-    # the player's pocket, so the ball must be cleared *and dropped*
-    # (freeing the pocket again) before the key can be picked up -
-    # picking up the key first, then the ball, would silently lose the
-    # key (still at the discard pile, but no longer referenced by
-    # player.pocket).
+    # pickup() needs an empty pocket, so the ball is dropped before the
+    # key is picked up, and the key before the box.
     for seed in GAMEPLAY_SEEDS:
         env = nx.make("Navix-BlockedUnlockPickup-v0")
         timestep = env.reset(jax.random.PRNGKey(seed))
@@ -570,6 +573,13 @@ def test_blocked_unlock_pickup_gameplay_and_reward_termination():
         timestep = env.step(timestep, jnp.asarray(TOGGLE))
         assert bool(timestep.state.get_doors().open[0]), f"seed={seed}: door not opened"
         assert timestep.step_type == 0, f"seed={seed}: episode ended before picking up the box"
+
+        # the key stays in hand after unlocking, so step into the doorway and
+        # drop it back the way we came to free the pocket
+        approach_dir = int(timestep.state.get_player().direction)
+        timestep = env.step(timestep, jnp.asarray(FORWARD))
+        timestep = face_via_step(env, timestep, (approach_dir + 2) % 4)
+        timestep = env.step(timestep, jnp.asarray(DROP))
 
         timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, box_row, box_col)
         timestep = env.step(timestep, jnp.asarray(PICKUP))

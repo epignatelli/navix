@@ -254,7 +254,17 @@ def solve_via_step(env, timestep, seed_label: str):
     assert bool(timestep.state.get_doors().open[0]), f"{seed_label}: door not opened"
     assert timestep.step_type == 0, f"{seed_label}: episode ended before reaching the target"
 
-    # 4. cross through and pick up the target ball
+    # 4. the key stays in hand after unlocking, so step into the doorway and
+    # drop it back the way we came to free the pocket
+    approach_dir = int(timestep.state.get_player().direction)
+    timestep = env.step(timestep, jnp.asarray(FORWARD))
+    timestep = face_via_step(env, timestep, (approach_dir + 2) % 4)
+    timestep = env.step(timestep, jnp.asarray(DROP))
+    assert int(timestep.state.get_player().pocket) == int(EMPTY_POCKET_ID), (
+        f"{seed_label}: pocket not freed after dropping the key"
+    )
+
+    # 5. cross through and pick up the target ball
     timestep = bfs_navigate_adjacent_and_face_via_step(env, timestep, target_row, target_col)
     return env.step(timestep, jnp.asarray(PICKUP))
 
