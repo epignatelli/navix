@@ -47,7 +47,7 @@ class DoorKey(Environment):
     single locked yellow door; a matching key lies in the first half, the
     goal in the bottom-right corner of the second. The agent must pick up
     the key, unlock and open the door, then reach the goal. Default
-    reward/termination (`+1` at the goal minus a step cost). The wall
+    reward/termination (`+1` at the goal). The wall
     column, door row and key are drawn as in MiniGrid's
     `DoorKeyEnv._gen_grid`.
 
