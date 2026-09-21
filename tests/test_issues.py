@@ -227,10 +227,10 @@ def test_135():
     )
 
     categorical_obs = observations.categorical(state)
-    assert categorical_obs[height - 1, width - 1] == -1, (
+    assert categorical_obs[height - 1, width - 1] == EntityIds.WALL, (
         "Expected the picked-up key not to wrap around into the "
         "bottom-right corner of categorical(), got tag "
-        f"{categorical_obs[height - 1, width - 1]} instead of the wall (-1)"
+        f"{categorical_obs[height - 1, width - 1]} instead of the wall"
     )
 
     symbolic_obs = observations.symbolic(state)
