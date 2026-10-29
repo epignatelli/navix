@@ -289,7 +289,12 @@ def pickup(state: State) -> State:
 def drop(state: State) -> State:
     """Places the item currently in `player.pocket` on the cell in front
     of the player and empties the pocket. No-op if the pocket is empty or
-    the cell in front is not walkable (occupied or a wall).
+    the cell in front is outside the grid, a wall, or occupied by any entity.
+
+    Placement requires empty floor, not merely a walkable cell: open doors,
+    goals and lava are walkable but cannot hold a dropped object. Drop never
+    emits movement/collision events; probing a goal or hazard from the adjacent
+    cell must not reward or terminate the episode.
 
     Args:
         state (State): the current state.
@@ -301,9 +306,18 @@ def drop(state: State) -> State:
 
     position_in_front = translate(player.position, player.direction)
 
-    has_item = player.pocket != -1
-    can_drop, events = _can_walk_there(state, position_in_front)
-    can_drop = jnp.logical_and(can_drop, has_item)
+    in_bounds = jnp.all(
+        (position_in_front >= 0) & (position_in_front < jnp.asarray(state.grid.shape))
+    )
+    can_drop = (
+        in_bounds
+        & (state.grid[tuple(position_in_front)] == 0)
+        & (player.pocket != EMPTY_POCKET_ID)
+    )
+    for entity in state.entities.values():
+        can_drop = can_drop & ~jnp.any(
+            positions_equal(entity.position, position_in_front)
+        )
 
     for k in state.entities:
         entity = state.entities[k]
@@ -327,10 +341,6 @@ def drop(state: State) -> State:
         can_drop, lambda: player.replace(pocket=EMPTY_POCKET_ID), lambda: player
     )
     state = state.set_player(player)
-    # _can_walk_there's events (e.g. a grid-hit record when the drop
-    # destination isn't walkable) were computed above but never applied
-    # to state - also fixed here while touching this function.
-    state = state.set_events(events)
     return state
 
 
